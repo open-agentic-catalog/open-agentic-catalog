@@ -73,7 +73,11 @@ def require_success(result):
 
 
 def image_inspection(reference, env):
-    data = json.loads(require_success(docker(["image", "inspect", reference], env)))
+    result = docker(["image", "inspect", reference], env)
+    if result.returncode:
+        raise SetupError("Cannot inspect the local scanner image. Check Docker access and run "
+                         "make mcp-scanner-tools-install if the image is missing.")
+    data = json.loads(result.stdout)
     if (not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], dict)
             or data[0].get("Os") != "linux" or data[0].get("Architecture") != "amd64"
             or not isinstance(data[0].get("Id"), str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", data[0]["Id"])

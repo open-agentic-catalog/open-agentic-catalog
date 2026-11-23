@@ -1,6 +1,7 @@
 package jsondoc
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -8,10 +9,11 @@ import (
 
 func TestValidate(t *testing.T) {
 	tests := []struct {
-		name     string
-		document string
-		valid    bool
-		wantErr  error
+		name            string
+		document        string
+		valid           bool
+		wantErr         error
+		wantSyntaxError bool
 	}{
 		{name: "object", document: `{"a":[1,{"b":true}],"c":null}`, valid: true},
 		{name: "scalar", document: `"value"`, valid: true},
@@ -21,7 +23,7 @@ func TestValidate(t *testing.T) {
 		{name: "duplicate nested", document: `{"a":{"b":1,"b":2}}`, wantErr: ErrDuplicateMember},
 		{name: "escaped duplicate", document: `{"a":1,"\u0061":2}`, wantErr: ErrDuplicateMember},
 		{name: "trailing", document: `{} []`, wantErr: ErrTrailingValue},
-		{name: "invalid trailing", document: `{} ]`, wantErr: ErrTrailingValue},
+		{name: "invalid trailing", document: `{} ]`, wantErr: ErrTrailingValue, wantSyntaxError: true},
 		{name: "empty", document: ``},
 		{name: "unclosed object", document: `{"a":1`},
 		{name: "unclosed array", document: `[1`},
@@ -38,6 +40,12 @@ func TestValidate(t *testing.T) {
 			}
 			if test.wantErr != nil && !errors.Is(err, test.wantErr) {
 				t.Fatalf("error=%v, want %v", err, test.wantErr)
+			}
+			if errors.Is(test.wantErr, ErrTrailingValue) {
+				var syntaxErr *json.SyntaxError
+				if got := errors.As(err, &syntaxErr); got != test.wantSyntaxError {
+					t.Errorf("Validate(%q) returned %v (has syntax error: %t, want %t)", test.document, err, got, test.wantSyntaxError)
+				}
 			}
 		})
 	}

@@ -14,7 +14,7 @@ Automatic retry uses a five-second window multiplied by three per attempt, satur
 
 `jobs.maxAttempts` supplies the creation default (five, range `1..20`, including the initial attempt). Service options and worker/maintainer constructors receive validated plain values from composition. Live deduplication and explicit retry children preserve the original limit; process replacement leaves retained due times unchanged. Expired-lease reclaims can exceed the normal retry limit, and a transient failure on such an attempt still reaches exhaustion safely. See the [configuration policy](../../documentation/src/content/docs/reference/configuration.mdx#durable-job-retry-policy).
 
-The explicit [formal gate](../../test/formal/README.md) proves the current ceiling helper's bounded arithmetic and loop termination. Its proof supplements, rather than replaces, the exact retry schedule and worker regressions.
+The [formal gate](../../test/formal/README.md) proves the ceiling helper terminates with a bounded result for every signed 64-bit attempt. The Job tests check the exact retry schedule and worker behavior.
 
 Run `go test ./internal/jobs -shuffle=on -count=1`. The PostgreSQL store is maintained in [platform/database](../platform/database/README.md).
 

@@ -73,6 +73,34 @@ async def api(path, body=None, bearer=ADMIN, etag=None, *, method=None):
     return response.json(), response.headers.get("etag")
 
 
+async def check_selected_release(client, item):
+    """Follow the SDK's Search selection and compare it with the published release."""
+    release_id = item["local"]["release"]["id"]
+    seed = next(r for r in EXPECTED["releases"] if r["releaseId"] == release_id)
+    detail = envelope(await call(client, "release", {"releaseId": release_id}))
+    require(detail["release"]["id"] == release_id, "release lookup returned a different release")
+    require(detail["resource"]["canonicalIdentifier"] == item["identifier"] == seed["identifier"]
+            and detail["resource"]["kind"] == item["kind"] == seed["kind"]
+            and detail["version"]["version"] == item["version"], "selected resource or version changed")
+
+    record, _ = await api("/api/v1/catalog/resources/" + release_id, bearer=TOKEN)
+    for section in ("resource", "version", "versionRevision", "listing", "listingRevision", "release"):
+        require(detail[section]["id"] == seed[section + "Id"] == record[section]["id"], "wrong retained " + section)
+    require(detail["evidence"]["id"] == record["evidence"]["id"], "wrong retained evidence")
+
+    references = detail["representations"]
+    originals = record["versionRevision"]["representations"]
+    retained = {r["id"]: r for r in originals}
+    require(references and len(references) == len(originals) == len(retained) and {r["id"] for r in references} == retained.keys(),
+            "representation reference membership")
+    for ref in references:
+        original = retained[ref["id"]]
+        require(all(ref[key] == original[key] for key in ("role", "mediaType", "profileId", "contentDigest", "size")),
+                "retained representation projection")
+        require(all(ref.get(key, "") == original.get(key, "") for key in ("artifactId", "url")), "retained handoff reference")
+        require(re.fullmatch(r"sha256:[a-f0-9]{64}", ref["contentDigest"]) and "data" not in ref, "native content disclosure")
+
+
 async def observations():
     async with httpx2.AsyncClient(verify=ssl.create_default_context(cafile=CA), trust_env=False, timeout=5) as client:
         response = await client.get("https://127.0.0.1:9443/observations")
@@ -243,20 +271,7 @@ async def checks(fault):
     CASES[PHASE] = True
     PHASE = "release-projection"
     for item in local:
-        release_id = item["local"]["release"]["id"]
-        detail = envelope(await call(client, "release", {"releaseId": release_id}))
-        record, _ = await api("/api/v1/catalog/resources/" + release_id, bearer=TOKEN)
-        seed = next(r for r in EXPECTED["releases"] if r["releaseId"] == release_id)
-        require(detail["release"]["id"] == release_id and detail["versionRevision"]["id"] == seed["versionRevisionId"], "sealed release identity")
-        for section in ("resource", "version", "versionRevision", "listing", "listingRevision", "release", "evidence"):
-            require(detail[section]["id"] == record[section]["id"], "retained identity projection")
-        references = detail["representations"]
-        require(references and len(references) == len(record["versionRevision"]["representations"]) and len({r["id"] for r in references}) == len(references), "representation reference membership")
-        for ref in references:
-            retained = next(r for r in record["versionRevision"]["representations"] if r["id"] == ref["id"])
-            require(all(ref[field] == retained[field] for field in ("id", "role", "mediaType", "profileId", "contentDigest", "size")), "retained representation projection")
-            require(all(ref.get(field, "") == retained.get(field, "") for field in ("artifactId", "url")), "retained handoff reference")
-            require(re.fullmatch(r"sha256:[a-f0-9]{64}", ref["contentDigest"]) and "data" not in ref, "native content disclosure")
+        await check_selected_release(client, item)
     CASES[PHASE] = True
     PHASE = "indexed-selection"
     indexed = await pages(client, {"origins": ["indexed"]}, 3)

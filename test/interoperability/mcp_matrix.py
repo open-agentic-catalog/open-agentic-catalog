@@ -19,7 +19,7 @@ import mcp_tools as tools
 from mcp_stdio import setup
 
 COMBINATIONS = {(transport, version) for transport in ("stdio", "http") for version in ("2025-11-25", "2026-07-28")}
-ARD_CASES = {"inventory", "publication-pages", "rest-equivalence", "closed-arguments", "host-admission", "live-partial", "referrals", "unpublication", "safety-withdrawal"}
+ARD_CASES = {"inventory", "publication-pages", "rest-equivalence", "closed-arguments", "host-admission", "live-partial", "live-trust-manifest", "referrals", "unpublication", "safety-withdrawal"}
 CASES = {"inventory", "local-pages", "filters", "indexed", "exact-release", "explore-access", "empty-sparse",
          "closed-arguments", "live", "partial", "replica-continuation", "restart-continuation", "stale-cursor"}
 
@@ -88,6 +88,24 @@ def run_client(name, primary):
             restarts.append({"case": stage, "container": before["Id"], "before": before["State"]["StartedAt"], "after": after["State"]["StartedAt"]})
         time.sleep(.1)
     raise RuntimeError("independent matrix deadline")
+
+
+def publish_tenant_listing(catalog, item):
+    """Give the two publication audiences different eligible releases."""
+    record, _ = catalog.request("/api/v1/catalog/resources/" + item["releaseId"], actor="local-reader")
+    revision = record["listingRevision"]
+    body = {key: revision[key] for key in ("versionRevisionId", "displayName", "description", "tags",
+                                           "representativeQueries", "publisherId", "license")}
+    body["visibility"] = "tenant"
+    path = "/api/v1/catalog-listings/" + item["listingId"]
+    _, etag = catalog.request(path, actor="local-contributor")
+    updated, listing_etag = catalog.request(path + "/revisions", body, actor="local-contributor", etag=etag, status=201)
+    submission, etag = catalog.request(path + "/submissions", {}, actor="local-contributor", status=201)
+    catalog.request("/api/v1/review-submissions/" + submission["id"] + ":approve",
+                    {"reason": "Approve tenant-only fixture"}, actor="local-reviewer", etag=etag)
+    published, _ = catalog.request(path + ":publish", dict(submissionId=submission["id"], priorDisposition="superseded",
+                                 priorReason="Replace public fixture listing"), actor="local-publisher", etag=listing_etag, status=201)
+    item.update(listingRevisionId=updated["revision"]["id"], submissionId=submission["id"], releaseId=published["release"]["id"])
 
 
 def check():
@@ -208,17 +226,30 @@ def check():
         assert len(namespaces) >= 2, "self-access paging needs two real namespaces"
         for namespace in namespaces[:2]:
             catalog.request("/api/v1/access/assignments", dict(membershipId=me["membershipId"], roleDefinitionId=reader_role, namespaceId=namespace, reason="Qualify bounded MCP self-access"), status=201)
+        agent_namespace, = {r["local"]["resource"]["namespaceId"] for r in local["items"] if r["kind"] == "agent"}
+        actor = "local-template-service-client"
+        member, _ = catalog.request("/api/v1/me", actor=actor)
+        role, _ = catalog.request("/api/v1/access/roles", dict(name="Agent metadata reader", permissions=["resource.read"],
+                                  reason="Read Agent listings without their card content"), status=201)
+        catalog.request("/api/v1/access/assignments", dict(membershipId=member["membershipId"], roleDefinitionId=role["id"],
+                        namespaceId=agent_namespace, reason="Read the fixture Agent namespace"), status=201)
+        catalog.write("metadata-reader-token", catalog.tokens[actor])
         live = []
         for path in ("live", "partial"):
             inspection, _ = catalog.request("/api/v1/federation/source-inspections", {"url": origin + "/" + path + "/search", "networkProfile": "stdio-owned"}, status=201)
             connected, _ = catalog.request("/api/v1/federation/sources", dict(inspectionId=inspection["id"], displayName="Owned " + path, retrievalMode="live", updateMode="manual_review", networkProfile="stdio-owned", scope={"publishers": ["catalog.example.com"]}, live=dict(enabled=True, queryPrivacyAcknowledged=True, federationMode="none"), discoveryAssignments=[dict(host="localhost", audience="authenticated")], reason="Independent MCP live qualification"), status=201)
             live.append(connected["id"])
         (peer / "outage").touch(mode=0o600)
+        expected = json.loads((base / "expected.json").read_text())
+        versions = {r["local"]["release"]["id"]: r["version"] for r in local["items"]}
+        for item in expected["releases"]:
+            item["version"] = versions[item["releaseId"]]
+        tenant_listing = next(item for item in expected["releases"] if item["key"] == "order-agent")
+        publish_tenant_listing(catalog, tenant_listing)
         for host in ("127.0.0.1", "localhost"):
             candidate, _ = catalog.request("/api/v1/publication/snapshots", dict(host=host), status=201)
             catalog.request("/api/v1/publication/snapshots/" + candidate["id"] + ":activate", dict(host=host, reason="Qualify ARD publication MCP"), etag=candidate["etag"])
-        expected = json.loads((base / "expected.json").read_text())
-        catalog.write("expected.json", json.dumps(dict(expected, liveSources=live)))
+        catalog.write("expected.json", json.dumps(dict(expected, liveSources=live, tenantListing=tenant_listing["identifier"])))
         # No test-only replica has a divergent token, policy, or cursor key.
         shutil.copyfile(base / "expected.json", configs[1] / "expected.json")
         name = prefix + "-client"

@@ -205,7 +205,7 @@ Install ShellCheck, markdownlint, Hadolint and the Docker Compose plugin. The [s
 | Go formatting | `fmt-check`; `fmt` applies changes | `gofmt` checks maintained Go sources, excluding generated and vendored inputs. |
 | Go static analysis | `lint` | Go vet, pinned Staticcheck and golangci-lint; compiles supported test variants and includes architecture, module, license, shell and dead-code prerequisites. Compilation alone does not execute tagged database or deployment tests. |
 | Go dependencies | `module-check`, `license-check` | Module integrity and tidy drift; dependency licenses against the maintained allowlist and exact test-only Rapid exception. Both are included in `lint`. |
-| Package boundaries | `architecture-check` | Domain ownership and permitted outbound HTTP construction. Included in `lint`. |
+| Package boundaries | `architecture-check` | Checks domain ownership, provider imports and outbound HTTP construction in application Go source, including generated bindings and the top-level `samples` package. Skips Go `testdata` directories and embedded sample assets. Included in `lint`. |
 | Shell and Python | `shell-check`, `python-lint` | ShellCheck for maintained shell workflows; pinned Ruff for Python under `test/`, `extensions/vscode/tooling/`, the LangGraph and MCP Scanner examples, and local OIDC tutorial helpers. Both run through `check`; Python lint is separate from `verify`. Packaging tests compare tracked and new non-ignored shell, Python and container recipes with the Make selections and optional hook lists. Missing ownership or list drift fails verification. Copied upstream sources and generated compatibility clients are excluded from first-party style checks; Python SDK lint has its separate SDK gate. |
 | Markdown and documentation contracts | `docs-check` | Markdown/MDX lint plus repository documentation and workflow-default contracts. Included in `check`; site builds use `docs-site-check` separately. |
 | JSON, YAML, containers and Compose | `json-check`, `yaml-check`, `container-check`, `compose-check` | Strict JSON/JSON-LD syntax checks, YAML lint, Hadolint on first-party container recipes, and Compose model parsing. Packaging tests compare container lint selection with tracked and new non-ignored recipes; the compatibility Dockerfile is checked as an exact copy of the canonical Containerfile. Included in `check`; model parsing does not start containers. Helm templates use the Helm gates. |
@@ -444,7 +444,9 @@ Both stay outside `make verify`, `docs-check` and native unit tests. See the [do
 
 Documentation units include inventory, link, anchor, SVG and print-content transformations. They need no browser or PDF tool. Run `make test-docs-pdf` explicitly for real Chromium exports and native PDF inspection. Install the [PDF prerequisites](documentation.mdx#export-the-complete-manual-to-pdf) first.
 
-Functional fixtures exercise root and nested bases, closed navigation groups, all tab alternatives, disclosures, long code, tables, images and SVGs. They inspect searchable text, bookmarks and destinations. Negative controls cover incomplete inputs, missing assets/browser, timeout, cancellation, input changes and preservation of the previous PDF. Tests check owned browser and listener cleanup.
+The suite runs `make docs-delivery` in a disposable checkout. It checks the homepage download URL, compares the staged PDF's size and checksum with the delivery inventory, and reads its text. Files next to the edition must survive staging.
+
+Export fixtures cover root and nested bases, closed navigation groups, tab alternatives, disclosures, long code, tables, images and SVGs. They check searchable text, bookmarks and destinations. Other cases exercise missing inputs or tools, changed inputs, timeouts and cancellation. They check preservation of the previous PDF and cleanup of the owned browser and listener.
 
 After renderer or layout changes, export the full current manual and inspect representative printed pages. A fixture pass does not replace full chapter coverage or visual review. Chromium structure tags do not establish accessibility certification. Ordinary site checks do not run this explicit browser selection.
 
@@ -1010,7 +1012,7 @@ The same gate qualifies the [standalone Rust report](../../../../../examples/rus
 
 Extracted-package consumers run outside the checkout on both compilers. They check current authorization, exact-key replay and recovery after a committed command loses its response. The README examples compile; the maintained discovery program executes against an owned Catalog.
 
-Native LLVM measures handwritten source lines for units and, separately, units plus local functional tests. Generated bindings and drivers are excluded. The combined percentage includes units; it is not PostgreSQL, deployment or all-operation coverage. The report at `output/sdk/rust-coverage.json` binds counts to source and tool hashes. Generated operation completeness is checked independently.
+Native LLVM measures handwritten source lines for units and, separately, units plus local functional tests. The second figure includes the first. Generated bindings and drivers are excluded. A check that selects Rust clears the previous `output/sdk/rust-coverage.json` before it checks prerequisites. It publishes new counts and source and tool hashes only after crate qualification succeeds. Generated operation completeness is checked independently.
 
 ## Optional LangGraph discovery example
 
@@ -1146,7 +1148,7 @@ The UI lint gate includes the semantic browser/coverage scripts under `test/embe
 
 ### Browser source coverage
 
-`make ui-coverage-e2e UI_E2E_PROFILE=local` measures source execution from the complete Chromium browser suite. The local profile uses four independent workers and retains the ten-minute deadline for the complete selection. Every case must pass without skipped or repeated execution. Select `compose` or `oidc` explicitly for the owned packaged workflows, or `semantic` for the complete real-model supervisor. Run them serially.
+`make ui-coverage-e2e UI_E2E_PROFILE=local` measures React source execution in the nonvisual Chromium journeys that load the application. The ordinary browser suite also checks that disabling public discovery returns a JSON error at the root and under a subpath. These host-only cases exercise the CLI and Go host and have no React counters. The local coverage profile uses four workers and a ten-minute deadline. Every selected case must pass once. Select `compose` or `oidc` explicitly for the owned packaged workflows, or `semantic` for the complete real-model supervisor. Run them serially.
 
 The semantic selection also requires the pinned offline model/images from `embeddings-install` and retains its 1,000-release qualification. Install dependencies and Chromium through `ui-install` and `ui-browser-install` first. Each profile runs real collector calibration, including automatically navigating new tabs and rejection of missing document checkpoints, and writes weighted Istanbul statements, branches, functions and lines plus execution status, source/build/browser identities, per-file JSON, LCOV and local HTML under a unique `output/coverage/e2e/<profile>/run-*/` directory.
 
@@ -1667,7 +1669,7 @@ Neither accepts a retained Catalog target. See [runtime qualification](../../../
 
 ## Focused formal verification
 
-`make test-formal` uses Gobra, Viper/Silicon and Z3 to verify one pure production helper: the Job retry ceiling in `internal/jobs/jobs.go`. It proves five-second/one-hour bounds, overflow safety, loop termination and a strictly positive random-selection bound for all signed 64-bit attempts. Expired-lease reclaims can exceed the configured retry limit, so the proof has no attempt-limit precondition. Ordinary tests retain the exact retry schedule, jitter and worker/store assertions.
+`make test-formal` uses Gobra, Viper/Silicon and Z3 to verify the Job retry ceiling in `internal/jobs/jobs.go`. For every signed 64-bit attempt, the helper terminates and returns a duration between five seconds and one hour without integer overflow. Adding one nanosecond to that ceiling gives a positive upper bound for jitter selection. Expired-lease reclaims can exceed the configured retry limit, so the proof has no attempt-limit precondition. Ordinary tests retain the exact retry schedule, jitter and worker/store assertions.
 
 Install and run separately:
 
@@ -1684,7 +1686,7 @@ The qualified host requires Linux amd64, Java 21 and `gh` for explicit installat
 
 The launcher copies the current helper body unchanged, adding only a named result and proof comments. Reviewed hashes bind the contract, concrete duration declarations and safe caller. Mandatory overflow checking uses signed 64-bit integers, matching the shipped application architectures.
 
-A pass requires the actual proof, three expected semantic failures and four tool calibrations. The calibrations demonstrate weak-contract success and exercise unsupported syntax and machine overflow. Missing or contradictory application contracts are rejected independently.
+A pass requires the actual proof, five expected semantic failures and four tool calibrations. The failure cases include results one nanosecond outside each bound, a loop that stops making progress and a recursive call at the retry cap. The calibrations demonstrate weak-contract success and exercise unsupported syntax and machine overflow. Missing or contradictory application contracts are rejected independently.
 
 An arbitrary nonzero exit never counts as a successful negative control.
 
@@ -1846,6 +1848,8 @@ PostgreSQL integration coverage has its own `coverage/postgres.out` profile, sum
 Run `make coverage-full` alone for fresh combined Go application coverage with a 95 percent aggregate minimum (`FULL_COVERAGE_MIN`) and an unchanged 80 percent minimum for every executable application file. It bypasses workflow env files and sequentially runs isolated unit coverage, local/default and core coverage checks, database coverage checks and the PostgreSQL process profile. It preserves each constituent profile and its existing floor, verifies the source tree did not change during execution, then writes `coverage/full.out` and the separate totals plus sorted file report in `coverage/full.txt`. Do not run other coverage writers concurrently. Failed suites, cleanup, incompatible source blocks, incomplete inventories, a combined total below its floor or an unrounded per-file result below 80 percent prevent publication of the combined result. The last successful combined report remains on disk after failure and must not be described as the failed invocation's result.
 
 `make coverage-process-postgres-profile` runs instrumented CLI/API/worker binaries against an owned PostgreSQL 18 fixture and writes `coverage/process-postgres.out`; `make test-process-postgres` runs the same assertions without application instrumentation. Both reuse the integration Compose launcher and clean their project and volume. These profiles supplement the database-package tests with real operator command reports, stale-revision rejection, role admission, startup/shutdown and persistence across API process replacement. They require Docker Compose and the Go toolchain, and are separate from the default local and unit selections. See the [process fixture](../../../../../test/functional/README.md#native-postgresql-process-tests) for exact scope.
+
+The PostgreSQL process total covers `cmd/catalogctl`, `cmd/catalogd` and `internal/platform/runtime`. The combined report checks the process counters against every instrumented block in those three packages, including files the processes never executed. The database repository tests supply their own statement counts.
 
 All Go floor comparisons use exact weighted covered/total statement counts. Rounded display values are informational: 93.69887% cannot pass a 93.7% floor. Thresholds accept plain decimal percentages from 0 through 100.
 
@@ -2030,13 +2034,15 @@ Because this boundary starts Docker, builds an image, and opens transient loopba
 
 #### Read functional operation reports
 
-Each functional run retains `operationCoverage` in its private `output/functional/run-<id>/report.json`. To summarize runs, substitute their actual report paths:
+Each functional run records `operationCoverage` in its report. Start with one profile. For `FUNCTIONAL_REPORTS`, copy the report path printed at the end of the run.
 
 ```sh
-make functional-coverage FUNCTIONAL_REPORTS='output/functional/run-<first-id>/report.json output/functional/run-<second-id>/report.json'
+make functional-coverage FUNCTIONAL_REPORTS='output/functional/run-<suffix>/report.json'
 ```
 
-This read-only target neither runs tests nor chooses the latest reports. Inputs must have compatible source/worktree, contract/inventory and application build identities, and match the current contract/inventory. Run the three-profile `make test-functional` aggregate without changing source between profiles when collecting its combined evidence. Failed or incomplete runs, cleanup failures, malformed reports and incompatible identities fail the summary.
+To combine runs, pass their report paths as one space-separated value. The commit, worktree digest, contract and inventory digests, API image configuration digest and served version must match across runs. Each run must use the same image for its API and worker. The contract and inventory must also match the checkout.
+
+The three Compose profiles build independently and can produce different image IDs from the same source. Check `images.api.configurationDigest` in each report. If those values differ, summarize each profile separately. The command also rejects incomplete runs, failed cleanup and malformed reports.
 
 | Result | Interpretation |
 | --- | --- |
@@ -2044,9 +2050,10 @@ This read-only target neither runs tests nor chooses the latest reports. Inputs 
 | `totalOperations` | All implemented API-listener operations from OpenAPI, including disabled and lower-level-only operations. Worker routes, operator commands and fixture traffic have separate evidence. |
 | `observedOperations` | Unique operations observed by the selected clients; an expected rejection is still an observation. |
 | `expectedPositiveOperations` | Unique operations with an expected, contract-valid 2xx/3xx response. Repetition and replay do not increase this count. |
+| Per-operation `expectedNegative` | A successful test explicitly expected a contract-valid error response. A transient 503 while waiting for readiness is recorded as observed. Only an explicit 503 expectation earns negative coverage for that response. |
 | `packagedGaps` | Applicable packaged operations with no measured positive response in the selected runs. A focused profile may need another profile's evidence; a gap does not itself establish missing implementation. |
 
-The default-off, webhook and OIDC profiles cover the core API operations. Optional `reindexCatalog` needs separate real-model evidence from `make test-semantic`. With semantic search disabled, the three-profile summary has fewer expected-positive operations than `totalOperations`; `packagedGaps` includes `reindexCatalog`. The semantic report is separate evidence and is not an input to this summary.
+The default-off, webhook and OIDC profiles exercise different sets of API operations. They all disable semantic search, so `reindexCatalog` appears in their packaged gaps. Use `make test-semantic` for real-model reindexing and report its result separately.
 
 Check expected-positive counts and every gap against the selected scope. The summary's successful exit validates runs, not full operation coverage. Disabled webhooks remain in the denominator but are excluded from gaps when every selected profile disables them.
 
@@ -2085,7 +2092,7 @@ The enabled-webhook crash check binds receiver acceptance to one exact endpoint,
 
 It restarts only after observed lease expiry. The same payload must be accepted again, followed by successful delivery evidence and cleared parent lease. Two receiver observations with only persisted attempt one are expected when the first send's outcome was lost.
 
-Namespace state, one originating audit/event and a known other-tenant control must remain unchanged. The supervisor requires the bounded `webhookCrash` evidence, not an aggregate duplicate count. Isolated barrier/report tests and local HTTP controls supplement the real Compose run.
+After both receipts, the namespace remains at revision 1 with its original member-attributed creation audit and one outbox event. The Catalog records one successful delivery and one worker-attributed attempt audit for that event and endpoint. The test also checks the other tenant's namespace and audit. The supervisor records the selected event's results in `webhookCrash`.
 
 They do not claim exactly-once delivery or replace the PostgreSQL stale-owner fencing tests.
 
@@ -2314,7 +2321,7 @@ Changes to SQL, migrations, repositories, RLS, roles, transactions, jobs, outbox
 
 No one percentage replaces the applicable behavioral, adversarial, integration, smoke, security, conformance, upgrade, or recovery evidence.
 
-For a multi-tool acceptance run, finish source edits before starting source-bound coverage, mutation or packaged supervisors. Their identity includes tracked documentation and non-ignored new files, so even a tracker update during execution invalidates the evidence. Record results and update closure documentation after those runs finish. Keep unit/combined statement coverage, expected API operations, generated examples and scanner findings as separate measurements. Preserve failed attempts and record an explicit decision or unresolved status for each observation.
+Finish source and documentation edits before running checks that bind their results to the checkout. For example, `coverage-full` hashes tracked files and non-ignored new files before and after the run. Save notes and logs under ignored `output/`. Reuse an earlier pass only if the measured source, build, tool versions and relevant settings still match. Rerun the affected gate if any of those inputs changed. Report unit and combined Go statements, browser source coverage, observed API operations and completed journeys separately. Record failures and their disposition alongside passing results.
 
 ## Scoped dynamic security scans
 
@@ -2569,7 +2576,7 @@ Follow [extension development setup](build-and-release.md#set-up-the-extension-t
 | --- | --- |
 | `make vscode-check` | TypeScript, ESLint, formatting and isolated extension units. It does not launch VS Code or fixture servers. |
 | `make test-tooling-unit` | Isolated Python tooling units, including extension launcher and package/report guards. It does not launch VS Code. |
-| `make vscode-package` | Reproducible validated VSIX and input manifest, without compiling or running tests. |
+| `make vscode-package` | Builds the extension runtime, packages and inspects the VSIX, and writes its input manifest. Test code is excluded from this build. |
 | `make -C extensions/vscode verify` | Current artifact/source/tool digest agreement; no new editor qualification. |
 | `make test-vscode` | Fresh VSIX, actual Make/watch/failure controls in an owned checkout, local HTTP/TLS/OIDC fixtures, installed-editor/debug/lifecycle workflows and cleanup. |
 | `python3 -B test/vscode/runner.py test --scope runtime` | Fresh VSIX, all local transport and installed-editor workflows with owned fixture cleanup; excludes the Make/tooling fixtures. |

@@ -44,6 +44,22 @@ test("browser discovery keeps visual comparisons opt-in and requires owned fixtu
       .split("\n")
       .filter((line) => /\.spec\.ts:\d+:\d+/.test(line))
       .map((line) => line.trim());
+  const instrumented = list({
+    ...inputs,
+    CATALOG_UI_E2E_COVERAGE: "/nonexistent/coverage",
+  });
+  assert.equal(instrumented.status, 0, instrumented.stderr);
+  const normalCases = names(normal.stdout);
+  const hostOnly = normalCases.filter((name) =>
+    name.includes(
+      "disabling UI does not withdraw API publication or admit private reads",
+    ),
+  );
+  assert.equal(hostOnly.length, 2);
+  assert.deepEqual(
+    names(instrumented.stdout),
+    normalCases.filter((name) => !hostOnly.includes(name)),
+  );
   const shards = ["--shard=1/2", "--shard=2/2"].map((arg) => {
     const result = list(inputs, [arg]);
     assert.equal(result.status, 0, result.stderr);

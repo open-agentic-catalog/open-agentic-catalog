@@ -47,6 +47,14 @@ func TestMatrixPeerPreservesValidARDFieldsAndControlledFailures(t *testing.T) {
 		if json.Unmarshal(raw, &entry) != nil || entry.Score < 0 || entry.Score > 100 || entry.Source != "https://172.31.0.10:9443/live/search" {
 			t.Fatal("fixture attribution")
 		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			t.Fatal(err)
+		}
+		_, declaresTrust := fields["TrustManifest"]
+		if declaresTrust != (entry.Type == "application/a2a-agent-card+json") || fields["trustManifest"] != nil {
+			t.Fatalf("wrong trust manifest member for fixture type %s", entry.Type)
+		}
 		seen[entry.Type] = true
 	}
 	if len(seen) != 4 {

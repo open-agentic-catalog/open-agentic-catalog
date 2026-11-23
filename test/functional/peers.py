@@ -146,6 +146,8 @@ def prepare_plugin_archives(environment, packages, *, include_mcp=False):
         "profiles": {"peers": [r["key"] for r in resources]}, "resources": resources})
     command([str(directory / "demo-archives"), "--directory", str(archives), "--prepare", "--data-file", str(archives / "catalog.json"),
         "--sample-set", "peers", "--fixture-ip", origin[8:-5], "--archive-origin", origin], environment, 60)
+    # The API and worker mount the public certificate under their own UIDs.
+    (archives / "cert.pem").chmod(0o444)
     write_document(directory / "archive-origin.json", {"origin": origin})
     return origin
 

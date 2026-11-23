@@ -14,7 +14,7 @@ Use the manual's [integration example chooser](../documentation/src/content/docs
 | [native-import/](native-import/README.md) | Copyable Agent Card, standalone Skill document and manifest for offline preview and explicit draft creation through the existing CLI. |
 | [tutorials/local-oidc/](tutorials/local-oidc/README.md) | Local password, OIDC and two-Catalog tutorial inputs; explicit preparation creates separate private state outside the checkout. |
 | [webhookreceiver/](webhookreceiver/README.md) | Go signature-verification helper and HTTP handler outline. The README explains the durable acceptance, CloudEvents validation and deduplication the receiving application must implement. |
-| [mcp-scanner/](mcp-scanner/README.md) | Optional offline YARA scan and signed-webhook receiver for explicitly mapped local MCP definitions. Reports stay private; native YARA qualification remains pending. |
+| [mcp-scanner/](mcp-scanner/README.md) | Scan saved MCP tool definitions offline with YARA, or use a signed publication webhook to scan definitions from an explicitly mapped local server. Reports stay private. |
 
 Governed resource metadata and package inputs live in [samples/](../samples/README.md); follow the [sample Catalog guide](../documentation/src/content/docs/guides/sample-catalog.mdx) to load them. Reviewed HTTP request and notification payloads live in [api/examples/](../api/examples) and are indexed in the [API asset guide](../api/README.md). Executable smoke and hostile upstream fixtures belong to [test/](../test/README.md), not this integration-example directory.
 

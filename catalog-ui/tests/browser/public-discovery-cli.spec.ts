@@ -214,7 +214,8 @@ test.describe("public UI and native CLI together", () => {
   }
 });
 
-test.describe("public UI is disabled by default", () => {
+const hostOnly = { tag: "@ui-host-only" };
+test.describe("public UI is disabled by default", hostOnly, () => {
   for (const base of ["root", "subpath"]) {
     test(`${base}: disabling UI does not withdraw API publication or admit private reads`, async ({
       page,
@@ -224,7 +225,11 @@ test.describe("public UI is disabled by default", () => {
       await activate(catalog);
       const origin = catalog.origin + catalog.basePath;
       network.expectFailure("GET", "/discover", 404);
-      expect((await page.goto(origin + "/discover"))?.status()).toBe(404);
+      const disabled = await page.goto(origin + "/discover");
+      expect(disabled?.status()).toBe(404);
+      expect(await disabled?.headerValue("content-type")).toMatch(
+        /^application\/problem\+json\b/,
+      );
       const headers = { "X-Catalog-Request": "1", Origin: catalog.origin };
       for (const path of ["manifest", "agents"]) {
         const response = await page.request.get(

@@ -107,7 +107,7 @@ Run these additional checks through their maintained Make targets. They are not 
 
 `admission.py` selects existing checks from changed paths. Shared API, backend, version, test and workflow inputs select all SDKs. SDK-only changes select their language. Documentation selection includes the content map and projected SDK/example/reference sources. UI changes select the complete existing UI job. Expensive cluster, model and load tests remain explicit.
 
-The fixed `Contribution checks complete` job runs even when another job fails. It rejects missing, failed, cancelled or unexpectedly skipped selected work. Require this check in branch protection. The maintainer must test fork events and branch settings on GitHub; local checks cannot enforce repository policy against changed workflow source.
+The fixed `Contribution checks complete` job runs even when another job fails. It requires a successful changed-file selection, a valid plan and success from every selected job. Jobs outside the plan may be skipped. A failed or cancelled job fails the gate in either case. Require this check in branch protection. The maintainer must test fork events and branch settings on GitHub; local checks cannot enforce repository policy against changed workflow source.
 
 ## Exact package and release handoff
 

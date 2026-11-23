@@ -49,7 +49,8 @@ printf 'FROM scratch\nCOPY payload /payload\n' > "$TMPDIR/context/Dockerfile"
 docker buildx build --builder default --load --provenance=false --network=none -t "$IMAGE" "$TMPDIR/context"
 if test "$CONTROL_MODE" = compose; then
   python3.12 -B -c 'import sys; sys.path.insert(0,"test/ci"); import tools; tools.OWNED.mkdir(parents=True, exist_ok=True); tools.binary_install("compose")'
-  test "$(docker compose version --short)" = 5.6.0
+  expected_compose=$(python3.12 -c 'import json; from pathlib import Path; print(json.loads(Path("test/ci/pins.json").read_text())["compose"])')
+  test "$(docker compose version --short)" = "$expected_compose"
   export SCRATCH_DIRECTORY="$TMPDIR"
   cp server.py "$TMPDIR/server.py"
   docker compose --env-file /dev/null -p "$project" -f control.compose.yaml run --rm reader

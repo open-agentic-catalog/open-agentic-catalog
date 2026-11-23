@@ -6,6 +6,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import tarfile
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -35,8 +36,15 @@ def package(output, version, app_version, helm, kube_version="1.34.0"):
         subprocess.run(helm + ["package", str(source), "--version", version, "--app-version", app_version,
                               "--destination", str(stage)], check=True, timeout=60, capture_output=True)
         monitoring.package(stage, version, app_version)
-        for destination in destinations:
+        project_license = (ROOT / "LICENSE").read_bytes()
+        for chart_name, destination in zip(names, destinations, strict=True):
             archive = stage / destination.name
+            license_path = f"{chart_name}/LICENSE"
+            with tarfile.open(archive, "r:gz") as packaged:
+                matches = [m for m in packaged if m.name == license_path]
+                if (len(matches) != 1 or not matches[0].isreg() or matches[0].size != len(project_license)
+                        or not project_license.strip() or packaged.extractfile(matches[0]).read() != project_license):
+                    raise ValueError(f"Missing or incorrect packaged project license: {license_path}")
             subprocess.run(helm + ["lint", "--strict", str(archive), "--kube-version", kube_version], check=True, timeout=60, capture_output=True)
             subprocess.run(helm + ["template", "package-check", str(archive), "--kube-version", kube_version], check=True, timeout=60, capture_output=True)
         try:
@@ -58,5 +66,5 @@ if __name__ == "__main__":
                               shlex.split(os.environ.get("PACKAGING_HELM", "helm")),
                               os.environ.get("PACKAGING_KUBE_VERSION", "1.34.0")):
             print(result)
-    except (ValueError, OSError, subprocess.SubprocessError) as error:
+    except (ValueError, OSError, tarfile.TarError, subprocess.SubprocessError) as error:
         raise SystemExit("Chart packaging failed: " + str(error)) from error

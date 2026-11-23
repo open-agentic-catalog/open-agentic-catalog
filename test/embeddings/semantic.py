@@ -393,23 +393,54 @@ def qualify(coverage=None, restore_prepare=False, restore=False):
             if control_page(remote["data"], 3, 3) != expected or remote["data"].get("nextCursor"):
                 raise RuntimeError("remote CLI dropped retrieval metadata")
             report["checks"].append("remote-cli")
+            # This reader starts after the last rebuild, so only the provider
+            # changes between reading the healthy page and retrying its cursor.
+            reader_query = {"text": "order", "origins": ["local"], "limit": 2}
+            reader_first, _ = request(origin, "/api/v1/catalog/search", reader_query, token="local-reader")
+            paraphrase_query = {**reader_query, "text": "purchase assistance", "limit": 3}
+            reader_paraphrase, _ = request(origin, "/api/v1/catalog/search", paraphrase_query, token="local-reader")
+            if control_page(reader_paraphrase, paraphrase_total, paraphrase_total) != paraphrase or reader_paraphrase.get("nextCursor"):
+                raise RuntimeError("reader did not see the expected hybrid paraphrase matches")
+
+            def check_reader_continuation(first, tier):
+                first_ids = control_page(first, 3, 2, tier)
+                remaining = dict(expected.items() - first_ids.items())
+                if (len(remaining) != 1 or not first.get("nextCursor")
+                        or not re.fullmatch(r"sha256:[0-9a-f]{64}", first.get("generation", ""))):
+                    raise RuntimeError(f"reader did not get a {tier} cursor for the remaining seeded release")
+                page, _ = request(origin, "/api/v1/catalog/search", {**reader_query, "cursor": first["nextCursor"]}, token="local-reader")
+                last_ids = control_page(page, 3, 1, tier)
+                if (last_ids != remaining or page.get("nextCursor") or page.get("fallbackReason")
+                        or page["profile"] != first["profile"] or page.get("generation") != first["generation"]):
+                    raise RuntimeError(f"{tier} continuation changed the final release or its search context")
+                return [*first_ids.values(), *last_ids.values()]
+
+            hybrid_order = check_reader_continuation(reader_first, "hybrid")
             performance.scale.container_state(performance.local, environment, identifiers, baseline)
             command(compose + ["stop", "embeddings"], environment)
             degraded, _ = request(origin, "/api/v1/catalog/search", {**query, "limit": 3})
             if control_page(degraded, 3, 3, "core") != expected or degraded.get("nextCursor") or degraded.get("fallbackReason") != "provider_unavailable":
                 raise RuntimeError("provider outage did not report lexical fallback")
-            no_semantic, _ = request(origin, "/api/v1/catalog/search", {"text": "purchase assistance", "limit": 3})
-            lexical = control_page(no_semantic, no_semantic["durableTotal"], no_semantic["durableTotal"], "core")
-            if (not lexical.items() < paraphrase.items() or no_semantic.get("nextCursor")
-                    or no_semantic.get("fallbackReason") != "provider_unavailable"):
-                raise RuntimeError("fixture did not establish a semantic-only candidate")
+            lexical_first, _ = request(origin, "/api/v1/catalog/search", reader_query, token="local-reader")
+            if lexical_first.get("fallbackReason") != "provider_unavailable":
+                raise RuntimeError("reader's fresh keyword page did not report the model outage")
+            lexical_order = check_reader_continuation(lexical_first, "core")
+            no_semantic, _ = request(origin, "/api/v1/catalog/search", paraphrase_query, token="local-reader")
+            lexical_paraphrase = control_page(no_semantic, 0, 0, "core")
+            if no_semantic.get("nextCursor") or no_semantic.get("fallbackReason") != "provider_unavailable":
+                raise RuntimeError("empty keyword paraphrase page lost its outage context")
             public_core, headers = request(origin, "/ard/v1/search", {**public_query, "pageSize": 3})
             if public_page(public_core, headers, 3, False, "core") != set(expected) or headers.get("Catalog-Search-Fallback") != "provider_unavailable":
                 raise RuntimeError("public fallback lost fixture identities")
             request(origin, "/ard/v1/search", {**public_query, "pageToken": public["pageToken"]}, expected=503)
+            unavailable, _ = request(origin, "/api/v1/catalog/search", {**reader_query, "cursor": reader_first["nextCursor"]}, token="local-reader", expected=503)
+            if unavailable.get("code") != "DEPENDENCY_UNAVAILABLE":
+                raise RuntimeError("current reader cursor returned the wrong provider-outage problem")
             # Manual rebuilding changed the earlier control generation, so this
             # continuation must restart, not silently re-rank lexically.
-            request(origin, "/api/v1/catalog/search", {**query, "cursor": result["nextCursor"]}, expected=400)
+            stale, _ = request(origin, "/api/v1/catalog/search", {**query, "cursor": result["nextCursor"]}, expected=400)
+            if stale.get("code") != "INVALID_ARGUMENT":
+                raise RuntimeError("pre-rebuild cursor returned the wrong restart problem")
             report["checks"].append("provider-outage-fallback")
             browser_core = json.loads(command(["node", "test/embeddings/browser.mjs", directory, origin, "core", demo["snapshotId"]], environment))
             report["checks"].append("browser-lexical-fallback")
@@ -417,7 +448,16 @@ def qualify(coverage=None, restore_prepare=False, restore=False):
             baseline["embeddings"] = performance.scale.container_state(performance.local, environment, {"embeddings": identifiers["embeddings"]})["embeddings"]
             report["recoveredContainerState"] = performance.scale.container_state(performance.local, environment, identifiers, baseline)
             wait_until(lambda: request(origin, "/api/v1/catalog/search", query)[0], lambda value: value.get("tier") == "hybrid")
-            recovered, _ = request(origin, "/api/v1/catalog/search", {"text": "purchase assistance", "limit": 3})
+            check_reader_continuation(reader_first, "hybrid")
+            check_reader_continuation(lexical_first, "core")
+            report["checks"].append("reader-hybrid-cursor-retry-after-provider-outage")
+            report["checks"].append("reader-lexical-cursor-after-provider-recovery")
+            report["readerSearchComparison"] = {
+                "literal": {"hybridMatches": len(hybrid_order), "lexicalMatches": len(lexical_order),
+                            "sameOrder": hybrid_order == lexical_order},
+                "paraphrase": {"hybridMatches": len(paraphrase), "lexicalMatches": len(lexical_paraphrase)},
+            }
+            recovered, _ = request(origin, "/api/v1/catalog/search", paraphrase_query, token="local-reader")
             if control_page(recovered, paraphrase_total, paraphrase_total) != paraphrase or recovered.get("nextCursor"):
                 raise RuntimeError("provider recovery lost semantic-only identities")
             public_recovered, headers = request(origin, "/ard/v1/search", {**public_query, "pageSize": 3})

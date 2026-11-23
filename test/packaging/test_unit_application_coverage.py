@@ -91,6 +91,22 @@ class ApplicationCoverageTests(unittest.TestCase):
         self.assertIn("Combined application: 40/50", report)
         self.assertIn("Application files: 5", report)
 
+    def test_process_coverage_requires_every_instrumented_file_including_zero_hits(self):
+        command = "app/cmd/catalogctl/search.go"
+        files = (*FILES, command)
+        unit, local = profile(files), profile(files, hit=True)
+        postgres = profile(FILES[-1:], hit=True)
+        processes = profile(FILES[:3], hit=True) | profile([command])
+        _, report = reconcile(unit, local, postgres, processes, "80")
+        self.assertIn("PostgreSQL processes: 24/40 statements", report)
+
+        for case, changed in (
+                ("missing command file", profile(FILES[:3], hit=True)),
+                ("extra UI host", processes | profile([FILES[3]], hit=True)),
+                ("extra generated fixture", processes | profile(["app/test/fixture/client.gen.go"], hit=True))):
+            with self.subTest(case=case), self.assertRaisesRegex(ValueError, "process profile inventory"):
+                reconcile(unit, local, postgres, changed, "80")
+
     def test_full_report_rejects_incomplete_inputs_and_unrounded_failures(self):
         unit, local = profile(), profile(hit=True)
         postgres, processes = profile(FILES[-1:], True), profile(FILES[:3], True)

@@ -38,6 +38,7 @@ elif args[2] == "build":
  state["build_files"] = sorted(p.name for p in context.iterdir() if p.is_file())
  save()
 elif args[2:4] == ["image", "inspect"]:
+ if state.get("image_missing"): sys.exit("fixture-private-docker-diagnostic")
  print(json.dumps([{"Id":"sha256:"+"a"*64, "Os":"linux", "Architecture":"amd64", "Config":{"User":"65532:65532"}}]))
 elif args[2:4] == ["container", "ls"]:
  if state.get("query_fail"): sys.exit(2)
@@ -306,6 +307,19 @@ raise SystemExit(runner.scan(Path(sys.argv[3]),Path(sys.argv[4]),"test capture",
         with mock.patch.object(runner, "OWNED", self.directory / "missing"), self.assertRaises(ValueError), \
                 mock.patch.object(runner, "docker", side_effect=AssertionError("missing tools contacted Docker")):
             runner.require_installed(self.env)
+
+    def test_missing_image_with_current_receipt_reports_how_to_restore_it(self):
+        self.state(image_missing=True)
+        receipt = {"version": runner.PINS["scanner"], "fingerprint": runner.fingerprint(),
+                   "imageId": "sha256:" + "a" * 64, "rulesSha256": runner.PINS["rulesSha256"]}
+        (self.directory / "installed.json").write_text(json.dumps(receipt))
+        with mock.patch.object(runner, "OWNED", self.directory), mock.patch.object(runner, "require_host"), \
+                mock.patch.object(runner, "private_directory", return_value=contextlib.nullcontext((self.directory, self.env))), \
+                mock.patch.object(sys, "argv", ["runner.py", "identity"]), contextlib.redirect_stderr(io.StringIO()) as stderr:
+            self.assertEqual(runner.main(), 2)
+        self.assertIn("make mcp-scanner-tools-install", stderr.getvalue())
+        self.assertNotIn("fixture-private", stderr.getvalue())
+        self.assertNotIn("pulled", self.state())
 
     def test_owned_builder_uses_context_default_and_working_directory_explicit_file(self):
         context = self.directory / "build-context"

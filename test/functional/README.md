@@ -92,18 +92,20 @@ Only the supervisor-selected API origin is automatically counted. Other Catalog 
 Summarize explicitly selected reports from the repository root:
 
 ```sh
-make functional-coverage FUNCTIONAL_REPORTS='output/functional/run-<first-id>/report.json output/functional/run-<second-id>/report.json'
+make functional-coverage FUNCTIONAL_REPORTS='output/functional/run-<suffix>/report.json'
 ```
 
-Replace the example paths with actual run reports. This read-only target does not build, run services, find a latest run or require all profiles. It prints JSON with the denominator, observed and expected-positive operation counts, per-operation negative evidence/dispositions, selected profile results and `packagedGaps`. A gap means no measured positive response for an applicable packaged operation in the selected reports; it does not by itself establish missing implementation.
+Copy the report path printed at the end of your run. To combine compatible runs, pass their paths as one space-separated value. Each Compose profile builds its own image. If their API image configuration digests differ, run the command once per profile and keep the results separate. The [testing guide](../../documentation/src/content/docs/contributing/testing.md#read-functional-operation-reports) lists the other identity checks.
 
-The target returns nonzero for failed/incomplete runs, cleanup failure, malformed evidence or incompatible identities. A passing summary means its selected runs passed, not that every operation was covered. Disabled and lower-level-only operations remain in the total denominator.
+The command reads the selected reports and prints JSON with the denominator, observed and expected-positive operation counts, per-operation negative evidence, profile results and `packagedGaps`. A gap means the selected runs recorded no positive response for an applicable packaged operation.
+
+The command exits with an error for failed or incomplete runs, failed cleanup, empty observations, malformed evidence or incompatible identities. It keeps each profile's configuration digest and counts identical duplicate run IDs once. Conflicting duplicates fail. Peer, restore, tracing and writer-recovery reports are optional inputs. Disabled and lower-level-only operations remain in the denominator.
 
 Read the summary in this order:
 
 1. Check `status` and each run's `eligible` field. A failed or incomplete run retains observations for diagnosis but contributes no passing evidence, even when combined with a passing run.
 2. Inspect `packagedGaps`. Select the missing applicable profile or add a focused assertion to an existing journey; do not add requests solely to increase a count. Disabled webhooks are excluded from gaps when all selected profiles disable them, but remain in `totalOperations`. Lower-level-only operations retain their separate test evidence.
-3. Compare `expectedPositiveOperations` with `observedOperations`. An expected 401 rejection is useful negative evidence, not proof that the operation succeeds for an authorized caller. Repeating the same operation, replaying a command or selecting the same run twice does not increase the unique-operation count.
+3. Compare `expectedPositiveOperations` with `observedOperations`. An expected 401 rejection is useful negative evidence, not proof that the operation succeeds for an authorized caller. During readiness polling, a transient 503 is recorded as `unchecked`. A test that explicitly expects a 503, such as the webhook database outage test, earns negative coverage for that response. Repeating the same operation, replaying a command or selecting the same run twice does not increase the unique-operation count.
 
 The default-off/webhook/OIDC selection targets the core API operations, including authoring histories, review lists and bound evidence, current access and indexed bookmarks. Optional `reindexCatalog` requires the separate `make test-semantic` real-model qualification described in [embedding tests](../embeddings/README.md). With semantic search disabled, `expectedPositiveOperations` is smaller than `totalOperations`, and `packagedGaps` includes that operation. Inspect these fields explicitly: the summary command's exit status checks run validity, not coverage completeness, and the semantic report is separate evidence rather than an input to this summary. An empty gap list would not establish every workflow, input or authorization permutation. Focused profiles may legitimately omit operations exercised by another profile.
 
@@ -112,8 +114,6 @@ History checks use a tiny owned fixture and one-record pages, compare known IDs/
 The fixture checks source pause/resume/removal without exposing raw observations. Its development Reader bundle includes explicit companion assignments; an ordinary `reader` grant does not add them. The representative Go driver sends malformed raw JSON/media types, verifies repeated rejection without namespace creation, and checks valid charset-bearing creation and exact replay; the ordinary Python client continues to send valid JSON only.
 
 The archive journey also starts with invalid Skill frontmatter. It checks persisted blocked evidence and exact archive identity, failed-package revalidation, cross-tenant denial and absence of partial inventory or transient bytes. A corrective revision preserves the failed history; a stale append cannot change the corrected candidate. A listing still referencing the failed revision cannot be submitted, even after that version has a corrected candidate. Repeated rejected submissions create no review records or listing changes. Explicitly updating the listing to the corrected revision then proceeds through the existing independent review, publication, replacement and retirement checks.
-
-Only reports with matching source/worktree, contract/inventory and application build identities can be combined. Empty observation sets and missing or inconsistent served build identities are rejected, even if a report claims success. Configuration/profile identities remain separate; identical duplicate run IDs are counted once and conflicting duplicates fail. Reports must match the current checkout's contract and inventory. The three-profile `make test-functional` target still runs independent default-off, webhook and OIDC stacks; pass their explicit report paths to combine evidence. Peer, restore, tracing and writer-recovery reports are optional inputs, not automatic extra runs.
 
 The namespace journey rejects a reused key with changed input or `If-Match`, then verifies the original response still replays and only one update/audit exists. The scoped-grant journey denies a previously successful command after revocation, restores the same authority and verifies exact replay without a second Resource creation. Core mutation checks require the replay header as well as identical bodies and ETags. Public unpublish checks send the old ETag and require 404, then verify conditional reads work again after explicit publication.
 
@@ -321,7 +321,9 @@ The barrier releases through an independent control request, request disconnecti
 
 The replacement must produce a second correctly signed acceptance for the exact event, with identical payload digest, successful delivery evidence and eventual parent acknowledgement with both lease fields cleared. The lost send has no persisted outcome, so two receiver observations correspond to persisted delivery attempt one. Payload digests bind all immutable CloudEvent fields; signature timestamps may differ.
 
-The originating namespace/revision, one originating audit and one outbox event must remain intact, as must a known other-tenant namespace and its singular audit. The API process remains unchanged. The private receiver retains one selection and at most eight digests/duplicate flags/attempt outcomes; no payload or signing secret enters its control report. The final supervisor report requires closed `webhookCrash` evidence containing selection/payload digests, two accepted attempts, exit status and completed checks.
+Before dispatch, the test reads the namespace creation audit and checks it names the member who created the namespace. After redelivery it reads back the same audit, the namespace at revision 1 and a single creation event. PostgreSQL has no delivery audit for the interrupted send and exactly one after recovery for the selected endpoint and event. That audit identifies the Catalog worker, the saved delivery, attempt 1 and HTTP 204. A known namespace in another tenant and its creation audit also remain intact.
+
+The API process remains unchanged. The private receiver retains one selection and at most eight digests/duplicate flags/attempt outcomes; no payload or signing secret enters its control report. The final supervisor report requires closed `webhookCrash` evidence containing selection/payload digests, two accepted attempts, exit status and completed checks.
 
 Unrelated duplicates, missing evidence or cleanup failure cannot qualify recovery. These are at-least-once delivery assertions, not exactly-once receiver effects. Existing PostgreSQL stale-owner/lock-wait/acknowledgement-loss tests and the separately qualified same-Job topology takeover keep their distinct scope; this case does not duplicate them.
 
@@ -336,6 +338,10 @@ Each source/destination container allocates a separate `mktemp -d` directory wit
 Reports retain only safe digests, counts and conclusions.
 
 Restoration creates the exact fixture roles and an empty `template0` database, then uses `pg_restore --single-transaction`. No Catalog bootstrap or migration creates missing state before loading the archive. The unchanged migration plan must pass before exact-grant reconciliation, which applies no migrations. Database ownership, locale, encoding, ACLs and database-specific settings are compared separately because a single-database dump without `--create` does not restore them. These fixed fixture inputs are not a general role/settings importer.
+
+The drill first writes a marker table to the disposable destination using the name of an index from the dump. PostgreSQL loads the namespace rows, then refuses to create that index. A new connection must find only the original table and marker row. The drill removes that fixture table and retries the same archive against the same database. A passing logical recovery report requires `failedRestoreRolledBack`.
+
+The non-root containers can read the archive's public TLS certificate and the operator's audit inputs even with a host `umask` of `077`. The archive's private TLS key and the parent directory for the recovery files remain accessible only to their owner.
 
 The drill saves distinct tenant overrides before capture. After restore, both tenants must retain their exact settings and validators. The queued Job keeps its two-attempt budget; restoring policy does not rewrite admitted work. The closed report requires `tenantSettingsRetained` as well as authorization policy evidence.
 
@@ -357,7 +363,9 @@ The original database stays stopped. Only the API starts first, with an explicit
 
 Replay compares exact response bytes, namespace ETags must be `"rev-1"`, and the public ETag must match the SHA-256 of the retained public bytes. Missing tags or equal decoded JSON with changed encoding cannot pass. Current custom roles, group/member relations, scoped assignments and a separately revoked direct edit grant must equal their captured rows. A member retains exact-namespace create authority, no tenant-wide create or revoked edit authority, and exact completed resource-command replay with one audit.
 
-This uses the same bounded API control as writer recovery; no policy can be reconstructed by bootstrap. The restored worker then completes the queued Job and sends the retained event with a valid signature using the retained encryption key. No provisioning, mutating smoke, key rotation or source-database fallback can manufacture recovery.
+After the retained-state checks, the API creates a new namespace. With the API and worker stopped, an independent PostgreSQL connection checks the ID, tenant, slug, display name and revision. After restarting, the API reads the row with the same ETag and returns 404 to the other tenant.
+
+The pre-backup Job must still be queued with zero attempts before the worker starts. The API and PostgreSQL must then agree on its successful completion, attempt count and original budget. The receiver must accept valid signatures for both the pre-backup event and the new namespace event. The drill checks the logins for each service's address in PostgreSQL: only `catalog_api` for the API and only `catalog_worker` for the worker. Both restore reports require `runtimeRoleWrites`.
 
 The scenario's Compose commands share a ten-minute budget within the supervisor's twenty-minute workflow limit; cleanup has its own ninety-second budget. Individual commands, HTTP calls and waits are bounded. Each tenant has at most 200 verification pages; inventory scans allow at most 150 tables, 10,000 rows and 16 MiB of encoded data per table, with a 16 MiB archive ceiling. These are small-test safeguards, not service capacity limits. Reports include PostgreSQL/image/source identities, tenant/page/audit counts, dump/inventory/binding digests, runtime outcomes, closed failure phase/location and independently checked cleanup. Failed dump, restore, inventory, verification or audit comparison cannot advance to runtime startup.
 
@@ -409,7 +417,7 @@ Two separate destinations use the same base backup. The negative copy receives a
 
 The intact destination must reach an actual recovery pause, the exact target LSN, source timeline and cluster identity. SQL checks require A present and B absent. Only then does the test resume recovery onto a new timeline. It reconciles exact grants and reuses every tenant's restore-verifier pages, table digests and bound audit comparisons.
 
-The API starts before the worker. Existing assertions verify current permissions, retained records, public bytes/ETag, command replay, personal data and older rating state. The worker then completes the retained Job and signed webhook delivery against owned peers. The original source stays stopped. No bootstrap or smoke command runs against the restored database.
+The API starts before the worker. The physical restore runs the same retained reads, fresh namespace write, API restart and worker checks as the [logical restore](#logical-backup-recovery). The original database stays stopped throughout.
 
 Four memory-backed data volumes each have a 512 MiB cap. The intact and negative WAL archives each have a 128 MiB cap. A persistent tools container holds the restore inputs; stopping the original source releases its data. The supervisor allows 20 minutes, the recovery journey allows 15 minutes, and cleanup has a separate 90-second budget. No test result establishes production capacity or recovery objectives.
 

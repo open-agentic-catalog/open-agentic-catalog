@@ -600,11 +600,14 @@ class HookTests(unittest.TestCase):
         self.check()
 
     def test_scanner_failures_and_safe_findings(self):
-        for status, content in ((2, b"private tool stderr"), (1, b"not JSON"), (1, b"[]"), (1, b"{}"), (1, b"\xff")):
-            self.scanner = subprocess.CompletedProcess([], status, content)
-            with self.assertRaisesRegex(runner.Failure, "scanner failed") as result:
-                self.check()
-            self.assertNotIn("private", str(result.exception))
+        for status, content in ((2, b"private tool stderr"), (1, b"not JSON"), (1, b"[]"), (1, b"{}"), (1, b"\xff"),
+                                (0, b""), (0, b"not JSON"), (0, b"null"), (0, b'{"private":"unexpected"}'),
+                                (0, b'[{"File":"fixture.txt","RuleID":"test","StartLine":1,"Secret":"private"}]')):
+            with self.subTest(status=status, content=content):
+                self.scanner = subprocess.CompletedProcess([], status, content)
+                with self.assertRaisesRegex(runner.Failure, "scanner failed") as result:
+                    self.check()
+                self.assertNotIn("private", str(result.exception))
         self.scanner = subprocess.CompletedProcess([], 1, b'[{"File":"bad\\u001bfile","RuleID":"test","StartLine":2,"Secret":"private","Match":"private"}]')
         with self.assertRaises(runner.Failure) as result:
             self.check()

@@ -387,7 +387,8 @@ class PeerTests(unittest.TestCase):
             runner.write_document(directory / "peer-a.json", {"auth": {"mode": "development"}})
             (directory / "peer-a.json").chmod(0o444)
             environment = {"CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY": temp, "CATALOG_FUNCTIONAL_SUBNET": "172.31.1.240/28"}
-            with patch.object(peers, "command") as command:
+            certificate = directory / "archives/cert.pem"
+            with patch.object(peers, "command", side_effect=lambda *_: certificate.touch(mode=0o600)) as command:
                 peers.prepare_archives(environment)
             archives = directory / "archives"
             self.assertEqual(archives.stat().st_mode & 0o777, 0o700)
@@ -513,7 +514,7 @@ class PeerTests(unittest.TestCase):
             with self.assertRaisesRegex(AssertionError, "HTTP 503"):
                 client.request("GET", "/readyz", retry_unavailable=True, decode_body=False)
         transport.assert_called_once()
-        observe.assert_called_once_with("GET", "/readyz", 503, {}, b"{}", (200, 503))
+        observe.assert_called_once_with("GET", "/readyz", 503, {}, b"{}", None)
 
     def test_polling_rejects_callbacks_that_finish_at_or_after_either_deadline(self):
         scenario = object.__new__(peers.Peers)

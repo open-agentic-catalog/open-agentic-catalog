@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/federation"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"github.com/open-agentic-catalog/open-agentic-catalog/test/identityfixture"
@@ -70,6 +71,22 @@ func TestSourceSnapshotComparisonCursorAndAuthority(t *testing.T) {
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &second); err != nil || w.Code != 200 || len(second.Items) != 1 || second.Items[0].SourceKey != "b" || second.NextCursor != "" {
 		t.Fatalf("second=%d %s %v", w.Code, w.Body, err)
+	}
+	resume := httptest.NewRequestWithContext(ctx, http.MethodGet, "/comparison?"+query+"&cursor="+url.QueryEscape(first.NextCursor), nil)
+	bound, err := s.parseAdminPage(resume, "federation-snapshot-comparison", beforeID, "sourceKey C,side,retrievalDigest C,entryLocation C", map[string]string{"otherSnapshotId": afterID, "view": "changes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, position := range [][]string{{"3"}, {"0", "1"}, {"3", "0"}} {
+		token, err := s.encodeAdminCursor(bound, position)
+		if err != nil {
+			t.Fatal(err)
+		}
+		w = request(ctx, beforeID, query+"&cursor="+url.QueryEscape(token))
+		requireProjectionProblem(t, w, http.StatusBadRequest, catalog.CodeInvalidArgument)
+		if calls != 2 {
+			t.Fatalf("invalid comparison position %v reached storage", position)
+		}
 	}
 	for _, q := range []string{query + "&view=all", strings.ReplaceAll(query, afterID, projectionItem), strings.ReplaceAll(query, "limit=1", "limit=2")} {
 		w = request(ctx, beforeID, q+"&cursor="+url.QueryEscape(first.NextCursor))

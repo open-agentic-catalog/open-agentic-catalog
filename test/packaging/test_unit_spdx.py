@@ -34,6 +34,14 @@ def native_fixture(names=("catalogd", "catalogctl"), main_version="(devel)"):
     return document, inspected
 
 
+def add_conflicting_version(document, identifier):
+    original = next(p for p in document["packages"] if p["SPDXID"] == identifier)
+    edge = next(r for r in document["relationships"] if r["relatedSpdxElement"] == identifier)
+    stale = {**original, "SPDXID": identifier + "-stale", "versionInfo": "v0.0.1"}
+    document["packages"].append(stale)
+    document["relationships"].append({**edge, "relatedSpdxElement": stale["SPDXID"]})
+
+
 class GoInventoryTests(unittest.TestCase):
     def test_each_binary_requires_exact_dependency_and_standard_library_versions(self):
         for names in (("catalogd", "catalogctl"), ("catalog-ui",)):
@@ -74,6 +82,14 @@ class GoInventoryTests(unittest.TestCase):
             before = copy.deepcopy(document)
             trivy.spdx_go_inventory(document, inspected)
             self.assertEqual(document, before)
+
+    def test_conflicting_versions_on_the_same_binary_fail_even_when_the_correct_node_remains(self):
+        for identifier in ("SPDXRef-Main-catalogctl", "SPDXRef-catalogctl-shared", "SPDXRef-catalogctl-stdlib"):
+            with self.subTest(package=identifier):
+                document, inspected = native_fixture()
+                add_conflicting_version(document, identifier)
+                with self.assertRaisesRegex(ValueError, "catalogctl"):
+                    trivy.spdx_go_inventory(document, inspected)
 
     def test_malformed_or_ambiguous_application_graphs_fail(self):
         for change, expected in (("application", "application"), ("main-version", "main module"),

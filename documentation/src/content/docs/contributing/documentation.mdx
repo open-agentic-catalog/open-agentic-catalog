@@ -79,7 +79,7 @@ The exporter follows sidebar order and checks coverage against the content map a
 
 Export uses a private loopback asset server and an owned browser. Navigation has a two-minute limit. Printing has a ten-minute limit; the overall export limit is fifteen minutes. Press Ctrl-C to cancel. Failure or cancellation preserves the previous PDF and closes the owned server and browser. Correct the reported problem, rebuild changed inputs, then run the export again.
 
-Each successful render writes a separate JSON report beside the PDF. It records input and output hashes, chapter routes, tool versions, browser identity and cleanup. A report establishes successful rendering, not visual qualification. Inspect the PDF after changing print layout, content components or the renderer. PDF bytes can differ between runs and operating systems.
+After each successful export, `make docs-pdf` keeps a separate JSON report beside the PDF. It records input and output hashes, chapter routes, tool versions, browser identity and cleanup. A report establishes successful rendering, not visual qualification. Inspect the PDF after changing print layout, content components or the renderer. PDF bytes can differ between runs and operating systems.
 
 The PDF includes the built manual's license and third-party notices. Playwright and its core package use Apache License 2.0. Browser binaries and installed fonts have separate terms. Keep their notices with any redistributed tools or fonts. Browser executables remain local tools; they do not enter the site or application images. The current export is qualified on Linux with the pinned headless browser. Font substitution can change pagination. Chromium creates structure tags for the bookmarks. These tags do not establish PDF accessibility compliance.
 
@@ -104,7 +104,7 @@ make docs-build
 make docs-delivery
 ```
 
-Select a new output directory for each preparation. The homepage displays the application version, full source revision and PDF download. Delivery copies the sealed build and its matching PDF into the selected directory. A separate `documentation-delivery.json` inventories the final tree. The original bundle stays unchanged. Ordinary files retain their 32 MiB limit; only the complete PDF permits up to 128 MiB. Total delivery permits 384 MiB.
+Select a new output directory for each preparation. The homepage displays the application version, full source revision and PDF download. `make docs-delivery` renders the PDF in a temporary directory. It stages the sealed build and matching PDF in the selected directory, then removes its temporary files. A separate `documentation-delivery.json` inventories the final tree. The original bundle stays unchanged. Ordinary files retain their 32 MiB limit; only the complete PDF permits up to 128 MiB. Total delivery permits 384 MiB.
 
 Preparation uses local files after tool acquisition. It does not upload or publish. It verifies the PDF against the exported build and checks the selected website address and base. Changed inputs require a new build and export. Failure prevents an incomplete edition from replacing a delivered edition. Correct the failure and prepare a new directory.
 

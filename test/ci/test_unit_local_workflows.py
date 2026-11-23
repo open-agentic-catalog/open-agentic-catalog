@@ -12,6 +12,7 @@ from unittest.mock import patch
 from types import SimpleNamespace
 
 import local_workflows as local
+from tools import workflow_files
 
 
 class LocalPolicyTests(unittest.TestCase):
@@ -282,6 +283,11 @@ class WorkflowSourcePolicyTests(unittest.TestCase):
         self.assertIn("needs: [selection, baseline, unit, ui, docs, clients]", complete)
         self.assertIn("if: ${{ always() }}", complete)
         self.assertIn("admission.py outcomes", complete)
+        self.assertNotIn("continue-on-error:", complete)
+        gate = complete.split("      - name: Require every selected check\n", 1)[1]
+        self.assertNotRegex(gate, r"(?m)^        if:")
+        bindings = re.findall(r'"(\w+)":"\$\{\{ needs\.(\w+)\.result \}\}"', complete)
+        self.assertCountEqual(bindings, [(job, job) for job in ("selection", "baseline", "unit", "ui", "docs", "clients")])
         for job in ("baseline", "unit"):
             block = re.search(r"(?ms)^  " + job + r":\n(.*?)(?=^  \S|\Z)", source)[1]
             self.assertNotIn("if:", block)
@@ -386,7 +392,7 @@ class WorkflowSourcePolicyTests(unittest.TestCase):
                 self.assertEqual(seconds, minutes * 60)
 
     def test_every_manual_workflow_upload_is_opt_in_and_disabled_under_act(self):
-        paths = sorted((local.ROOT / ".github/workflows").glob("*.yml"))
+        paths = workflow_files(local.ROOT)
         self.assertEqual({path.name for path in paths}, {"quality.yml", "clients.yml", "images.yml", "functional.yml", "extended.yml", "assurance.yml", "benchmarks.yml", "pages.yml", "contributions.yml", "release.yml"})
         uploads = 0
         for path in paths:

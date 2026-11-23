@@ -41,13 +41,13 @@ func (c *searchQueryCounts) reset() {
 	c.counts = make(map[string]int)
 }
 
-func newSearchCostFixture(tb testing.TB, documents ...catalog.SearchDocument) (*housekeepingDatabase, *PostgresRepository, *searchQueryCounts, func(int, ...json.RawMessage)) {
+func newSearchCostFixture(tb testing.TB, documents ...catalog.SearchDocument) (*housekeepingDatabase, *PostgresRepository, *searchQueryCounts, func(int, ...json.RawMessage) string) {
 	tb.Helper()
 	return newSearchCostFixtureWithListings(tb, nil, documents...)
 }
 
 // Optional Listing metadata changes only fixture inputs, never retained rows.
-func newSearchCostFixtureWithListings(tb testing.TB, listings []catalog.CreateListingRevisionInput, documents ...catalog.SearchDocument) (*housekeepingDatabase, *PostgresRepository, *searchQueryCounts, func(int, ...json.RawMessage)) {
+func newSearchCostFixtureWithListings(tb testing.TB, listings []catalog.CreateListingRevisionInput, documents ...catalog.SearchDocument) (*housekeepingDatabase, *PostgresRepository, *searchQueryCounts, func(int, ...json.RawMessage) string) {
 	tb.Helper()
 	db := newHousekeepingDatabase(tb) // Reuse the disposable exact-role fixture.
 	counts := &searchQueryCounts{}
@@ -98,7 +98,7 @@ func newSearchCostFixtureWithListings(tb testing.TB, listings []catalog.CreateLi
 	if err != nil {
 		tb.Fatal(err)
 	}
-	seed := func(index int, card ...json.RawMessage) {
+	seed := func(index int, card ...json.RawMessage) string {
 		tb.Helper()
 		document := catalog.SearchDocument{Identifier: fmt.Sprintf("urn:air:catalog.example.com:performance:skill-%03d", index), DisplayName: fmt.Sprintf("Performance %03d", index), Description: "A synthetic searchable fixture.", Tags: []string{"performance"}}
 		if len(documents) > 0 {
@@ -162,9 +162,11 @@ func newSearchCostFixtureWithListings(tb testing.TB, listings []catalog.CreateLi
 		if _, _, seedErr = service.DecideSubmission(reviewer, submission.ID, "approve", "synthetic fixture reviewed", submission.Revision); seedErr != nil {
 			tb.Fatal(seedErr)
 		}
-		if _, _, _, seedErr = service.Publish(author, listing.ID, catalog.PublishInput{SubmissionID: submission.ID}, listing.Revision); seedErr != nil {
+		_, release, _, seedErr := service.Publish(author, listing.ID, catalog.PublishInput{SubmissionID: submission.ID}, listing.Revision)
+		if seedErr != nil {
 			tb.Fatal(seedErr)
 		}
+		return release.ID
 	}
 	return db, repository, counts, seed
 }
@@ -328,36 +330,70 @@ func TestPostgresSearchQueryCostBaseline(t *testing.T) {
 // or readCurrentCatalogRecord to exclude fixture construction allocations.
 func BenchmarkPostgresSearchHydration(b *testing.B) {
 	db, repository, _, seed := newSearchCostFixture(b)
-	for index := 0; index < 101; index++ {
-		seed(index)
+	published := make([]string, 101)
+	identifiers := make([]string, len(published))
+	for index := range published {
+		published[index] = seed(index)
+		identifiers[index] = fmt.Sprintf("urn:air:catalog.example.com:performance:skill-%03d", index)
 	}
-	page, err := repository.SearchCatalog(b.Context(), housekeepingTenantA, catalog.CatalogSearchRepositoryRequest{Limit: 101})
+	// Measure reads with planner statistics for the releases just published.
+	if _, err := db.operator.Exec(b.Context(), `ANALYZE resources, resource_versions, resource_version_revisions,
+        catalog_listings, listing_releases, listing_revisions, publishers, namespaces,
+        version_validation_runs, evidence_sets, representations, artifact_references, skill_file_inventory`); err != nil {
+		b.Fatal(err)
+	}
+	page, err := repository.SearchCatalog(b.Context(), housekeepingTenantA, catalog.CatalogSearchRepositoryRequest{Limit: len(published)})
 	if err != nil {
 		b.Fatal(err)
 	}
-	for _, size := range []int{1, 20, 100, 101} {
-		ids := make([]string, size)
-		for index := range ids {
-			ids[index] = page.Items[index].Release.ID
+	if page.Total != len(published) || len(page.Items) != len(published) || page.HasMore {
+		b.Fatalf("incomplete Search fixture: total=%d items=%d more=%t", page.Total, len(page.Items), page.HasMore)
+	}
+	for i, item := range page.Items {
+		if item.Release.ID != published[i] || item.Resource.CanonicalIdentifier != identifiers[i] {
+			b.Fatalf("Search selected the wrong published release at position %d", i)
 		}
+	}
+	for _, size := range []int{1, 20, 100, 101} {
+		ids := published[:size]
 		for _, batch := range []bool{false, true} {
 			b.Run(fmt.Sprintf("page=%d/batch=%t", size, batch), func(b *testing.B) {
 				b.ReportAllocs()
 				for b.Loop() {
-					_, err := withTenantTx(b.Context(), db.api, housekeepingTenantA, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) (int, error) {
+					count, err := withTenantTx(b.Context(), db.api, housekeepingTenantA, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) (int, error) {
 						if batch {
 							items, err := readSearchRecords(b.Context(), tx, housekeepingTenantA, ids)
-							return len(items), err
-						}
-						for _, releaseID := range ids {
-							if _, err := readCurrentCatalogRecord(b.Context(), tx, housekeepingTenantA, releaseID); err != nil {
+							if err != nil {
 								return 0, err
+							}
+							for i, id := range ids {
+								item := items[id]
+								if item == nil || item.Release.ID != id ||
+									item.Resource.TenantID != housekeepingTenantA || item.Resource.CanonicalIdentifier != identifiers[i] {
+									return 0, fmt.Errorf("wrong Search summary for release %s", id)
+								}
+							}
+							return len(items), nil
+						}
+						for i, id := range ids {
+							item, err := readCurrentCatalogRecord(b.Context(), tx, housekeepingTenantA, id)
+							if err != nil {
+								return 0, err
+							}
+							if item.Release.ID != id || item.Resource.TenantID != housekeepingTenantA || item.Resource.CanonicalIdentifier != identifiers[i] {
+								return 0, fmt.Errorf("wrong Catalog record for release %s", id)
+							}
+							if n := len(item.VersionRevision.Representations); n != 1 {
+								return 0, fmt.Errorf("release %s has %d representations, want 1", id, n)
 							}
 						}
 						return len(ids), nil
 					})
 					if err != nil {
 						b.Fatal(err)
+					}
+					if count != size {
+						b.Fatalf("hydrated %d records, want %d", count, size)
 					}
 				}
 			})

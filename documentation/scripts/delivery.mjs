@@ -73,10 +73,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   // Output is always ignored, never a source, browser tree or an existing edition.
   const owned = path.join(root, 'output/documentation-delivery') + path.sep;
   if (!output.startsWith(owned) || output === owned.slice(0,-1) || fs.existsSync(output)) throw new Error('Select a new output/documentation-delivery directory');
-  const pdf = output + '.pdf';
+  const parent = path.dirname(output);
+  fs.mkdirSync(parent, {recursive:true});
+  const workspace = fs.mkdtempSync(path.join(parent, '.manual-export-'));
   try {
+    const pdf = path.join(workspace, 'catalog-manual.pdf');
     const exportResult = await exportManual({output:pdf, onStage:stage => process.stderr.write('PDF: ' + stage + '\n')});
     const result = stageDelivery({input:path.join(project,'dist'),pdf,output,value,lockBytes:fs.readFileSync(path.join(project,'package-lock.json')),exportResult,expectedBase:base});
     console.log(`Prepared ${result.files.length} delivery files at ${result.base}, source ${result.commit}. No upload performed.`);
-  } finally { fs.rmSync(pdf,{force:true}); fs.rmSync(pdf + '.json',{force:true}); }
+  } finally { fs.rmSync(workspace, {recursive:true, force:true}); }
 }

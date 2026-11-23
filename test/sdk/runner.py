@@ -2,6 +2,7 @@
 """Explicit, pinned SDK generation and local qualification; never publishes."""
 
 import argparse
+from contextlib import nullcontext
 import csv
 import hashlib
 import importlib.util
@@ -370,6 +371,13 @@ def main():
             for language in languages:
                 for name in ("qualification.json", "manifest.json"):
                     (ROOT / "output/artifacts/sdk" / language / name).unlink(missing_ok=True)
+            if "rust" in languages:
+                import rust_runner
+
+                coverage = ROOT / "output/sdk/rust-coverage.json"
+                if coverage.parent.exists():
+                    rust_runner.owned_directory(coverage.parent)
+                    coverage.unlink(missing_ok=True)
         if args.action == "package" and args.language == "all":
             (ROOT / "output/artifacts/sdk/manifest.json").unlink(missing_ok=True)
         reports = {}
@@ -381,7 +389,9 @@ def main():
             reports[language] = selected(args.action, language)
             if qualification:
                 admission, run_id, before = qualification
-                admission.qualify_sdk(ROOT, language, run_id, before)
+                publication = rust_runner.stage_coverage(coverage, reports[language]) if language == "rust" else nullcontext()
+                with publication:
+                    admission.qualify_sdk(ROOT, language, run_id, before)
         if args.action == "package" and args.language == "all":
             (ROOT / "output/artifacts/sdk/manifest.json").write_text(json.dumps(reports, indent=2, sort_keys=True) + "\n")
         print("SDK " + args.action + " completed: " + ", ".join(languages), flush=True)

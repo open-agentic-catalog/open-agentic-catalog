@@ -56,6 +56,29 @@ def select(api, state, text="alpha"):
             "text": text, "reason": "Qualify explicitly selected local ANS registration"}
 
 
+def finder_entry(peer, selection):
+    finder = peer.document("finder", "/v1/search", {"query": {"text": selection["text"]}, "federation": "none"})
+    assert not finder.get("pageToken") and len(finder["results"]) == 1
+    entry = finder["results"][0]
+    assert (entry["identifier"], entry["version"]) == (selection["identifier"], selection["version"])
+    assert any(a["type"] == "ANS-Registration" for a in entry["trustManifest"]["attestations"])
+    return entry
+
+
+def reader_discovery(api, peer, text, expected_entries):
+    """Check what the reader can discover without contacting the evidence service."""
+    before = len(evidence(peer))
+    reader = api.settings["reader"]
+    control, _ = api.document(lifecycle.SEARCH, {"text": text, "origins": ["live"]}, token=reader)
+    assert control["partial"] is False, "reader Search unexpectedly returned partial results"
+    assert all(item["type"] == "live" and item["identifier"] == item["live"]["entry"]["identifier"] for item in control["items"])
+    assert [item["live"]["entry"] for item in control["items"]] == expected_entries, "unexpected Finder entries in reader Search"
+    ard, headers = api.document("/ard/v1/search", {"query": {"text": text}, "federation": "auto"}, token=reader)
+    assert not headers.get("warning") and ard["results"] == expected_entries, "unexpected Finder entries in ARD Search"
+    assert len(evidence(peer)) == before, "ordinary reader discovery fetched assessment evidence"
+    return control, ard
+
+
 def enqueue(api, state, request=None, *, expected=202, key=None, token=None):
     body = request if request is not None else select(api, state)
     document, headers = api.call(lifecycle.PREFIX + "sources/" + state["source_id"] + "/trust-assessments", body, expected=expected, key=key, token=token)
@@ -292,8 +315,7 @@ def exercise(phase, api, peer, state, settings):
         request = select(api, state)
         refused = enqueue(api, state, request, expected=503)
         assert refused["code"] == "DEPENDENCY_UNAVAILABLE"
-        for text in ("alpha",):
-            select(api, state, text)
+        reader_discovery(api, peer, request["text"], [finder_entry(peer, request)])
         assert len(evidence(peer)) == before
         assert {row["id"] for row in api.pages("/api/v1/jobs")} == jobs_before
         checks["discovery_and_refusal_have_zero_evidence_calls"] = True
@@ -318,6 +340,9 @@ def exercise(phase, api, peer, state, settings):
         policy = settings["offline_policy"]
         before = len(evidence(peer))
         request = select(api, state)
+        entry = finder_entry(peer, request)
+        reader_discovery(api, peer, request["text"], [entry])
+        assert len(evidence(peer)) == before, "selecting an entry fetched evidence before the explicit assessment"
         key = uuid.uuid4().hex
         first = enqueue(api, state, request, key=key)
         result = completed(api, state, first["id"])
@@ -328,6 +353,12 @@ def exercise(phase, api, peer, state, settings):
         state["replay_request"], state["replay_key"] = request, key
         after = len(evidence(peer))
         assert 3 <= after - before <= 4
+        private_values = (first["id"], state["bundle"]["receipt"], state["bundle"]["checkpoint"], state["bundle"]["statusToken"])
+        for document in reader_discovery(api, peer, request["text"], [entry]):
+            disclosed = json.dumps(document)
+            assert all(value and value not in disclosed for value in private_values), "reader discovery disclosed private Job evidence"
+            assert '"currentRegistration":' not in disclosed, "reader discovery disclosed the private registration verdict"
+        checks["reader_discovery_after_assessment"] = True
         replay = enqueue(api, state, request, key=key)
         assert replay["id"] == first["id"] and len(evidence(peer)) == after
         for token, expected in ((settings["reader"], 403), (settings["other"], 404)):
@@ -415,23 +446,38 @@ def exercise(phase, api, peer, state, settings):
         finally:
             evidence(peer, "native")
     elif phase == "policy-change":
+        request = select(api, state)
         evidence(peer, "delay")
         before = len(evidence(peer))
-        pending = enqueue(api, state)
+        pending = enqueue(api, state, request)
         wait_for("first evidence request started", lambda: len(evidence(peer)) > before)
         _, headers = api.call(lifecycle.PREFIX + "sources/" + state["source_id"])
         api.call(lifecycle.PREFIX + "sources/" + state["source_id"] + ":pause", {"reason": "Qualify source fence during acquisition"}, etag=headers["etag"])
         final = completed(api, state, pending["id"], success=False)
         assert final["failureClass"] == "policy_denied" and len(evidence(peer)) == before + 1, final
         evidence(peer, "native")
+        entry = finder_entry(peer, request)
+        searches = len(lifecycle.edge_requests(peer))
+        reader_discovery(api, peer, request["text"], [])
+        assert len(lifecycle.edge_requests(peer)) == searches, "reader discovery queried a paused source"
         _, headers = api.call(lifecycle.PREFIX + "sources/" + state["source_id"])
         api.call(lifecycle.PREFIX + "sources/" + state["source_id"] + ":resume", {"reason": "Restore owned source"}, etag=headers["etag"])
+        reader_discovery(api, peer, request["text"], [entry])
         checks["source_change_stops_followup_fetch_and_completion"] = True
+        checks["reader_discovery_respects_pause_and_resume"] = True
     elif phase == "tl-outage":
-        pending = enqueue(api, state)
+        request = select(api, state)
+        # Read before enqueue so a legitimate worker retry cannot affect the request count.
+        reader_discovery(api, peer, request["text"], [finder_entry(peer, request)])
+        before = len(evidence(peer))
+        pending = enqueue(api, state, request)
         state["outage_job"] = pending["id"]
         waiting = wait_for("TL failure classified for retry", lambda: (row if (row := job(api, pending["id"]))["state"] == "waiting" else None), timeout=45)
         assert waiting["failureClass"] == "transient_upstream", waiting
+        calls = evidence(peer)[before:]
+        receipt_path = "/v1/agents/" + state["assessment"]["subject"] + "/receipt"
+        assert calls and 500 <= calls[0]["status"] < 600, "missing failed receipt request during TL outage"
+        assert all(row["path"] == receipt_path for row in calls), "assessment requested more than the unavailable receipt"
         select(api, state)
         checks["evidence_outage_does_not_break_discovery"] = True
     elif phase == "tl-recovery":

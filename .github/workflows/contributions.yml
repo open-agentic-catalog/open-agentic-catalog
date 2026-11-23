@@ -82,6 +82,6 @@ jobs:
         env:
           PLAN: ${{ needs.selection.outputs.plan }}
           RESULTS: >-
-            {"baseline":"${{ needs.baseline.result }}","unit":"${{ needs.unit.result }}",
+            {"selection":"${{ needs.selection.result }}","baseline":"${{ needs.baseline.result }}","unit":"${{ needs.unit.result }}",
             "ui":"${{ needs.ui.result }}","docs":"${{ needs.docs.result }}","clients":"${{ needs.clients.result }}"}
         run: python3 -B test/ci/admission.py outcomes --plan "$PLAN" --results "$RESULTS" >> "$GITHUB_STEP_SUMMARY"

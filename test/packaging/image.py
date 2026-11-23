@@ -16,6 +16,11 @@ import ui
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 IDENTITY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}\Z")
 MACHINES = {"linux/amd64": 62, "linux/arm64": 183}
+MAIN_PACKAGES = {
+    "catalogctl": "github.com/open-agentic-catalog/open-agentic-catalog/cmd/catalogctl",
+    "catalogd": "github.com/open-agentic-catalog/open-agentic-catalog/cmd/catalogd",
+    "catalog-ui": "github.com/open-agentic-catalog/open-agentic-catalog/catalog-ui/cmd/catalog-ui",
+}
 SAMPLE_NOTICES = (
     "artwork/README.md", "first-party/catalog-discovery/LICENSE",
     "packages/catalog-discovery-tools/NOTICE.txt", "packages/frontend-toolkit/NOTICE.txt",
@@ -55,6 +60,10 @@ def executable(path, platform, go):
         if name == b".symtab" or name.startswith((b".debug", b".zdebug")):
             raise ValueError("binary retains debug/symbol tables")
     metadata = run(go + ["version", "-m", str(path)]).decode()
+    main_packages = [line.removeprefix("\tpath\t") for line in metadata.splitlines() if line.startswith("\tpath\t")]
+    expected_package = MAIN_PACKAGES[path.name]
+    if main_packages != [expected_package]:
+        raise ValueError(f"{path.name}: expected Go main package {expected_package}, found {main_packages!r}")
     settings = {line.split("\t", 2)[2] for line in metadata.splitlines() if line.startswith("\tbuild\t")}
     expected = {"CGO_ENABLED=0", "GOOS=linux", "GOARCH=" + platform.split("/")[1], "-trimpath=true", "-tags=netgo,osusergo"}
     expected.add("GOAMD64=v1" if platform == "linux/amd64" else "GOARM64=v8.0")
@@ -103,8 +112,9 @@ def image_settings(value, platform, version, commit, profile="backend", source_s
 def check_licenses(directory, profile="backend"):
     if directory.is_symlink() or not directory.is_dir() or directory.stat().st_mode & 0o005 != 0o005:
         raise ValueError("license root is not a readable/traversable directory for the runtime user")
-    for name in ("project/LICENSE", "go/LICENSE", "frontend/inventory.json" if profile == "ui" else "upstream/checksums.txt"):
-        if not (directory / name).is_file() or not (directory / name).read_bytes():
+    profile_files = ("frontend/inventory.json",) if profile == "ui" else ("go/PATENTS", "upstream/checksums.txt")
+    for name in ("project/LICENSE", "go/LICENSE", *profile_files):
+        if not (directory / name).is_file() or not (directory / name).read_bytes().strip():
             raise ValueError("missing packaged license input: " + name)
     if not list((directory / "dependencies").rglob("LICENSE*")):
         raise ValueError("missing dependency licenses")

@@ -71,9 +71,9 @@ Run `make test-load-smoke` for an isolated Search diagnostic with direct Postgre
 
 Early ceiling exhaustion fails the trial rather than silently shortening it. This is closed-loop load, not an offered-rate benchmark. Setup, seeding and compilation are outside the measured window.
 
-Run `make test-monitoring` to add Prometheus and Grafana to the owned stack. Its default measurement lasts 120 seconds. It checks stored metrics, dashboard queries, provisioning and independence from collector stop/start. Both collector processes must start before warm-up. The test checks both app roles remain ready with collectors stopped. Browser review is separate.
+Run `make test-monitoring` to add Prometheus and Grafana to the owned stack. Its default measurement lasts 120 seconds. It checks stored metrics, dashboard queries and provisioning. With both collectors stopped, the API and worker must stay ready and a reader must still retrieve a seeded Resource. After restart, Prometheus must collect fresh samples from both targets.
 
-The target does not launch Playwright automatically.
+For the Grafana dashboard, install the [UI browser tools](../contributing/testing.md#install-and-check-the-ui-toolchain) and run `make test-monitoring MONITORING_BROWSER=on`. Chromium uses the measured workload's time range. If the report shows `monitoring-browser-observation-window-invalid`, check the start and end timestamps and `workload.measured.clockAdjustmentMillis`. The range must be positive, at most four minutes long and free of clock adjustments. Rerun the browser selection with a stable clock to qualify dashboard rendering.
 
 Install Docker, Compose, Python 3.12 or later and the repository Go toolchain before running disposable trials. See [local prerequisites](local-development.mdx#start-the-service). They deliberately select Docker's default context, skip Make `.env` parsing, discard ambient runtime credentials, projects, proxies and kubeconfigs, and build a uniquely named application image. Run one isolated measurement target per Make invocation. They do not select an existing development service or another project's monitoring.
 
@@ -139,7 +139,9 @@ The Search benchmark targets, including their `-dsn` variants and recursive Make
 
 Run `make bench-search` for selected pages of 1, 20, 100 and 101 records. It compares complete records with metadata summaries. The reference path reads each complete record separately; the metadata path uses two queries for the selected page. The paths return different payloads and perform different integrity checks. This is not a comparison of two interchangeable full-record readers.
 
-The fixture seeds governed records, including inspected Skill packages and renewed evidence, before timing. It reports three 500 ms samples with bytes/allocations per operation. It measures repository reads, not HTTP latency or capacity. Short samples, host contention and PostgreSQL cache state affect timing.
+The fixture publishes 101 Skill releases, including inspected packages and renewed validation evidence. After seeding, the fixture owner runs PostgreSQL `ANALYZE` on the tables used by the two readers. Before timing, Search must return every expected release in order. Each timed read uses the API database role and checks page membership, tenant and canonical Resource identifier. The full-record read also checks that the VersionRevision contains its representation. These checks use the data already read.
+
+For a repeatability check, run `make bench-search` several times in sequence on the same host. For each reader and page size, compare the median of the three 500 ms samples from each run. Each `ns/op` value is the mean time per page, including the transaction and result checks. `B/op` and `allocs/op` measure Go allocation per page. Individual page durations are needed to calculate tail latency. Host contention and cache state can still affect timings.
 
 The reference reader is not a selectable production fallback. `make test-integration` separately enforces the [repository read counts](#count-search-sql-reads) and composed-policy assertions, without timing thresholds.
 

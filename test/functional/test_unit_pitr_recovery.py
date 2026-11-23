@@ -54,6 +54,8 @@ class PITRRecoveryTests(unittest.TestCase):
         value["backupManifestDigest"] = value.pop("dumpDigest")
         value["backupBytes"] = 64 << 20
         del value["dumpBytes"]
+        self.assertFalse(backup_restore.valid_evidence(value, physical=True))
+        del value["failedRestoreRolledBack"]
         self.assertTrue(backup_restore.valid_evidence(value, physical=True))
         self.assertFalse(backup_restore.valid_evidence(value))
         value["backupBytes"] = (512 << 20) + 1
@@ -64,6 +66,7 @@ class PITRRecoveryTests(unittest.TestCase):
         value = evidence()
         value["backupManifestDigest"] = value.pop("dumpDigest")
         value["backupBytes"] = value.pop("dumpBytes")
+        del value["failedRestoreRolledBack"]
         for native in (None, physical_evidence()):
             report = {"profile": "pitr-recovery", "backupRestore": value, "pitrRecovery": native,
                       "images": {"api": "owned"}, "servedVersion": {"version": "functional"}, "smoke": {"retained": True}}

@@ -29,6 +29,9 @@ export default defineConfig({
   ...(engine
     ? { grep: new RegExp("(?:" + engineJourneys.join("|") + ")$") }
     : {}),
+  ...(process.env.CATALOG_UI_E2E_COVERAGE
+    ? { grepInvert: /@ui-host-only\b/ }
+    : {}),
   testMatch: measuring
     ? "**/performance.spec.ts"
     : visual

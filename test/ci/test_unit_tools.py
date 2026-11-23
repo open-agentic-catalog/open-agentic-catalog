@@ -129,6 +129,25 @@ class WorkflowAdmissionTests(unittest.TestCase):
                 tools.actionlint_check()
             command.assert_not_called()
 
+    def test_workflow_inventory_includes_both_yaml_extensions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workflows = root / ".github/workflows"
+            nested = workflows / "fixtures"
+            nested.mkdir(parents=True)
+            (nested / "sample.yml").touch()
+            (workflows / "README.md").touch()
+            (workflows / "build.yaml.example").touch()
+            with self.assertRaisesRegex(ValueError, "no workflow files found"):
+                tools.workflow_files(root)
+
+            caller = workflows / "contributions.yml"
+            reusable = workflows / "quality.yaml"
+            reusable.touch()
+            self.assertEqual(tools.workflow_files(root), [reusable])
+            caller.touch()
+            self.assertCountEqual(tools.workflow_files(root), [caller, reusable])
+
     def test_markdown_profiles_preserve_tool_scope(self):
         for profile in ("quality", "docs", "unit"):
             with self.subTest(profile=profile):
@@ -307,6 +326,7 @@ class BinaryAcquisitionTests(unittest.TestCase):
             execute.assert_not_called()
 
     def test_hosted_compose_install_preserves_plugin_path_and_version_check(self):
+        version = tools.PINS["compose"]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             owned = root / "owned"
@@ -315,16 +335,15 @@ class BinaryAcquisitionTests(unittest.TestCase):
                 patch.object(tools, "OWNED", owned),
                 patch.object(tools.Path, "home", return_value=root / "home"),
                 patch.dict(tools.os.environ, {"GITHUB_ACTIONS": "true"}),
-                patch.dict(tools.PINS, {"compose": "5.6.1"}),
                 patch.object(tools, "checked_asset", side_effect=lambda _url, _checksum, path: path.write_bytes(b"compose fixture")) as acquire,
-                patch.object(tools, "run", return_value="5.6.1\n") as execute,
+                patch.object(tools, "run", return_value=version + "\n") as execute,
             ):
                 tools.binary_install("compose")
                 destination = root / "home/.docker/cli-plugins/docker-compose"
                 self.assertEqual(destination.read_bytes(), b"compose fixture")
                 self.assertEqual(destination.stat().st_mode & 0o777, 0o755)
                 self.assertEqual(acquire.call_args.args[:2], (
-                    "https://github.com/docker/compose/releases/download/v5.6.1/docker-compose-linux-x86_64",
+                    f"https://github.com/docker/compose/releases/download/v{version}/docker-compose-linux-x86_64",
                     tools.PINS["archives"]["compose"]["sha256"],
                 ))
                 execute.assert_called_once_with(["docker", "compose", "version", "--short"], capture=True)

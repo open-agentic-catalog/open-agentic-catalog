@@ -1,6 +1,6 @@
 # Job retry arithmetic proof
 
-`make test-formal` verifies one production helper: `backoffCeiling` in `internal/jobs/jobs.go`. It uses Gobra's Silicon backend and Z3 to prove the stated bounds, machine-integer overflow safety and loop termination for every signed 64-bit attempt input. No attempt-limit precondition is permitted.
+`make test-formal` uses Gobra's Silicon backend and Z3 to prove that `backoffCeiling` in `internal/jobs/jobs.go` terminates and returns a bounded duration without machine-integer overflow for every signed 64-bit attempt input. No attempt-limit precondition is permitted.
 
 This supplements the ordinary retry schedule, jitter and worker regressions; it does not prove the whole worker or add to test coverage.
 
@@ -25,7 +25,7 @@ The qualified host is Linux amd64; the signed 64-bit Go model matches both shipp
 
 ## Source and contract binding
 
-`run.py` extracts the current `backoffCeiling` function from the production file. It changes only the result declaration to name `ceiling` and inserts the four comments from `contract.txt`: two postconditions, one loop invariant and one decreasing measure. Every executable body byte is copied unchanged.
+`run.py` extracts the current `backoffCeiling` function from the production file. It names the result `ceiling` and inserts the function and loop annotations from `contract.txt`. Every executable body byte is copied unchanged.
 
 It rejects ambiguous/missing functions, changed signature/loop shape, unreviewed contract changes and proof annotations in the source. An isolated regression reverses these transformations and compares the exact function. There is no handwritten implementation copy or general Go translator.
 
@@ -34,7 +34,7 @@ The contract establishes:
 - `5*time.Second <= ceiling <= time.Hour`.
 - `0 < int64(ceiling)+1 <= int64(time.Hour)+1`, bounding the helper result before the caller applies its smaller window.
 - Arithmetic safety with Gobra's explicit `--overflow` flag and default signed 64-bit `int` model.
-- Loop termination through the strictly decreasing nonnegative measure `time.Hour-delay`.
+- The helper terminates. The loop's nonnegative measure `time.Hour-delay` decreases on each continuing iteration. The function-level measure is the constant `0`. A recursive call would have to decrease that measure, so Gobra rejects it.
 
 `time.gobra` declares only the concrete `int64` duration type and second/hour constants; it assumes no library function behavior. `TestTimeModel` checks these declarations against the repository Go toolchain. The contract and model have reviewed checksums in `tool.json`.
 
@@ -48,7 +48,7 @@ Ordinary tests own the exact exponential schedule, zero/negative policy, jitter 
 
 ## Controls and evidence
 
-Each invocation runs the real verifier eight times: the source proof, three deliberately invalid variants and four tool calibration cases. All are bounded, with a 2 GiB JVM heap, 30-second package timeout, 90-second outer deadline and bounded output. The shared subprocess supervisor kills the owned process group on deadline, overflow or interruption.
+Each invocation runs the real verifier on the source proof, five deliberately invalid variants and four tool calibration cases. All are bounded, with a 2 GiB JVM heap, 30-second package timeout, 90-second outer deadline and bounded output. The shared subprocess supervisor kills the owned process group on deadline, overflow or interruption.
 
 Temporary proof directories are removed on success and failure.
 
@@ -56,8 +56,9 @@ Temporary proof directories are removed on success and failure.
 | --- | --- |
 | Current production helper | Complete verification, zero errors. |
 | False specification requiring a zero result | Exactly one postcondition diagnostic. |
-| Arithmetic variant returning twice the cap | Exactly one postcondition diagnostic. |
+| Return one nanosecond below five seconds or above one hour | Each variant must produce exactly one postcondition diagnostic. |
 | Variant preventing delay growth | Exactly one decreasing-measure diagnostic. |
+| Variant that calls `backoffCeiling(7)` at the one-hour cap | Exactly one function-termination diagnostic. Attempt seven reaches the cap and calls itself again. |
 | Unspecified scalar function | Verifier success demonstrates that no contract is not useful behavioral assurance. The application contract gate rejects missing contracts. |
 | Contradictory-precondition function | Verifier success demonstrates vacuity. The application gate forbids preconditions. |
 | Generic syntax unsupported by this pin | Exactly the expected parser diagnostic; never accepted as an application proof or one of its semantic failure controls. |

@@ -14,7 +14,7 @@ def settings():
 
 def license_tree(directory):
     """Create runtime-readable image inputs inside the caller's private fixture."""
-    for name in ["project/LICENSE", "go/LICENSE", "dependencies/example/LICENSE", "upstream/example/LICENSE",
+    for name in ["project/LICENSE", "go/LICENSE", "go/PATENTS", "dependencies/example/LICENSE", "upstream/example/LICENSE",
                  "samples/artwork/README.md", "samples/first-party/catalog-discovery/LICENSE",
                  "samples/packages/catalog-discovery-tools/NOTICE.txt", "samples/packages/frontend-toolkit/NOTICE.txt",
                  "samples/packages/web-testing-toolkit/NOTICE.txt", "samples/upstream/skills/brand-guidelines/LICENSE.txt",

@@ -1,5 +1,6 @@
 """Independent Rust SDK acquisition, deterministic generation and qualification."""
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -35,15 +36,20 @@ def digest(path):
 
 
 def run(args, *, cwd=ROOT, env=None, capture=False, seconds=600):
-    return subprocess.run(
+    result = subprocess.run(
         [str(a) for a in args],
         cwd=cwd,
         env=env,
-        check=True,
+        check=False,
         timeout=seconds,
         text=True,
         capture_output=capture,
-    ).stdout
+    )
+    if capture and result.returncode:
+        sys.stdout.write(result.stdout)
+        sys.stderr.write(result.stderr)
+    result.check_returncode()
+    return result.stdout
 
 
 def toolchain(version):
@@ -547,6 +553,7 @@ def source_files():
         SDK / "src/generated/operations.json",
         HERE / "rust_runner.py",
         HERE / "runner.py",
+        ROOT / "test/packaging/completion.py",
         HERE / "rust_consumer_functional_test.go.txt",
         HERE / "rust_report_functional_test.go.txt",
         ROOT / "cmd/catalogctl/rust_report_functional_test.go",
@@ -626,8 +633,9 @@ def check(action):
     parent = ROOT / "output/sdk"
     owned_directory(parent)
     work = Path(tempfile.mkdtemp(prefix="rust-", dir=parent))
-    watched = {str(p): digest(p) for p in source_files()}
+    coverage = None
     try:
+        watched = {str(p): digest(p) for p in source_files()}
         generate(work / "generated", work)
         if action == "generate":
             shutil.copytree(
@@ -680,7 +688,7 @@ def check(action):
             artifact = build_package(work)
             qualify_package(work, artifact, stamp)
             qualify_report_curated(stamp)
-            measure_coverage(work, stamp)
+            coverage = measure_coverage(work, stamp)
             if watched != {str(p): digest(p) for p in source_files()}:
                 raise RuntimeError("Rust SDK check changed source inputs")
             import runner as shared
@@ -693,6 +701,7 @@ def check(action):
         raise
     shutil.rmtree(work)
     print("Rust SDK " + action + " passed; dependency audit not run (use make sdk-rust-audit); owned staging output cleaned", flush=True)
+    return coverage
 
 
 def qualify_refusals(work, stamp):
@@ -887,27 +896,26 @@ def qualify_catalog(destination, go, binary, *, extra_env=None):
         cwd=destination,
         env=env,
     )
-    selection = (
-        "^TestRustSDK"
-        if env.get("CATALOG_SDK_RUST_EXAMPLE")
-        else "^TestRustSDK(CatalogWorkflow|Transport|Report.*)$"
-        if env.get("CATALOG_RUST_REPORT")
-        else "^TestRustSDK(CatalogWorkflow|Transport)$"
+    command = catalog_test_command(
+        go, example=bool(env.get("CATALOG_SDK_RUST_EXAMPLE")), report=bool(env.get("CATALOG_RUST_REPORT")),
     )
-    run(
-        [
-            go,
-            "test",
-            "-tags=functional",
-            "-race",
-            "-run=" + selection,
-            "-count=1",
-            "-timeout=180s" if env.get("CATALOG_RUST_REPORT") else "-timeout=90s",
-            "-v",
-            "./...",
-        ],
-        cwd=destination,
-        env=env,
+    run(command, cwd=destination, env=env)
+
+
+def catalog_test_command(go, *, example, report):
+    import runner as shared
+
+    required = ["TestRustSDKCatalogWorkflow", "TestRustSDKTransport"]
+    selection = "^TestRustSDK(CatalogWorkflow|Transport)$"
+    if report:
+        required.extend(("TestRustSDKReportCatalog", "TestRustSDKReportWire", "TestRustSDKReportDeadline"))
+        selection = "^TestRustSDK(CatalogWorkflow|Transport|Report.*)$"
+    if example:
+        required.extend(("TestRustSDKExample", "TestRustSDKCodecs"))
+        selection = "^TestRustSDK"
+    return shared.focused_go_command(
+        go, ["-tags=functional", "-race", "-run=" + selection, "-count=1",
+             "-timeout=180s" if report else "-timeout=90s", "-v", "./..."], required,
     )
 
 
@@ -940,6 +948,16 @@ def coverage_totals(files, sources):
         raise RuntimeError("Rust handwritten coverage is empty")
     totals["percent"] = 100 * totals["covered"] / totals["count"]
     return totals
+
+
+@contextmanager
+def stage_coverage(path, report):
+    """Expose the complete report only after the crate passes final qualification."""
+    with tempfile.TemporaryDirectory(prefix="rust-coverage-", dir=path.parent) as directory:
+        staged = Path(directory) / path.name
+        staged.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+        yield
+        staged.replace(path)
 
 
 def measure_coverage(work, stamp):
@@ -1058,6 +1076,4 @@ def measure_coverage(work, stamp):
         raise RuntimeError(
             "Rust coverage leaked build profiles into SDK or consumer source"
         )
-    (ROOT / "output/sdk/rust-coverage.json").write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\n"
-    )
+    return report

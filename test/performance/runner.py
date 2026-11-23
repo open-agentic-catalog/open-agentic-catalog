@@ -488,6 +488,20 @@ MONITORING_TARGETS = {
     "api": {"catalog_deployment": "local", "catalog_role": "api", "job": "catalog-api", "instance": "api:8080"},
     "worker": {"catalog_deployment": "local", "catalog_role": "worker", "job": "catalog-worker", "instance": "worker:9090"},
 }
+SEARCH_RESPONSES = 'open_agentic_catalog_http_responses_total{method="POST",route="/api/v1/catalog/search",status_class="2xx"}'
+
+
+def collected_search_responses(rows, before_workload, workload):
+    labels = MONITORING_TARGETS["api"] | {"__name__": "open_agentic_catalog_http_responses_total",
+                                          "method": "POST", "route": "/api/v1/catalog/search", "status_class": "2xx"}
+    if not positive_samples(rows, 1) or rows[0].get("metric") != labels:
+        raise Failure("collected-search-series-invalid")
+    # The client validates one baseline Search before it starts counting the two phases.
+    requests = 1 + workload["warmup"]["succeeded"] + workload["measured"]["succeeded"]
+    collected = float(rows[0]["value"][1])
+    if collected != before_workload + requests:
+        raise Failure("collected-search-count-mismatch")
+    return {"beforeWorkload": before_workload, "clientResponses": requests, "collected": int(collected)}
 
 
 def monitoring_targets(targets):
@@ -557,6 +571,19 @@ def monitoring_retained_read(api, seeded):
                                            [("id", "resourceId"), ("canonicalIdentifier", "identifier"), ("kind", "kind")]):
         raise Failure("collector-outage-content-mismatch")
     return {"authorizedRead": True, "retainedContentMatched": True}
+
+
+def monitoring_catalog_readiness(api, worker):
+    # Probe once per checkpoint: a retry could hide a temporary loss of readiness.
+    api_state = http.decode(get(api + "/readyz"))
+    if api_state != {"status": "ready"}:
+        raise Failure("monitoring-api-not-ready")
+    worker_state = http.decode(get(worker + "/readyz"))
+    if (not isinstance(worker_state, dict) or worker_state.get("status") != "ready"
+            or worker_state.get("role") != "worker" or worker_state.get("state") != "running"
+            or worker_state.get("ready") is not True):
+        raise Failure("monitoring-worker-not-ready")
+    return {"api": api_state["status"], "worker": worker_state["status"]}
 
 
 def check_query_fixture(state, environment, path):
@@ -881,6 +908,11 @@ def run(mode):
         duration = settings["seconds"]
         profile = settings | {"port": int(api.rsplit(":", 1)[1])}
         local.safety.write_document(directory / "profile.json", profile)
+        if state["monitoring"]:
+            stage = "search-counter-baseline"
+            seeded_searches = metrics_sample(api).get(SEARCH_RESPONSES)
+            if seeded_searches is None or not seeded_searches.is_integer() or seeded_searches < 1:
+                raise Failure("seed-search-counter-missing-or-invalid")
         observation_started = round(time.monotonic() - began, 3)
         def sample():
             while not stop.is_set():
@@ -1077,14 +1109,19 @@ def run(mode):
             # Collector outages must not gate the Catalog or its worker.
             stage = "collector-outage"
             previous = monitoring_sample_times(query('timestamp(open_agentic_catalog_go_heap_bytes{catalog_deployment="local",job=~"catalog-(api|worker)",catalog_role=~"api|worker"})'))
+            readiness = {"beforeStop": monitoring_catalog_readiness(api, worker)}
             local.command(compose + ["stop", "--timeout", "10", "prometheus", "grafana"], environment, 40)
-            get(api + "/readyz")
-            get(worker + "/readyz")
+            stopped = local.command(compose + ["ps", "--all", "--status", "exited", "--quiet", "prometheus", "grafana"], environment, 15, True)
+            if sorted(stopped.decode().splitlines()) != sorted([resource_ids["prometheus"], resource_ids["grafana"]]):
+                raise Failure("monitoring-outage-not-confirmed")
+            readiness["whileStopped"] = monitoring_catalog_readiness(api, worker)
             seeded = local.safety.decode(seeded_output)
             if seeded.get("status") != "passed" or seeded.get("runId") != "perf-" + run_id or len(seeded.get("resources", [])) != 3:
                 raise Failure("monitoring-seed-evidence-incomplete")
             outage_read = monitoring_retained_read(api, seeded["resources"][0])
+            stage = "collector-restart"
             local.command(compose + ["start", "prometheus", "grafana"], environment, 40)
+            readiness["afterStart"] = monitoring_catalog_readiness(api, worker)
             # Docker may reallocate a dynamic host port on stop/start.
             prometheus = address(local.command(compose + ["port", "prometheus", "9090"], environment, 15, True))
             grafana = address(local.command(compose + ["port", "grafana", "3000"], environment, 15, True))
@@ -1092,10 +1129,14 @@ def run(mode):
             wait_http(grafana + "/api/health")
             recovered = recovered_monitoring_samples(targets, query)
             report["monitoring"] = {"targetIdentities": MONITORING_TARGETS, "collectorOutageRead": outage_read, "sampleTimesBeforeOutage": previous, "sampleTimesRecoveryBaseline": recovered["baseline"], "sampleTimesAfterRecovery": recovered["fresh"], "freshCollectionAfterRecovery": True, "targets": 2, "dashboard": "catalog-overview", "queries": expressions, "syntheticQueryGroups": len(local.queries.fixture(dashboard["dashboard"])["tests"]), "storedRuntimeSeries": len(heap), "collectorOutageIndependence": True, "images": local.image_pins()}
+            stage = "collected-search-responses"
+            report["monitoring"]["searchResponses"] = collected_search_responses(query(SEARCH_RESPONSES), int(seeded_searches), report["workload"])
             stage = "occupied-port"
             report["monitoring"]["portConflict"] = occupied_port_check(state, environment, urllib.parse.urlsplit(prometheus).port)
-            get(api + "/readyz")
-            get(worker + "/readyz")
+            stage = "catalog-readiness-after-recovery"
+            readiness["afterFreshScrapes"] = monitoring_catalog_readiness(api, worker)
+            scale.container_state(local, environment, process_ids, report["containerBaseline"])
+            report["monitoring"]["catalogReadiness"] = readiness
             if browser_selection(mode, os.environ):
                 stage = "monitoring-browser"
                 report["monitoring"]["browser"] = qualify_monitoring_browser(directory, environment, grafana, run_id, report["workload"])

@@ -15,6 +15,21 @@ from rust import generation
 
 
 class RustRunnerUnits(unittest.TestCase):
+    def test_catalog_fixture_requires_the_tests_for_each_selected_consumer(self):
+        base = {"TestRustSDKCatalogWorkflow", "TestRustSDKTransport"}
+        examples = {"TestRustSDKExample", "TestRustSDKCodecs"}
+        reports = {"TestRustSDKReportCatalog", "TestRustSDKReportWire", "TestRustSDKReportDeadline"}
+        for example, report, expected in (
+            (False, False, base),
+            (True, False, base | examples),
+            (False, True, base | reports),
+            (True, True, base | examples | reports),
+        ):
+            with self.subTest(example=example, report=report):
+                command = rust.catalog_test_command("go", example=example, report=report)
+                required = {command[i + 1] for i, arg in enumerate(command) if arg == "--required"}
+                self.assertEqual(required, expected)
+
     def test_native_llvm_coverage_requires_unique_selected_rows_and_valid_counts(self):
         sources = [Path("/fixture/lib.rs"), Path("/fixture/transport.rs")]
         rows = [{"filename": str(sources[0]), "summary": {"lines": {"count": 0, "covered": 0}}},

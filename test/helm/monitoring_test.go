@@ -6,14 +6,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"go.yaml.in/yaml/v3"
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"go.yaml.in/yaml/v3"
 )
 
 func monitoringPackage(t *testing.T) string {
@@ -30,7 +32,7 @@ func monitoringPackage(t *testing.T) string {
 func monitoringArguments(archive string, extra ...string) []string {
 	return append([]string{"template", "9-monitor", archive, "--namespace", "monitoring", "--kube-version", kubeVersion(),
 		"--set", "enabled=true",
-		"--set", "target.namespace=application", "--set", "target.release=catalog", "--set", "target.deploymentLabel=cluster/application/catalog",
+		"--set", "target.release=catalog", "--set", "target.deploymentLabel=cluster/application/catalog",
 		"--set", "grafana.adminSecret.name=monitor-admin"}, extra...)
 }
 
@@ -56,12 +58,49 @@ func monitoringObjects(t *testing.T, archive string, extra ...string) []object {
 	return result
 }
 
+// Read the file selected by Prometheus through the Deployment's ConfigMap mount.
+func prometheusConfigFile(t *testing.T, objects []object) string {
+	t.Helper()
+	pod := mapAt(t, oneObject(t, objects, "Deployment", "prometheus"), "spec", "template", "spec")
+	container := namedMap(t, sliceAt(t, pod, "containers"), "prometheus")
+	mount := namedMap(t, sliceAt(t, container, "volumeMounts"), "config")
+	volume := namedMap(t, sliceAt(t, pod, "volumes"), stringAt(t, mount, "name"))
+	source := mapAt(t, volume, "configMap")
+	files := renderedConfigMap(t, objects, stringAt(t, source, "name"))
+	args := stringSlice(t, container["args"])
+	for _, item := range sliceAt(t, source, "items") {
+		filename := path.Join(stringAt(t, mount, "mountPath"), stringAt(t, item, "path"))
+		if slices.Contains(args, "--config.file="+filename) {
+			key := stringAt(t, item, "key")
+			if files[key] == "" {
+				t.Fatalf("Prometheus config file %q references missing or empty ConfigMap key %q", filename, key)
+			}
+			return files[key]
+		}
+	}
+	t.Fatalf("Prometheus --config.file does not select a projected file from ConfigMap %q", source["name"])
+	return ""
+}
+
+func prometheusScrapeConfig(t *testing.T, objects []object) (global, job map[string]any) {
+	t.Helper()
+	var config object
+	if err := yaml.Unmarshal([]byte(prometheusConfigFile(t, objects)), &config); err != nil {
+		t.Fatal(err)
+	}
+	jobs := sliceAt(t, config, "scrape_configs")
+	if len(jobs) != 1 || stringAt(t, jobs[0], "job_name") != "catalog-pods" {
+		t.Fatalf("expected one catalog-pods scrape job, got %v", jobs)
+	}
+	return mapAt(t, config, "global"), asMap(t, jobs[0])
+}
+
 func TestMonitoringPackagedRender(t *testing.T) {
 	archive := monitoringPackage(t)
 	if output, err := helm(t, "lint", "--strict", archive, "--set", "enabled=true", "--set", "target.release=catalog", "--set", "target.deploymentLabel=test", "--set", "grafana.adminSecret.name=admin"); err != nil {
 		t.Fatalf("lint: %v\n%s", err, output)
 	}
-	objects := monitoringObjects(t, archive)
+	objects := monitoringObjects(t, archive, "--set", "target.namespace=application")
 	if len(objects) != 10 {
 		t.Fatalf("monitoring inventory = %d, want 10", len(objects))
 	}
@@ -80,11 +119,6 @@ func TestMonitoringPackagedRender(t *testing.T) {
 		if stringAt(t, resource, "metadata", "namespace") != wantNamespace {
 			t.Fatal("resource escaped selected namespace")
 		}
-	}
-	role := objectsByKind(objects, "Role")[0]
-	rules := sliceAt(t, role, "rules")
-	if len(rules) != 1 || strings.Join(stringSlice(t, asMap(t, rules[0])["resources"]), ",") != "pods" {
-		t.Fatal("discovery permissions exceed Pods")
 	}
 	for _, component := range []string{"prometheus", "grafana"} {
 		deployment := oneObject(t, objects, "Deployment", component)
@@ -121,14 +155,8 @@ func TestMonitoringPackagedRender(t *testing.T) {
 			t.Fatal("monitoring Service is public")
 		}
 	}
-	var configMap object
-	for _, item := range objectsByKind(objects, "ConfigMap") {
-		if mapAt(t, item, "data")["prometheus.yaml"] != nil {
-			configMap = item
-		}
-	}
-	scrape := stringAt(t, configMap, "data", "prometheus.yaml")
-	for _, want := range []string{"application", "catalog_deployment", "cluster/application/catalog", "api;http|worker;operations", "sample_limit: 10000", "role: pod"} {
+	scrape := prometheusConfigFile(t, objects)
+	for _, want := range []string{"catalog_deployment", "cluster/application/catalog", "api;http|worker;operations", "sample_limit: 10000"} {
 		if !strings.Contains(scrape, want) {
 			t.Errorf("scrape configuration missing %s", want)
 		}
@@ -148,6 +176,89 @@ func TestMonitoringPackagedRender(t *testing.T) {
 	}
 }
 
+func TestMonitoringPodDiscoveryRBAC(t *testing.T) {
+	archive := monitoringPackage(t)
+	const releaseNamespace = "observability"
+	for _, tc := range []struct {
+		name, targetNamespace string
+		values                []string
+	}{
+		{"release namespace by default", releaseNamespace, nil},
+		{"separate Catalog namespace", "catalog-team", []string{"--set", "target.namespace=catalog-team"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append([]string{"--namespace", releaseNamespace}, tc.values...)
+			objects := monitoringObjects(t, archive, args...)
+			_, job := prometheusScrapeConfig(t, objects)
+			discovery := sliceAt(t, job, "kubernetes_sd_configs")
+			if len(discovery) != 1 || stringAt(t, discovery[0], "role") != "pod" {
+				t.Fatalf("unexpected Catalog Pod discovery configuration: %v", discovery)
+			}
+			namespaces := stringSlice(t, valueAt(t, discovery[0], "namespaces", "names"))
+			if !slices.Equal(namespaces, []string{tc.targetNamespace}) {
+				t.Fatalf("Prometheus discovers namespaces %v, want only %q", namespaces, tc.targetNamespace)
+			}
+			roles, bindings := objectsByKind(objects, "Role"), objectsByKind(objects, "RoleBinding")
+			if len(roles) != 1 || len(bindings) != 1 {
+				t.Fatalf("got %d Roles and %d RoleBindings, want one of each", len(roles), len(bindings))
+			}
+			if len(objectsByKind(objects, "ClusterRole")) != 0 || len(objectsByKind(objects, "ClusterRoleBinding")) != 0 {
+				t.Fatal("Pod discovery rendered cluster-wide RBAC")
+			}
+			role, binding := roles[0], bindings[0]
+			if stringAt(t, role, "metadata", "namespace") != tc.targetNamespace || stringAt(t, binding, "metadata", "namespace") != tc.targetNamespace {
+				t.Fatalf("discovery Role and RoleBinding must both be in %s", tc.targetNamespace)
+			}
+			rules := sliceAt(t, role, "rules")
+			if len(rules) != 1 {
+				t.Fatalf("discovery rules = %v, want a single Pod read rule", rules)
+			}
+			rule := asMap(t, rules[0])
+			verbs := stringSlice(t, rule["verbs"])
+			slices.Sort(verbs)
+			if !slices.Equal(verbs, []string{"get", "list", "watch"}) || !slices.Equal(stringSlice(t, rule["apiGroups"]), []string{""}) ||
+				!slices.Equal(stringSlice(t, rule["resources"]), []string{"pods"}) ||
+				len(optionalSlice(t, rule["resourceNames"])) != 0 || len(optionalSlice(t, rule["nonResourceURLs"])) != 0 {
+				t.Fatalf("unexpected Pod discovery permissions: %v", rule)
+			}
+			ref := mapAt(t, binding, "roleRef")
+			if ref["apiGroup"] != "rbac.authorization.k8s.io" || ref["kind"] != "Role" || ref["name"] != stringAt(t, role, "metadata", "name") {
+				t.Fatalf("binding does not reference the rendered discovery Role: %v", ref)
+			}
+			subjects := sliceAt(t, binding, "subjects")
+			if len(subjects) != 1 {
+				t.Fatalf("discovery subjects = %v, want only Prometheus", subjects)
+			}
+			subject := asMap(t, subjects[0])
+			if subject["kind"] != "ServiceAccount" || subject["namespace"] != releaseNamespace ||
+				(subject["apiGroup"] != nil && subject["apiGroup"] != "") {
+				t.Fatalf("unexpected discovery subject: %v", subject)
+			}
+			accounts := make(map[string]bool)
+			for _, sa := range objectsByKind(objects, "ServiceAccount") {
+				if stringAt(t, sa, "metadata", "namespace") == releaseNamespace {
+					accounts[stringAt(t, sa, "metadata", "name")] = boolAt(t, sa, "automountServiceAccountToken")
+				}
+			}
+			for _, component := range []string{"prometheus", "grafana"} {
+				deployment := oneObject(t, objects, "Deployment", component)
+				name := stringAt(t, deployment, "spec", "template", "spec", "serviceAccountName")
+				token, exists := accounts[name]
+				if stringAt(t, deployment, "metadata", "namespace") != releaseNamespace || !exists {
+					t.Fatalf("%s must use a rendered ServiceAccount in %s, got %q", component, releaseNamespace, name)
+				}
+				collector := component == "prometheus"
+				if token != collector {
+					t.Errorf("%s ServiceAccount %q automounts a token = %t, want %t", component, name, token, collector)
+				}
+				if bound := subject["name"] == name; bound != collector {
+					t.Errorf("%s ServiceAccount %q bound to discovery Role = %t, want %t", component, name, bound, collector)
+				}
+			}
+		})
+	}
+}
+
 func TestMonitoringValuesRejectUnsafeAndUnknownInputs(t *testing.T) {
 	archive := monitoringPackage(t)
 	if _, err := helm(t, "template", "monitor", archive, "--set-string", "enabled=on"); err == nil {
@@ -156,15 +267,48 @@ func TestMonitoringValuesRejectUnsafeAndUnknownInputs(t *testing.T) {
 	if _, err := helm(t, monitoringArguments(archive, "--set", "prometheus.image=prom/prometheus:latest@sha256:"+strings.Repeat("a", 64))...); err == nil {
 		t.Fatal("latest tag accepted even with a digest")
 	}
-	for _, input := range []string{"target.release=", "target.deploymentLabel=", "grafana.adminSecret.name=", "grafana.adminPassword=secret", "podSecurityContext.runAsUser=0", "podSecurityContext.privileged=true", "prometheus.image=prom/prometheus:latest", "prometheus.scrapeTimeoutSeconds=20", "prometheus.storage.emptyDirSizeLimit=0Gi", "target.namespace=other/namespace", "target.deploymentLabel=bad$label"} {
+	for _, input := range []string{"grafana.adminSecret.name=", "grafana.adminPassword=secret", "podSecurityContext.runAsUser=0", "podSecurityContext.privileged=true", "prometheus.image=prom/prometheus:latest", "prometheus.storage.emptyDirSizeLimit=0Gi", "target.namespace=other/namespace", "target.deploymentLabel=bad$label"} {
 		t.Run(input, func(t *testing.T) {
 			if _, err := helm(t, monitoringArguments(archive, "--set", input)...); err == nil {
 				t.Fatal("invalid monitoring value accepted")
 			}
 		})
 	}
-	if _, err := helm(t, monitoringArguments(archive, "--set", "prometheus.storage.existingClaim=same,grafana.storage.existingClaim=same")...); err == nil {
-		t.Fatal("shared storage accepted")
+	for _, tc := range []struct{ values, diagnostic string }{
+		{"target.namespace=catalog-team,target.release=", "target.release"},
+		{"target.namespace=catalog-team,target.deploymentLabel=", "target.deploymentLabel"},
+		{"prometheus.scrapeIntervalSeconds=16,prometheus.scrapeTimeoutSeconds=17", "prometheus.scrapeTimeoutSeconds must not exceed scrapeIntervalSeconds"},
+		{"prometheus.storage.existingClaim=same,grafana.storage.existingClaim=same", "Prometheus and Grafana must use separate claims"},
+	} {
+		t.Run(tc.values, func(t *testing.T) {
+			raw, err := helm(t, monitoringArguments(archive, "--set", tc.values)...)
+			// Helm 3 reports dotted schema paths and Helm 4 reports JSON pointers.
+			if err == nil || !strings.Contains(strings.ReplaceAll(raw, "/", "."), tc.diagnostic) {
+				t.Fatalf("expected Helm to reject %q with %q, got %v\n%s", tc.values, tc.diagnostic, err, raw)
+			}
+		})
+	}
+}
+
+func TestMonitoringScrapeTiming(t *testing.T) {
+	archive := monitoringPackage(t)
+	for _, tc := range []struct{ values, timeout string }{
+		{"prometheus.scrapeIntervalSeconds=16,prometheus.scrapeTimeoutSeconds=7", "7s"},
+		{"prometheus.scrapeIntervalSeconds=16,prometheus.scrapeTimeoutSeconds=16", "16s"},
+	} {
+		t.Run(tc.values, func(t *testing.T) {
+			objects := monitoringObjects(t, archive, "--set", tc.values)
+			global, job := prometheusScrapeConfig(t, objects)
+			for setting, want := range map[string]string{"scrape_interval": "16s", "scrape_timeout": tc.timeout} {
+				got, overridden := job[setting]
+				if !overridden {
+					got = global[setting]
+				}
+				if got != want {
+					t.Errorf("catalog-pods %s = %v, want %s", setting, got, want)
+				}
+			}
+		})
 	}
 }
 

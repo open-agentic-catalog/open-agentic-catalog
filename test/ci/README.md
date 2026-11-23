@@ -108,7 +108,7 @@ The uv bootstrap uses `test/ci/uv/requirements.txt`, pip hash mode and a fresh o
 
 Markdownlint uses the private native project under `test/ci/markdown/`. `markdown_install()` copies its manifest/lock into the existing owned tool directory and runs `npm ci`, without lifecycle scripts, audit submissions or funding requests. Ordinary installation does not resolve dependencies, apply a moving date filter or repair the lock. The separate npm archive is verified before extraction and leaves the reviewed Node distribution unchanged.
 
-`make workflow-tools-install` acquires actionlint explicitly. `make workflow-check` checks its Go module/version metadata without automatic toolchain acquisition, then checks workflow files and shell commands with installed ShellCheck. Each target runs alone and bypasses local Make env files. `make check` includes `workflow-check`.
+`make workflow-tools-install` acquires actionlint explicitly. `make workflow-check` checks its Go module/version metadata without automatic toolchain acquisition, then checks workflow files and shell commands with installed ShellCheck. The upload-policy test in `make test-tooling-unit` uses the same `.yml` and `.yaml` inventory under `.github/workflows/` and rejects new workflow names until reviewed. Each Make workflow target runs alone and bypasses local Make env files. `make check` includes `workflow-check`.
 
 ## Deliberate input updates
 
@@ -131,6 +131,8 @@ The hosted installer and local act harness keep their Linux AMD64/Python 3.12 re
 `admission.py` owns changed-path selection, fixed outcomes and qualified SDK staging. Its units run without Git, Docker or network calls. Functional tests exercise process admission separately. `candidate.py` owns exact image archives. `release_delivery.py` assembles admitted results and assets. Only its explicitly selected protected hosted `publish` command can perform external delivery. Never run that command locally.
 
 Root `pyproject.toml` and `uv.lock` changes select UI, documentation and every SDK language. Those jobs consume the shared Python installer or locked development tools. Changes beneath a specific SDK or documentation directory retain their existing selection. Selected failures, cancellations and unexpected skips fail the completion gate.
+
+The UI, documentation and TypeScript SDK jobs all consume the root `LICENSE` and `catalog-ui/scripts/native-test-completion.mjs`. Changing either selects all three. Changing `examples/tutorials/local-oidc/service-read.py` also selects the Python SDK job, which runs that tutorial against its installed packages.
 
 `fuzz_corpus.py` collects new synthetic Go counterexamples after a failed fuzz measurement. Its package allowlist has a unit contract against `make test-fuzz`. Collection uses untracked, nonignored Git paths and preserves source files. It accepts regular files with hexadecimal names and the Go corpus header, within 1 MiB per file and 16 MiB total. Reports stay under ignored `output/`; redirected paths and existing destination files are refused. Collection does not change the failed measurement result. Unit cases and the native functional selection test the helper and the workflow's actual shell command without a fuzz campaign or upload.
 

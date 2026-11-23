@@ -32,7 +32,11 @@ The semantic browser and coverage scripts use the UI toolchain for ESLint, Playw
 
 `make test-semantic` builds the Catalog image and runs an invocation-owned Compose project with PostgreSQL, the real pinned MiniLM service, API and worker. It explicitly selects `seed-demo --sample-set minimal` for its five native Resources/three published releases, independently of the expanded developer demo and archive fixture. It seeds only that disposable Catalog, checks automatic indexing, semantic-only matching, exact Search/Explore totals and facet counts, complete small-corpus pagination, public ARD headers/continuation, administrator reindex/replay and CLI metadata.
 
-Outage checks require retained keyword identities; recovery restores the semantic-only results. Public queries use the seed tag to exclude the Registry self-entry explicitly. Browser rebuilds preserve the snapshot document and ETag.
+The same reader searches the three local releases with the model running and again while it is stopped. For `order`, both tiers must return all three releases. The report records whether their order agrees. For `purchase assistance`, hybrid Search must find at least one release and keyword Search must return zero. Both fresh keyword searches report the provider outage.
+
+A reader who already has a hybrid Search cursor receives HTTP 503 (`DEPENDENCY_UNAVAILABLE`) during the outage. A reader starting a new search can still page through keyword results. After the model recovers, each cursor must return its original final release with its own ranking profile and index generation. A hybrid cursor issued before the index rebuild receives HTTP 400 (`INVALID_ARGUMENT`) and requires a fresh search.
+
+Recovery also restores semantic-only results. Public queries use the seed tag to exclude the Registry self-entry explicitly. Browser rebuilds preserve the snapshot document and ETag.
 
 A temporary UI host and real Chromium verify reader/admin and fallback workflows; install UI tools and Chromium first. The existing Go performance driver runs four readers for ten seconds during reindex requests and records latency, failures and scoped container resources. The same invocation then reuses the governed seeder for 1,000 published releases, waits for real-model indexing and traverses all 997 Scale matches. It requires 49 full 20-item pages and a final 17-item page, exact seed membership and kind totals, fixed query/profile context, unique advancing cursors and terminal completion. A second four-reader phase follows this traversal.
 

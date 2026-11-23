@@ -10,8 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 )
@@ -113,17 +113,17 @@ func (h *harness) requireCertificateStatus(revision int, issuing bool) error {
 	})
 }
 
-func (h *harness) certificatePodUIDs() (map[string][]string, error) {
-	result := map[string][]string{}
+func (h *harness) certificatePodUIDs() (map[string]string, error) {
+	result := map[string]string{}
 	for _, role := range []string{"api", "worker"} {
 		pods, err := h.pods(role)
 		if err != nil || len(pods) != 1 {
 			return nil, errors.New("certificate test runtime inventory changed")
 		}
-		if !pods[0].Ready || pods[0].Restarts != 0 {
+		if pods[0].UID == "" || !pods[0].Ready || pods[0].Restarts != 0 {
 			return nil, errors.New("certificate test runtime is not ready without restarts")
 		}
-		result[role] = []string{pods[0].UID}
+		result[role] = pods[0].UID
 	}
 	for _, scope := range []struct {
 		namespace, release string
@@ -174,7 +174,7 @@ func (h *harness) certificatePodUIDs() (map[string][]string, error) {
 					matched = name
 				}
 			}
-			if !ready || matched == "" || result[matched] != nil {
+			if !ready || matched == "" || result[matched] != "" {
 				return nil, errors.New("external certificate process identity differs")
 			}
 			id := pod.Status.Containers[0].ImageID
@@ -187,26 +187,41 @@ func (h *harness) certificatePodUIDs() (map[string][]string, error) {
 				return nil, errors.New("external certificate runtime image differs from its pin")
 			}
 			h.report.Images["cert-manager-running-"+matched] = id
-			result[matched] = []string{pod.Metadata.UID}
+			result[matched] = pod.Metadata.UID
 		}
 	}
 	return result, nil
 }
 
-func (h *harness) requireCertificateWorkloads(before map[string][]string) error {
+func (h *harness) verifyIngressAfterAPIReplacement(client *http.Client, before map[string]string, leaf issuedCertificate, release smokeRelease) error {
+	if _, err := h.kubectl("delete the Catalog API Pod behind the ingress", "-n", namespace, "delete", "pod", "-l", "app.kubernetes.io/instance="+releaseName+",app.kubernetes.io/component=api", "--wait=true", "--timeout=2m"); err != nil {
+		return err
+	}
+	// The deleted Pod is gone. Wait for the original ingress to route to its
+	// replacement and serve the expected OAuth metadata over the recovered leaf.
+	if err := h.waitServedCertificate(client, leaf); err != nil {
+		return fmt.Errorf("ingress metadata or certificate did not recover after API Pod replacement: %w", err)
+	}
 	after, err := h.certificatePodUIDs()
 	if err != nil {
 		return err
 	}
-	for role, want := range before {
-		if !slices.Equal(want, after[role]) {
-			return errors.New("certificate renewal replaced an application or controller Pod")
+	if after["api"] == before["api"] {
+		return errors.New("ingress recovery test did not replace the API Pod")
+	}
+	for role, uid := range before {
+		if role != "api" && after[role] != uid {
+			return fmt.Errorf("API Pod replacement also replaced the %s Pod", role)
 		}
 	}
+	if err := h.verifyCertificateMCP(client, release); err != nil {
+		return fmt.Errorf("MCP ingress after API Pod replacement: %w", err)
+	}
+	h.report.Checks = append(h.report.Checks, "authenticated-ingress-search-finds-original-release-after-api-pod-replacement")
 	return nil
 }
 
-func (h *harness) certificateIssuerFailure(client *http.Client, want issuedCertificate) error {
+func (h *harness) certificateIssuerFailure(client *http.Client, want issuedCertificate, release smokeRelease) error {
 	if _, err := h.kubectl("make owned CA issuer unavailable", "-n", namespace, "patch", "issuer/catalog-local-ca", "--type=merge", "-p", `{"spec":{"ca":{"secretName":"catalog-test-missing"}}}`); err != nil {
 		return err
 	}
@@ -218,6 +233,9 @@ func (h *harness) certificateIssuerFailure(client *http.Client, want issuedCerti
 	}
 	if err := h.requireCertificateStatus(2, true); err != nil {
 		return err
+	}
+	if err := h.verifyCertificateMCPRead(client, "2026-07-28", "tools/call", release); err != nil {
+		return fmt.Errorf("search during blocked certificate renewal: %w", err)
 	}
 	for range 3 {
 		current, err := h.issuedCertificate(h.ctx)
@@ -235,11 +253,22 @@ func (h *harness) certificateIssuerFailure(client *http.Client, want issuedCerti
 		}
 	}
 	h.report.Certificates.IssuerFailureObserved = true
+	h.report.Checks = append(h.report.Checks, "authenticated-ingress-search-finds-original-release-during-issuer-outage")
 	_, err := h.kubectl("restore the original local CA issuer", "-n", namespace, "patch", "issuer/catalog-local-ca", "--type=merge", "-p", `{"spec":{"ca":{"secretName":"catalog-test-ca"}}}`)
 	return err
 }
 
-func (h *harness) verifyCertificateRenewal() error {
+func (h *harness) verifyCertificateRenewal(initialSmoke []byte) error {
+	var published struct {
+		Resources []smokeRelease `json:"resources"`
+	}
+	if json.Unmarshal(initialSmoke, &published) != nil || len(published.Resources) == 0 {
+		return errors.New("certificate test requires a published smoke release")
+	}
+	release := published.Resources[0]
+	if release.ReleaseID == "" || release.Identifier == "" {
+		return errors.New("smoke report is missing the release ID or resource identifier")
+	}
 	h.report.Certificates = &certificateReport{}
 	if err := h.installCertificateController(); err != nil {
 		return err
@@ -273,7 +302,7 @@ func (h *harness) verifyCertificateRenewal() error {
 	if err := h.waitServedCertificate(client, initial); err != nil {
 		return err
 	}
-	if err := h.verifyCertificateMCP(client); err != nil {
+	if err := h.verifyCertificateMCP(client, release); err != nil {
 		return err
 	}
 	if err := h.verifyCertificateRejections(address, initial); err != nil {
@@ -293,12 +322,12 @@ func (h *harness) verifyCertificateRenewal() error {
 	if err := h.waitServedCertificate(client, renewed); err != nil {
 		return err
 	}
-	if err := h.verifyCertificateMCP(client); err != nil {
+	if err := h.verifyCertificateMCP(client, release); err != nil {
 		return err
 	}
 	h.report.Certificates.Renewed = renewed
 	h.report.Checks = append(h.report.Checks, "manual-renewal-serves-new-leaf-serial-and-key-on-fresh-connections")
-	if err := h.certificateIssuerFailure(client, renewed); err != nil {
+	if err := h.certificateIssuerFailure(client, renewed, release); err != nil {
 		return err
 	}
 	recovered, err := h.waitCertificateReplacement(renewed)
@@ -311,19 +340,26 @@ func (h *harness) verifyCertificateRenewal() error {
 	if err := h.waitServedCertificate(client, recovered); err != nil {
 		return err
 	}
-	if err := h.verifyCertificateMCP(client); err != nil {
+	if err := h.verifyCertificateMCP(client, release); err != nil {
 		return err
 	}
 	root, err := h.readCertificateSecret(h.ctx, localCASecret)
 	if err != nil || !bytes.Equal(root["tls.crt"], h.certificateRoot) {
 		return errors.New("local CA authority changed during renewal")
 	}
-	if err := h.requireCertificateWorkloads(processes); err != nil {
+	afterRenewal, err := h.certificatePodUIDs()
+	if err != nil {
 		return err
+	}
+	if !maps.Equal(afterRenewal, processes) {
+		return errors.New("certificate renewal replaced an application or controller Pod")
 	}
 	h.report.Certificates.Recovered = recovered
 	h.report.Certificates.WorkloadsUnchanged = true
 	h.report.Checks = append(h.report.Checks, "issuer-unavailability-retains-valid-serving-and-recovers-pending-renewal", "stable-ca-and-no-application-or-controller-restarts")
+	if err := h.verifyIngressAfterAPIReplacement(client, afterRenewal, recovered, release); err != nil {
+		return err
+	}
 	_, err = h.kubectl("stop owned issuance before cleanup", "-n", namespace, "delete", "certificate/catalog-mcp", "issuer/catalog-local-ca", "--wait=true", "--timeout=30s")
 	return err
 }

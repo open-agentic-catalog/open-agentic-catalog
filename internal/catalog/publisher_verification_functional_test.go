@@ -136,10 +136,11 @@ func TestPublisherVerificationOwnedDNS(t *testing.T) {
 				expected = "response_limit"
 			}
 			if err != nil || status.LastCheckOutcome != expected || udpCalls.Load() == 0 {
-				t.Fatalf("owned DNS: outcome=%s udp=%d tcp=%d err=%v", status.LastCheckOutcome, udpCalls.Load(), tcpCalls.Load(), err)
+				t.Fatalf("DNS lookup via %s returned outcome %q (UDP=%d TCP=%d err=%v), want %q with a UDP query",
+					udp.LocalAddr(), status.LastCheckOutcome, udpCalls.Load(), tcpCalls.Load(), err, expected)
 			}
 			if (mode == "tcp" || mode == "record_limit" || mode == "byte_limit") && tcpCalls.Load() == 0 {
-				t.Fatal("resolver did not use TCP fallback")
+				t.Fatalf("DNS lookup via %s did not fall back to TCP (UDP=%d TCP=0)", tcp.Addr(), udpCalls.Load())
 			}
 		})
 	}
