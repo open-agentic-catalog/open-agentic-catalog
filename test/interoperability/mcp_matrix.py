@@ -19,7 +19,7 @@ import mcp_tools as tools
 from mcp_stdio import setup
 
 COMBINATIONS = {(transport, version) for transport in ("stdio", "http") for version in ("2025-11-25", "2026-07-28")}
-ARD_CASES = {"inventory", "publication-pages", "rest-equivalence", "closed-arguments", "host-admission", "live-partial", "referrals", "unpublication", "safety-withdrawal"}
+ARD_CASES = {"inventory", "publication-pages", "rest-equivalence", "closed-arguments", "host-admission", "live-partial", "live-trust-manifest", "referrals", "unpublication", "safety-withdrawal"}
 CASES = {"inventory", "local-pages", "filters", "indexed", "exact-release", "explore-access", "empty-sparse",
          "closed-arguments", "live", "partial", "replica-continuation", "restart-continuation", "stale-cursor"}
 

@@ -17,7 +17,7 @@ from mcp_diagnostics import ToolRefusal, failure_evidence, read_failure
 import httpx2
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
-from catalog_client import CA, EXPECTED, TOKEN, ObservedStdio, call, envelope, failure, api, observations, require
+from catalog_client import CA, EXPECTED, TOKEN, ObservedStdio, call, check_selected_release, envelope, failure, api, observations, require
 
 KINDS = {"agent", "mcp_server", "skill", "plugin"}
 PHASE = "setup"
@@ -189,14 +189,7 @@ async def matrix_case(transport, protocol):
         cases["indexed"] = True
         PHASE = transport + "/" + protocol + "/exact-release"
         for row in local:
-            release = envelope(await call(client, "release", {"releaseId": row["local"]["release"]["id"]}))
-            direct, _ = await api("/api/v1/catalog/resources/" + release["release"]["id"], bearer=TOKEN)
-            for name in ("resource", "version", "versionRevision", "listing", "listingRevision", "release", "evidence"):
-                require(release[name]["id"] == direct[name]["id"], "retained identity")
-            require(len(release["representations"]) == len(direct["versionRevision"]["representations"]), "representation inventory")
-            for ref in release["representations"]:
-                original = next(r for r in direct["versionRevision"]["representations"] if r["id"] == ref["id"])
-                require(all(ref[k] == original[k] for k in ("id", "role", "mediaType", "profileId", "contentDigest", "size")) and "data" not in ref, "immutable reference")
+            await check_selected_release(client, row)
         cases["exact-release"] = True
         PHASE = transport + "/" + protocol + "/explore-access"
         facets = envelope(await call(client, "explore", {"facets": [{"field": "kind", "limit": 1}]}))
@@ -290,11 +283,11 @@ def ard_envelope(result):
     value = result.model_dump(by_alias=True, exclude_none=True)
     require(not value.get("isError"), "ARD tool refusal")
     require(len(value["content"]) == 1 and value["content"][0]["type"] == "text", "ARD text shape")
-    parsed = json.loads(value["content"][0]["text"])
-    require(parsed == value["structuredContent"] and isinstance(parsed["results"], list), "complete ARD representations")
-    require("data" not in parsed and "catalog/ard-search" in value["_meta"], "ARD crossed Control plane or lost HTTP metadata")
+    structured = value["structuredContent"]
+    require(json.loads(value["content"][0]["text"]) == structured and isinstance(structured["results"], list), "complete ARD representations")
+    require("data" not in structured and "catalog/ard-search" in value["_meta"], "ARD crossed Control plane or lost HTTP metadata")
     require(TOKEN not in json.dumps(value), "ARD credential reflection")
-    return parsed, value["_meta"]["catalog/ard-search"]
+    return structured, value["_meta"]["catalog/ard-search"]
 
 
 async def publication_pages(client, http, query, expected):
@@ -379,7 +372,13 @@ async def ard_checks():
             # one has an owned outage. Local results must survive that failure.
             partial, meta = ard_envelope(await client.call_tool("search", dict(query=dict(text="demo"), federation="auto", pageSize=100)))
             require(meta["partial"] is True and any((r["identifier"], r.get("version")) in expected for r in partial["results"]), "ARD live failure erased healthy local results")
-            cases = dict.fromkeys(("inventory", "publication-pages", "rest-equivalence", "closed-arguments", "host-admission", "live-partial"), True)
+            declarations = [(r["identifier"], r["trustManifest"]) for r in partial["results"] if "trustManifest" in r]
+            require(declarations == [("urn:air:catalog.example.com:matrix:agent", {
+                "identity": "https://catalog.example.com",
+                "trustSchema": {"examplePolicy": {"revision": 9007199254740993, "labels": ["preview", None]}},
+            })], "wrong live trust declaration in decoded ARD results")
+            require(all("TrustManifest" not in r for r in partial["results"]), "legacy trust member in decoded ARD results")
+            cases = dict.fromkeys(("inventory", "publication-pages", "rest-equivalence", "closed-arguments", "host-admission", "live-partial", "live-trust-manifest"), True)
             rows.append(dict(protocol=protocol, cases=cases))
         # Referral participation is an independent administrator opt-in. Enable
         # it only after the healthy live controls, through the existing API.

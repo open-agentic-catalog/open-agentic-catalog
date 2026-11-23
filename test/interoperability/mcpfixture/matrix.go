@@ -84,7 +84,16 @@ func matrixHandler(archives http.Handler, outageFile string) http.Handler {
 					continue
 				}
 				kind := []string{"agent", "mcp", "skill", "plugin"}[i]
-				rows = append(rows, map[string]any{"identifier": "urn:air:catalog.example.com:matrix:" + kind, "displayName": "Owned live " + kind, "type": media, "url": stdioOrigin + "/never-invoke", "description": "Inert live metadata", "tags": []string{"matrix-live"}, "metadata": map[string]any{"license": "Apache-2.0"}, "http://purl.org/dc/terms/subject": []string{"development"}, "score": 90 - i, "source": "https://" + r.Host + "/live/search"})
+				row := map[string]any{
+					"identifier": "urn:air:catalog.example.com:matrix:" + kind, "displayName": "Owned live " + kind,
+					"type": media, "url": stdioOrigin + "/never-invoke", "description": "Inert live metadata",
+					"tags": []string{"matrix-live"}, "metadata": map[string]any{"license": "Apache-2.0"},
+					"http://purl.org/dc/terms/subject": []string{"development"}, "score": 90 - i, "source": "https://" + r.Host + "/live/search",
+				}
+				if kind == "agent" {
+					row["TrustManifest"] = json.RawMessage(`{"identity":"https://catalog.example.com","trustSchema":{"examplePolicy":{"revision":9007199254740993,"labels":["preview",null]}}}`)
+				}
+				rows = append(rows, row)
 			}
 		}
 		offset := 0
