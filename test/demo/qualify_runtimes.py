@@ -100,6 +100,11 @@ def qualify():
             finally:
                 launcher.command(compose + ['down'], environment, seconds=120)
                 report['cleanup'] = True
+    except launcher.runtimes.PeerToolsUnavailable:
+        report['failurePhase'] = 'peer-tools'
+        if environment is None:
+            report['cleanup'] = True
+        raise
     finally:
         report_file.write_text(json.dumps(report, indent=2) + '\n')
         print('Demo lifecycle report: ' + str(report_file))
@@ -110,5 +115,7 @@ def qualify():
 if __name__ == '__main__':
     try:
         qualify()
+    except launcher.runtimes.PeerToolsUnavailable as error:
+        sys.exit(str(error))
     except (Exception, KeyboardInterrupt):
         raise SystemExit('Owned demo peer qualification failed; inspect its outcome/cleanup report.') from None

@@ -17,13 +17,24 @@ ROOT = Path(__file__).resolve().parents[2]
 SERVICES = ('demo-agent', 'demo-mcp', 'demo-everything')
 
 
+class PeerToolsUnavailable(RuntimeError):
+    """A local peer installation could not be verified."""
+
+
 def tools():
     # Reuse exact reviewed acquisition receipts and fail closed; no implicit install.
     sys.path.insert(0, str(ROOT / 'test/interoperability'))
     import a2a_tools
     import mcp_tools
     from runner import local_daemon
-    return a2a_tools.installed(), mcp_tools.installed(), local_daemon()
+    def receipt(name, check):
+        try:
+            return check()
+        except RuntimeError as error:
+            raise PeerToolsUnavailable(f'Cannot verify the local {name.upper()} peer. Check Docker access and run '
+                                       f'make {name}-tools-install if its tools are missing or stale.') from error
+
+    return receipt('a2a', a2a_tools.installed), receipt('mcp', mcp_tools.installed), local_daemon()
 
 
 def port(value):

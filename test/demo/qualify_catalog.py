@@ -264,5 +264,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, interrupted)
     try:
         qualify()
+    except launcher.runtimes.PeerToolsUnavailable as error:
+        sys.exit(str(error))
     except (Exception, KeyboardInterrupt):
         sys.exit('Owned Catalog demo qualification failed; inspect its phase/outcome/cleanup report.')

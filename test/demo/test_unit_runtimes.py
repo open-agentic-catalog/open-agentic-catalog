@@ -1,11 +1,13 @@
 """Isolated admission/configuration units; no Docker, servers, SDK or subprocess."""
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import agent_runtime
+import qualify_runtimes
 import runtimes
 
 
@@ -19,11 +21,33 @@ class RuntimeInputs(unittest.TestCase):
                 tools.assert_not_called()
 
     def test_missing_stale_tools_before_credentials(self):
-        with tempfile.TemporaryDirectory() as temporary, patch.object(runtimes, 'tools', side_effect=RuntimeError('stale')):
-            path = Path(temporary).resolve() / 'inputs'
-            with self.assertRaises(RuntimeError):
-                runtimes.inputs({'DEMO_RUNTIME_DIR': str(path)}, True, None)
-            self.assertFalse(path.exists())
+        for name in ('a2a', 'mcp'):
+            modules = {key: Mock() for key in ('a2a_tools', 'mcp_tools', 'runner')}
+            modules[name + '_tools'].installed.side_effect = RuntimeError('private engine diagnostic')
+            with self.subTest(peer=name), tempfile.TemporaryDirectory() as temporary, \
+                    patch.dict(sys.modules, modules), patch.object(sys, 'path', sys.path.copy()):
+                path = Path(temporary).resolve() / 'inputs'
+                with self.assertRaises(runtimes.PeerToolsUnavailable) as caught:
+                    runtimes.inputs({'DEMO_RUNTIME_DIR': str(path)}, True, None)
+                self.assertIn('make ' + name + '-tools-install', str(caught.exception))
+                self.assertNotIn('private engine diagnostic', str(caught.exception))
+                modules['runner'].local_daemon.assert_not_called()
+                self.assertFalse(path.exists())
+
+    def test_qualification_records_cleanup_when_peer_tools_are_missing(self):
+        launcher = qualify_runtimes.launcher
+        with tempfile.TemporaryDirectory() as temporary, patch.object(launcher, 'ROOT', Path(temporary)), \
+                patch.object(qualify_runtimes, 'unused_port', side_effect=['21443', '21444']), \
+                patch.object(launcher.runtimes, 'tools', side_effect=launcher.runtimes.PeerToolsUnavailable('missing')), \
+                patch.object(launcher, 'command') as command:
+            with self.assertRaises(launcher.runtimes.PeerToolsUnavailable):
+                qualify_runtimes.qualify()
+            command.assert_not_called()
+            report_path, = (Path(temporary) / 'output/demo/qualification').iterdir()
+            report = json.loads(report_path.read_bytes())
+            self.assertFalse(report['success'])
+            self.assertEqual(report['failurePhase'], 'peer-tools')
+            self.assertTrue(report['cleanup'])
 
     def test_selection_and_stop_without_tools_or_rotation(self):
         with tempfile.TemporaryDirectory() as temporary, patch.object(runtimes, 'tools') as tools:

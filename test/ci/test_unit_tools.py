@@ -326,6 +326,7 @@ class BinaryAcquisitionTests(unittest.TestCase):
             execute.assert_not_called()
 
     def test_hosted_compose_install_preserves_plugin_path_and_version_check(self):
+        version = tools.PINS["compose"]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             owned = root / "owned"
@@ -334,16 +335,15 @@ class BinaryAcquisitionTests(unittest.TestCase):
                 patch.object(tools, "OWNED", owned),
                 patch.object(tools.Path, "home", return_value=root / "home"),
                 patch.dict(tools.os.environ, {"GITHUB_ACTIONS": "true"}),
-                patch.dict(tools.PINS, {"compose": "5.6.1"}),
                 patch.object(tools, "checked_asset", side_effect=lambda _url, _checksum, path: path.write_bytes(b"compose fixture")) as acquire,
-                patch.object(tools, "run", return_value="5.6.1\n") as execute,
+                patch.object(tools, "run", return_value=version + "\n") as execute,
             ):
                 tools.binary_install("compose")
                 destination = root / "home/.docker/cli-plugins/docker-compose"
                 self.assertEqual(destination.read_bytes(), b"compose fixture")
                 self.assertEqual(destination.stat().st_mode & 0o777, 0o755)
                 self.assertEqual(acquire.call_args.args[:2], (
-                    "https://github.com/docker/compose/releases/download/v5.6.1/docker-compose-linux-x86_64",
+                    f"https://github.com/docker/compose/releases/download/v{version}/docker-compose-linux-x86_64",
                     tools.PINS["archives"]["compose"]["sha256"],
                 ))
                 execute.assert_called_once_with(["docker", "compose", "version", "--short"], capture=True)
