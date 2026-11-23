@@ -380,15 +380,16 @@ class Checks:
                                "--log-level", "error", "--ignore-gitleaks-allow", "--config", paths[0],
                                "--gitleaks-ignore-path", paths[1], "--report-format", "json",
                                "--report-path", "/dev/stdout", "."])
-        if result.returncode:
+        # The pinned scanner writes [] for a clean scan and exits 1 for findings.
+        try:
+            findings = json.loads(result.stdout)
+        except (ValueError, RecursionError):
+            findings = None
+        if not isinstance(findings, list) or result.returncode != (1 if findings else 0):
+            raise Failure("secret scanner failed; check installation/configuration and retry")
+        if findings:
             # Only the selected safe fields are displayed, not the matched line
             # or an arbitrary scanner message (even with scanner redaction on).
-            try:
-                findings = json.loads(result.stdout)
-            except ValueError:
-                findings = None
-            if result.returncode != 1 or not isinstance(findings, list) or not findings:
-                raise Failure("secret scanner failed; check installation/configuration and retry")
             locations = []
             for finding in findings[:10]:
                 if not isinstance(finding, dict):

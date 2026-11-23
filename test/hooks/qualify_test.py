@@ -30,6 +30,33 @@ class ScannerQualification(unittest.TestCase):
         self.addCleanup(environment.stop)
         return fixture
 
+    def staged_fingerprints(self, fixture):
+        # Read the pinned scanner's findings before applying reviewed exceptions.
+        result = runner.Checks(fixture.root).run(
+            ["gitleaks", "git", "--staged", "--redact=100", "--no-banner", "--log-level", "error",
+             "--ignore-gitleaks-allow", "--config", runner.POLICIES[0], "--gitleaks-ignore-path", os.devnull,
+             "--report-format", "json", "--report-path", "/dev/stdout", "."])
+        self.assertIn(result.returncode, (0, 1))
+        findings = json.loads(result.stdout)
+        self.assertIsInstance(findings, list)
+        self.assertEqual(result.returncode, 1 if findings else 0)
+        return [finding["Fingerprint"] for finding in findings]
+
+    def test_reviewed_secret_exceptions_match_current_files(self):
+        fixture = self.fixture()
+        fixture.git("-c", "core.hooksPath=/dev/null", "commit", "-qm", "reviewed exceptions baseline")
+        exceptions = [line for line in (fixture.root / runner.POLICIES[1]).read_text().splitlines()
+                      if line and not line.startswith("#")]
+        repository = Path(__file__).resolve().parents[2]
+        for name in ("documentation/src/content/docs/operations/docker.mdx", "documentation/src/content/docs/guides/mcp-server.mdx",
+                     "test/interoperability/adk/provenance.json"):
+            destination = fixture.root / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(repository / name, destination)
+            fixture.git("add", "--", ":(literal)" + name)
+        self.assertCountEqual(self.staged_fingerprints(fixture), exceptions)
+        fixture.check()
+
     def test_reviewed_markdown_and_maintained_guide_with_real_tools(self):
         fixture = self.fixture()
         fixture.git("-c", "core.hooksPath=/dev/null", "commit", "-qm", "corpus qualification baseline")
@@ -131,7 +158,8 @@ class ScannerQualification(unittest.TestCase):
                     # Remove only this newly staged synthetic fixture, even if
                     # the assertion fails, so cases cannot mask one another.
                     fixture.git("rm", "-f", "--", name)
-        path = fixture.write("credentials with spaces.txt", 'github_token = "' + secret + '"\n')
+        credential_line = f'github_token = "{secret}"\n'
+        path = fixture.write("credentials with spaces.txt", credential_line)
         path.write_text("no credentials\n")
         with self.assertRaises(runner.Failure) as failure:
             fixture.check()
@@ -141,14 +169,28 @@ class ScannerQualification(unittest.TestCase):
         self.assertNotEqual(rejected.returncode, 0)
         self.assertNotIn(secret.encode(), rejected.stdout + rejected.stderr)
         # The same pin's exact finding fingerprint is the only exception.
-        report = checks.run(["gitleaks", "git", "--staged", "--redact=100", "--no-banner", "--log-level", "error",
-                             "--config", runner.POLICIES[0], "--report-format", "json", "--report-path", "/dev/stdout", "."])
-        fingerprint = json.loads(report.stdout)[0]["Fingerprint"]
+        fingerprint, = self.staged_fingerprints(fixture)
         fixture.write(runner.POLICIES[1], fingerprint + "\n")
         fixture.check()
+
+        # Reviewing line 1 covers neither another line in that file nor the
+        # same line in a second file, even when the credential is identical.
+        fixture.write(path.name, credential_line * 2)
+        second_path = fixture.write("second.txt", credential_line)
+        with self.assertRaisesRegex(runner.Failure, "possible staged secrets") as failure:
+            fixture.check()
+        diagnostic = str(failure.exception)
+        self.assertFalse(secret in diagnostic, "scanner diagnostic exposed the fixture credential")
+        self.assertCountEqual(
+            [json.loads(line) for line in diagnostic.splitlines()[1:]],
+            [{"File": path.name, "RuleID": "github-pat", "StartLine": 2},
+             {"File": second_path.name, "RuleID": "github-pat", "StartLine": 1}],
+        )
+
+        fixture.git("rm", "-f", "--", second_path.name)
         fixture.write(runner.POLICIES[1], "# No exceptions\n")
-        fixture.git("add", "--", path.name)
-        path.write_text('github_token = "' + secret + '"\n')
+        fixture.write(path.name, "no credentials\n")
+        path.write_text(credential_line)
         fixture.check()  # Secret is now only in unstaged working-tree content.
         fixture.git("add", "--", path.name)
         fixture.git("commit", "--no-verify", "-qm", "explicit synthetic bypass")
@@ -250,11 +292,7 @@ class ScannerQualification(unittest.TestCase):
         fixture.write("credentials.txt", 'github_token = "' + secret + '"\n')
         with self.assertRaisesRegex(runner.Failure, "possible staged secrets"):
             fixture.check()
-        report = runner.Checks(fixture.root).run(
-            ["gitleaks", "git", "--staged", "--redact=100", "--no-banner", "--log-level", "error",
-             "--config", runner.POLICIES[0], "--report-format", "json", "--report-path", "/dev/stdout", "."])
-        self.assertEqual(report.returncode, 1)
-        fingerprint = json.loads(report.stdout)[0]["Fingerprint"]
+        fingerprint, = self.staged_fingerprints(fixture)
         replacements = {
             runner.POLICIES[0]: 'title = "Changed working policy"\n[[rules]]\nid = "no-match"\nregex = "CATALOG_NEVER_MATCH_THIS_CONTROL"\n',
             runner.POLICIES[1]: fingerprint + "\n",
