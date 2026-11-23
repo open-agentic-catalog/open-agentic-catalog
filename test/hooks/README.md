@@ -20,7 +20,7 @@ Ruff, ShellCheck, Hadolint and actionlint check batches of staged files in a pri
 
 Tools prefer explicit `RUFF`, `SHELLCHECK`, `MARKDOWNLINT`, `HADOLINT` and `ACTIONLINT` commands, then owned `.tools/` installations, then `PATH`. Versions must match the existing pins. Only selected file types require their tools; workflow checks also require ShellCheck. Hook installation requires Git, Python 3.12+ and pinned Gitleaks. Go changes require `gofmt`.
 
-Use the [Linux AMD64 setup commands](../../documentation/src/content/docs/contributing/testing.md#install-hook-tools-on-linux-amd64) for the existing pinned tools. The [troubleshooting table](../../documentation/src/content/docs/contributing/testing.md#enable-and-use-the-hook) covers executable overrides, stale versions, policy drift and limits. Setup does not install a hook.
+Follow [Install hook tools](../../documentation/src/content/docs/contributing/testing.md#install-hook-tools) for the pinned versions. Linux AMD64 also supports an [optional local Gitleaks installation](../../documentation/src/content/docs/contributing/testing.md#optional-owned-gitleaks-download-on-linux-amd64). The [troubleshooting table](../../documentation/src/content/docs/contributing/testing.md#enable-and-use-the-hook) covers executable overrides, stale versions, policy drift and limits. Setup does not install a hook.
 
 Run isolated selection and diagnostic tests with `python3 -B -m unittest discover -s test/hooks -p 'test_unit_*.py'`. They use no Git, subprocesses or tools. `make test-tooling-unit` includes this selection.
 

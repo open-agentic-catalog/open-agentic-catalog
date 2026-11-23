@@ -92,12 +92,14 @@ Only the supervisor-selected API origin is automatically counted. Other Catalog 
 Summarize explicitly selected reports from the repository root:
 
 ```sh
-make functional-coverage FUNCTIONAL_REPORTS='output/functional/run-<first-id>/report.json output/functional/run-<second-id>/report.json'
+make functional-coverage FUNCTIONAL_REPORTS='output/functional/run-<suffix>/report.json'
 ```
 
-Replace the example paths with actual run reports. This read-only target does not build, run services, find a latest run or require all profiles. It prints JSON with the denominator, observed and expected-positive operation counts, per-operation negative evidence/dispositions, selected profile results and `packagedGaps`. A gap means no measured positive response for an applicable packaged operation in the selected reports; it does not by itself establish missing implementation.
+Copy the report path printed at the end of your run. To combine compatible runs, pass their paths as one space-separated value. Each Compose profile builds its own image. If their API image configuration digests differ, run the command once per profile and keep the results separate. The [testing guide](../../documentation/src/content/docs/contributing/testing.md#read-functional-operation-reports) lists the other identity checks.
 
-The target returns nonzero for failed/incomplete runs, cleanup failure, malformed evidence or incompatible identities. A passing summary means its selected runs passed, not that every operation was covered. Disabled and lower-level-only operations remain in the total denominator.
+The command reads the selected reports and prints JSON with the denominator, observed and expected-positive operation counts, per-operation negative evidence, profile results and `packagedGaps`. A gap means the selected runs recorded no positive response for an applicable packaged operation.
+
+The command exits with an error for failed or incomplete runs, failed cleanup, empty observations, malformed evidence or incompatible identities. It keeps each profile's configuration digest and counts identical duplicate run IDs once. Conflicting duplicates fail. Peer, restore, tracing and writer-recovery reports are optional inputs. Disabled and lower-level-only operations remain in the denominator.
 
 Read the summary in this order:
 
@@ -112,8 +114,6 @@ History checks use a tiny owned fixture and one-record pages, compare known IDs/
 The fixture checks source pause/resume/removal without exposing raw observations. Its development Reader bundle includes explicit companion assignments; an ordinary `reader` grant does not add them. The representative Go driver sends malformed raw JSON/media types, verifies repeated rejection without namespace creation, and checks valid charset-bearing creation and exact replay; the ordinary Python client continues to send valid JSON only.
 
 The archive journey also starts with invalid Skill frontmatter. It checks persisted blocked evidence and exact archive identity, failed-package revalidation, cross-tenant denial and absence of partial inventory or transient bytes. A corrective revision preserves the failed history; a stale append cannot change the corrected candidate. A listing still referencing the failed revision cannot be submitted, even after that version has a corrected candidate. Repeated rejected submissions create no review records or listing changes. Explicitly updating the listing to the corrected revision then proceeds through the existing independent review, publication, replacement and retirement checks.
-
-Only reports with matching source/worktree, contract/inventory and application build identities can be combined. Empty observation sets and missing or inconsistent served build identities are rejected, even if a report claims success. Configuration/profile identities remain separate; identical duplicate run IDs are counted once and conflicting duplicates fail. Reports must match the current checkout's contract and inventory. The three-profile `make test-functional` target still runs independent default-off, webhook and OIDC stacks; pass their explicit report paths to combine evidence. Peer, restore, tracing and writer-recovery reports are optional inputs, not automatic extra runs.
 
 The namespace journey rejects a reused key with changed input or `If-Match`, then verifies the original response still replays and only one update/audit exists. The scoped-grant journey denies a previously successful command after revocation, restores the same authority and verifies exact replay without a second Resource creation. Core mutation checks require the replay header as well as identical bodies and ETags. Public unpublish checks send the old ETag and require 404, then verify conditional reads work again after explicit publication.
 

@@ -71,9 +71,9 @@ Run `make test-load-smoke` for an isolated Search diagnostic with direct Postgre
 
 Early ceiling exhaustion fails the trial rather than silently shortening it. This is closed-loop load, not an offered-rate benchmark. Setup, seeding and compilation are outside the measured window.
 
-Run `make test-monitoring` to add Prometheus and Grafana to the owned stack. Its default measurement lasts 120 seconds. It checks stored metrics, dashboard queries, provisioning and independence from collector stop/start. Both collector processes must start before warm-up. The test checks both app roles remain ready with collectors stopped. Browser review is separate.
+Run `make test-monitoring` to add Prometheus and Grafana to the owned stack. Its default measurement lasts 120 seconds. It checks stored metrics, dashboard queries and provisioning. With both collectors stopped, the API and worker must stay ready and a reader must still retrieve a seeded Resource. After restart, Prometheus must collect fresh samples from both targets.
 
-The target does not launch Playwright automatically.
+For the Grafana dashboard, install the [UI browser tools](../contributing/testing.md#install-and-check-the-ui-toolchain) and run `make test-monitoring MONITORING_BROWSER=on`. Chromium uses the measured workload's time range. If the report shows `monitoring-browser-observation-window-invalid`, check the start and end timestamps and `workload.measured.clockAdjustmentMillis`. The range must be positive, at most four minutes long and free of clock adjustments. Rerun the browser selection with a stable clock to qualify dashboard rendering.
 
 Install Docker, Compose, Python 3.12 or later and the repository Go toolchain before running disposable trials. See [local prerequisites](local-development.mdx#start-the-service). They deliberately select Docker's default context, skip Make `.env` parsing, discard ambient runtime credentials, projects, proxies and kubeconfigs, and build a uniquely named application image. Run one isolated measurement target per Make invocation. They do not select an existing development service or another project's monitoring.
 

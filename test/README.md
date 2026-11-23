@@ -10,7 +10,7 @@ Most Go tests live beside their source under `cmd/`, `internal/`, `api/` and `sc
 | [interoperability/](interoperability/README.md) | Separately selected HF, Directory, Gateway, ANS, A2A and MCP qualification against owned local clients/peers. Each guide owns installation, fixture isolation and its `test-interoperability*` target; default tests cover only harness helpers. |
 | [apigenerated/](apigenerated/README.md) | Locked Schemathesis generated positive/negative Control API cases against an owned PostgreSQL/API/worker fixture: `make test-api-generated`. |
 | [authorization/](authorization/README.md) | Reviewed permission/operation inventories, independent scenario oracles and PostgreSQL authorization qualification through `make test-integration`. |
-| [ci/](ci/README.md) | Closed GitHub Actions selections, actionlint/ShellCheck validation and source-bound workflow helper tests: `make workflow-check`. |
+| [ci/](ci/README.md) | `make workflow-check` lints GitHub Actions workflows. `make test-tooling-unit` checks changed-file selection and required job outcomes. The [local workflow commands](ci/README.md#local-workflow-commands) exercise selected jobs with act. |
 | [demo/](demo/README.md) | Sample/archive helpers, owned Compose seeding and real local A2A/MCP peers; separately selected `test-demo-runtimes` and complete `test-demo-catalog`. |
 | [demofixture/](demofixture) and [identityfixture/](identityfixture) | Shared synthetic sample and explicit development-identity fixture helpers; no retained service selection. |
 | [deployment/](deployment/README.md) | Container/Compose/Helm source and runtime-configuration delivery contracts: `make deploy-check`; runtime qualification stays separately selected. |
@@ -22,10 +22,10 @@ Most Go tests live beside their source under `cmd/`, `internal/`, `api/` and `sc
 | [sonarqube/](sonarqube/README.md) | Optional local quality dashboard and explicit selected coverage/analysis imports; no CI or runtime dependency. |
 | [vscode/](vscode/README.md) | Extension helpers, VSIX packaging and separately selected Linux editor/remote/browser qualification: `make vscode-check` and `make test-vscode`. |
 | [formal/](formal/README.md) | One source-bound Gobra retry-arithmetic proof and diagnostic controls: `make formal-tools-install`, then `make test-formal`. Ordinary gates run only isolated/native harness fixtures. |
-| [functional/](functional/README.md) | Owned Compose stacks: `make test-functional`; focused logical backup recovery: `make test-backup-restore`; physical writer recovery: `make test-postgres-failover`. |
+| [functional/](functional/README.md) | `make test-functional` runs default-off, webhook and OIDC Compose stacks. Select `make test-backup-restore` for a logical restore, `make test-postgres-pitr` for point-in-time recovery or `make test-postgres-failover` for writer replacement. |
 | [helm/](helm/README.md) | Cluster-free chart render, configuration, rejection and package contracts: `make helm-check`. |
-| [hooks/](hooks/README.md) | Optional staged-secret, Go formatting and whitespace checks; disposable Git safety tests run in `make verify`. |
-| [minikube/](minikube/README.md) | Service-free helper tests: `make test-minikube-contract`. Separate owned Helm runtime scenarios cover installation, topology/node loss, three-UI/API/worker integrity and short load (`make test-minikube-replicas`), optional UI, monitoring and tracing. |
+| [hooks/](hooks/README.md) | Staged secret scans, formatting and file-specific linters. `make verify` exercises the hook in disposable Git repositories. The hook guide also shows how to qualify the pinned tools. |
+| [minikube/](minikube/README.md) | `make test-minikube-contract` checks the harness without a cluster. The disposable runtime tests create and clean up their own profiles. Choose a scenario for Helm installation, replicas and node loss, optional services, certificate renewal, Flux maintenance or Argo CD upgrades. |
 | [monitoring/](monitoring/README.md) | Local-stack launcher safety and dashboard query validation; live exercise through `make test-monitoring`. |
 | [packaging/](packaging/README.md) | Existing-image inspection, license extraction, SPDX SBOM generation and versioned chart packaging; service-free regressions run in `make verify`. |
 | [performance/](performance/README.md) | Bounded packaged read/mixed/soak workloads, reports and resource ownership. |
@@ -38,6 +38,6 @@ Run all commands from the repository root. `make test-unit` selects isolated Go 
 
 `make check` and `make verify` need no running service or cluster; missing pinned tools may still require explicit installation. `make python-lint`, included in `make check`, checks maintained Python with installed Ruff; see [installation and scope](../documentation/src/content/docs/contributing/testing.md#python-linting). Go tests and `make verify` do not require Ruff.
 
-Default harness regressions use Python, Make, temporary Git repositories, fakes and test-owned loopback HTTP servers; they do not launch the stacks they test. Real Helm packaging and render tests run only through `make helm-check`. Real PostgreSQL integration lives in `internal/platform/database` and runs through `make test-integration`, not through an arbitrary database selected by a developer shell.
+Default harness regressions use Python, Make, temporary Git repositories, fakes and test-owned loopback HTTP servers. For real Helm, run `make helm-package-test` to inspect chart archives or `make helm-check` for packaging, render tests and lint. `make deploy-check` adds Kubernetes schema validation and container lint. Real PostgreSQL integration lives in `internal/platform/database` and runs against a disposable database through `make test-integration`.
 
 The local fixtures are not production topology. Runtime gates must create and clean only invocation-owned resources, retain bounded failure evidence and never reset shared or useful development data. Generated reports belong in ignored `output/` or `coverage/`, not this source tree. Do not execute child scripts independently when their supervisor supplies ownership, credentials and cleanup.

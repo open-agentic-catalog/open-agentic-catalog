@@ -64,7 +64,7 @@ Real database tests remain beside the adapter with the `integration` build tag; 
 
 `make test` delegates to `make test-functional-local`, running untagged and functional-tagged tests without a pre-existing deployment. `make test-unit` runs isolated Go tests across the owned roots, including Minikube helpers without a cluster. Use `make test-tooling-unit` for isolated Python helpers and the owning npm unit scripts for Node tooling.
 
-Run `test-unit` alone; it bypasses workflow env files. `make coverage-unit` runs the same Go selection with application-only instrumentation, writes `coverage/unit.out` after validation and enforces its own coverage floor. Run it separately too.
+Run `test-unit` alone. It bypasses workflow env files. Use `make coverage-unit` for the same isolated selection with application statement coverage. For combined Go coverage, run `make coverage-full` on its own with Docker and Compose available. It regenerates the unit, local functional, PostgreSQL and process profiles and writes the combined counts to `coverage/full.txt`. See [coverage accounting](documentation/src/content/docs/contributing/testing.md#coverage-accounting) for the scope and thresholds.
 
 See [test placement and selection](documentation/src/content/docs/contributing/testing.md#test-placement-and-selection) for the current boundary and fixture conventions.
 
