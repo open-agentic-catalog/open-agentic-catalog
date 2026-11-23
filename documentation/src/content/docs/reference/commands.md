@@ -882,6 +882,7 @@ Checkpoint inclusion proves one authenticated tree, not global log consistency. 
 | `catalogctl probe` | Bounded loopback-only HTTP probe, including private worker health; not a product client. |
 | `catalogctl migrate plan`, `migrate apply` | Read-only planning versus owner-only forward migration and exact role-grant mutation; [database roles](../operations/database-roles.mdx). Optional `--semantic` includes the separate derived schema and requires administrator-provisioned pgvector 0.8.7; it does not enable semantic search. |
 | `catalogctl identity provision` | Owner-authorized production realm/principal/membership provisioning; [database roles](../operations/database-roles.mdx). |
+| `catalogctl identity provision-shared` | Owner-authorized, idempotent shared-tenancy tenant, realm, administrator and namespace provisioning from explicit inputs and `CATALOG_DATABASE_DSN`; [database roles](../operations/database-roles.mdx#shared-tenant-provisioning). |
 | `catalogctl identity provision-development` | Explicit developer identity setup only. |
 | `catalogctl identity realms list`, `suspend`, `reactivate` | Bounded realm inventory and operator-controlled lifecycle; read-only list versus attributed mutations. |
 | `catalogctl restore verify` | Read-only isolated, paginated, per-tenant integrity checks; [backup and restore](../operations/backup-restore.mdx). |
@@ -917,6 +918,7 @@ These commands load `--config` plus backend environment overrides for the migrat
 | --- | --- |
 | `migrate plan`, `apply` | `--api-role` defaults to `catalog_api`; `--worker-role` to `catalog_worker`. `--semantic` defaults to false. Apply holds the migration lock through forward migrations and exact grant reconciliation. |
 | `identity provision` | Required `--tenant`, `--tenant-name`, `--issuer`, `--subject`, `--operator`, `--reason`. `--tenancy-mode` defaults to `dedicated`; `shared` requires `--external-organization`. `--actor-type` defaults to `human`; `service` is also accepted. `--roles` defaults to `tenant_admin` and must include it. |
+| `identity provision-shared` | All of `--tenant`, `--tenant-name`, `--issuer`, `--subject`, `--external-organization`, `--namespaces` (1 to 50 comma-separated slugs), `--operator` and `--reason` are required and have no defaults. Takes no `--config`. Requires `CATALOG_DATABASE_DRIVER=postgres` and `CATALOG_DATABASE_DSN`; rejects `CATALOG_DATABASE_DSN_FILE`. Prints `status` (`created` or `unchanged`), tenant, realm and membership identifiers. |
 | `identity provision-development` | Uses the configured development identity roster, not production provisioning arguments. Requires PostgreSQL and a non-production development-auth profile. |
 | `identity realms list` | Required `--tenant`; `--limit` defaults to 50, range 1-100. Optional `--after` is the last realm UUID from the preceding page. Rejects nonempty transition inputs. |
 | `identity realms suspend`, `reactivate` | Required `--tenant`, `--realm`, positive current `--revision`, `--operator`, `--reason`. Rejects explicitly supplied `--limit` or `--after`. |

@@ -288,6 +288,9 @@ func manageIdentity(arguments []string) error {
 	if len(arguments) > 0 && arguments[0] == "realms" {
 		return manageIdentityRealms(arguments[1:])
 	}
+	if len(arguments) > 0 && arguments[0] == "provision-shared" {
+		return manageSharedProvisioning(arguments[1:])
+	}
 	plan, err := planIdentityProvisioning(arguments)
 	if err != nil {
 		return err

@@ -158,6 +158,20 @@ catalogctl identity provision --config config/production.example.json --tenant 0
 
 The command requires at least the `tenant_admin` role for the initial subject. `--actor-type` is `human` by default and may be `service`; `--roles` is a comma-separated set of global Catalog roles. Shared mode requires `--tenancy-mode shared --external-organization <exact-value>`. Repeat invocation with the same mapping is safe and returns the existing realm, membership, and active assignments; a conflicting tenant display name, realm mapping, actor type, or suspended record fails closed. Supply the real schema-owner DSN through `CATALOG_DATABASE_DSN` or its mounted-file form rather than committing it to the JSON example.
 
+## Shared tenant provisioning
+
+In shared tenancy the Catalog never creates a tenant. A token for an unknown organization is refused. Use `catalogctl identity provision-shared` with the schema-owner DSN to create the tenant, its exact `(issuer, organization)` realm, its first human `tenant_admin` and its namespaces in one transaction:
+
+```sh
+export CATALOG_DATABASE_DRIVER=postgres
+export CATALOG_DATABASE_DSN='<schema-owner DSN, direct PostgreSQL connection>'
+catalogctl identity provision-shared --tenant <uuid> --tenant-name "<name>" --issuer <issuer URL> --subject <administrator subject> --external-organization <organization claim value> --namespaces team-a,shared-a --operator <operator> --reason "<reason>"
+```
+
+Every flag is required and none has a default. The command takes no `--config` and reads the DSN only from `CATALOG_DATABASE_DSN`; it rejects `CATALOG_DATABASE_DSN_FILE`. Missing input or a missing DSN fails before any connection and writes nothing. Use a direct connection to PostgreSQL, not a pooler.
+
+The output is JSON with `status`, `tenantId`, `realmId`, `membershipId`, `subject` and `namespaces`. `status` is `created` when the command wrote state. It is `unchanged` when the tenant, realm, administrator and every namespace already match; that run writes nothing and records no audit or outbox evidence. A tenant name, organization mapping, actor type or suspended administrator that conflicts with existing state fails closed.
+
 ## Tenant membership administration
 
 After the first administrator can authenticate, use `POST /api/v1/role-assignments`, `GET /api/v1/role-assignments`, and `POST /api/v1/role-assignments/{assignmentId}:revoke` for ordinary tenant role administration. These operations require current tenant-scoped `access.manage`. The Tenant Administrator template includes this permission. Mutations require idempotency and an audit reason; revocation also requires `If-Match`.

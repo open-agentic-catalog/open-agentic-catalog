@@ -1602,11 +1602,18 @@
       "disposition": "minikube",
       "status": "covered",
       "surfaces": [
-        "catalogctl:identity provision"
+        "catalogctl:identity provision",
+        "catalogctl:identity provision-shared"
       ],
       "evidence": [
         {
           "path": "test/minikube/resources.go"
+        },
+        {
+          "path": "cmd/catalogctl/identity_shared_test.go"
+        },
+        {
+          "path": "internal/platform/database/identity_provision_shared_integration_test.go"
         },
         {
           "path": "cmd/catalogctl/main_test.go",

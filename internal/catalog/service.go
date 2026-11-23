@@ -2772,6 +2772,9 @@ func requirePermission(ctx context.Context, action identity.Permission, namespac
 	return actor, nil
 }
 
+// ValidNamespaceSlug reports whether value is a valid namespace slug.
+func ValidNamespaceSlug(value string) bool { return validSlug(value) }
+
 // validSlug checks the service's bounded namespace slug syntax.
 func validSlug(value string) bool {
 	if value == "" || len(value) > 64 || value[0] == '-' || value[len(value)-1] == '-' {
