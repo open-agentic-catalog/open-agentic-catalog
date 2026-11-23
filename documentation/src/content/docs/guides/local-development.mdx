@@ -17,7 +17,7 @@ Choose one startup method. Use different host ports if another Catalog already r
 
 | Method | Requirements | State and access |
 | --- | --- | --- |
-| Local (memory) | Go 1.27.3; no container or Node.js for the API. | Combined API/worker; development identities; state clears at exit. |
+| Local (memory) | Go 1.27.4; no container or Node.js for the API. | Combined API/worker; development identities; state clears at exit. |
 | Docker (memory) | Docker with BuildKit; no host Go or Compose. | Combined API/worker in one image; state clears at exit. |
 | Docker Compose | Docker Engine and Docker Compose. | Separate API/worker; development identities; PostgreSQL data survives stop/down. |
 | Kubernetes (Helm) | Go, Helm, kubectl and a prepared Kubernetes 1.34+ cluster. | External PostgreSQL 18, distinct database roles, OIDC and operator-supplied deployment inputs. |
@@ -31,7 +31,7 @@ Local startup does not load sample records. Follow [the explicit sample-loading 
 <Tabs>
 <TabItem label="Local (memory)">
 
-Install [Go](https://go.dev/doc/install) 1.27.3. A compatible Go launcher with automatic toolchain selection can select this version.
+Install [Go](https://go.dev/doc/install) 1.27.4. A compatible Go launcher with automatic toolchain selection can select this version.
 
 Start the combined API and worker with the local profile:
 

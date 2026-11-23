@@ -64,12 +64,12 @@ The report displays every finding; the check also enforces `dead_code_exceptions
 
 ```sh
 mkdir -p output/deadcode-qualification/bin
-GOTOOLCHAIN=go1.27.3 GOWORK=off GOFLAGS=-mod=readonly CGO_ENABLED=0 \
+GOTOOLCHAIN=go1.27.4 GOWORK=off GOFLAGS=-mod=readonly CGO_ENABLED=0 \
   GOBIN="$PWD/output/deadcode-qualification/bin" \
   go install golang.org/x/tools/cmd/deadcode@v0.52.0
 python3 -B test/packaging/dead_code_qualification.py \
   --tool output/deadcode-qualification/bin/deadcode \
-  --toolchain go1.27.3 --version v0.52.0
+  --toolchain go1.27.4 --version v0.52.0
 ```
 
 Install for the host, without target `GOOS`/`GOARCH` overrides. The qualification verifies version metadata and exercises executable roots, orphan packages, dependency tests, functional tags, generated reporting, unsupported comment suppression, clean `null`, exit-zero findings and load failures in a disposable module. It also includes an invalid local clone outside selected roots.
@@ -99,8 +99,8 @@ See the [testing guide](../../documentation/src/content/docs/contributing/testin
 Qualify the actual pinned library and mutation integration explicitly after runner or dependency changes:
 
 ```sh
-python3 -B test/packaging/property_qualification.py --toolchain go1.27.3
-python3 -B test/packaging/mutation_qualification.py --toolchain go1.27.3
+python3 -B test/packaging/property_qualification.py --toolchain go1.27.4
+python3 -B test/packaging/mutation_qualification.py --toolchain go1.27.4
 ```
 
 The first owns a disposable module and verifies shrinking to a known counterexample, seed/file replay, the corrected regression, and rejection of missing/malformed replay, zero checks, short mode and deadline-reduced success. Its explicit-file control disables random checks before and after correcting the assertion, so random generation cannot substitute for artifact replay. This qualification-only control does not permit zero checks in the public target.
@@ -122,7 +122,7 @@ python3 -B -m unittest discover -s test/packaging -p 'test_*mutation.py'
 After changing the runner or tool pin, run the explicit actual-tool controls with the same toolchain selected by Make:
 
 ```sh
-python3 -B test/packaging/mutation_qualification.py --toolchain go1.27.3
+python3 -B test/packaging/mutation_qualification.py --toolchain go1.27.4
 ```
 
 This command acquires the pinned tool into an owned temporary directory and tests strong/weak assertions, failed/skipped baselines, filename-independent tests and embedded fixtures, generated/tagged/child-package exclusions, compiler errors, panic, timeout, missing executor and signal failure. It removes its owned tools and fixtures. The process fixtures separately verify cancellation/deadline cleanup and output limits.

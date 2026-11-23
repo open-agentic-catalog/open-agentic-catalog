@@ -22,9 +22,9 @@ export const browserSuppliers = [
 ];
 const noticeName = /^(licen[cs]e|copying|notice)([.-]|$)/i;
 // The default UI npm archive omits its repository license. Retain the exact
-// text from Pagefind v1.5.2, commit bf17396721be637cc67c8ed7ead1dc7b8ac43d96.
+// text from Pagefind v1.6.0, commit 860a4ea87e7a52379520f9eaefd0f8a6b23eb462.
 const upstreamNotices = {
-  '@pagefind/default-ui': {version:'1.5.2', file:'scripts/licenses/pagefind-default-ui-1.5.2.txt'},
+  '@pagefind/default-ui': {version:'1.6.0', file:'scripts/licenses/pagefind-default-ui-1.6.0.txt'},
 };
 const requiredNoticePaths = {
   pagefind:['LICENSE/LICENSE','LICENSE/LICENSE-vscode-ripgrep'],

@@ -31,7 +31,7 @@ The tests do not install tools or pull images. Missing or stale prerequisites fa
 - Callable bindings remain absent and external invocation remains disabled. An inert TCP trap records zero entry-URL, runtime and forbidden-destination connections. External TCP and DNS are independently denied while the owned source remains reachable.
 - Assertion failures, actual SIGTERM, preserved existing reports and cleanup failure admission are covered separately. An incomplete campaign or failed cleanup cannot pass.
 
-`inputs.json` pins AgentField commit `118b90ba42af9bc9f9366d645c9d0d38cd5f245a`, Apache-2.0 source and its original `go.mod`/`go.sum`. The native PostgreSQL store is selected so the unchanged Go server can use its normal static build; local SQLite needs CGO. The two databases never share credentials, schemas, volumes or migration authority. Telemetry is explicitly disabled. Execution is confined to an internal Docker network with no published ports.
+`inputs.json` pins AgentField commit `87ecf9e0b8dd2f98dd81fc4f9b1ffe6c3a612dda`, Apache-2.0 source and its original `go.mod`/`go.sum`. The native PostgreSQL store is selected so the unchanged Go server can use its normal static build; local SQLite needs CGO. The two databases never share credentials, schemas, volumes or migration authority. Telemetry is explicitly disabled. Execution is confined to an internal Docker network with no published ports.
 
 The test-only TLS observer forwards the selected discovery routes to the real Catalog without changing their response bytes. It also provides a separately labeled synthetic native-reader control. Synthetic results do not count as Catalog publication evidence. No peer decoder, authentication behavior or production network policy is patched.
 

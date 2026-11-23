@@ -38,7 +38,7 @@ class PolicyTests(unittest.TestCase):
         packages = tomllib.loads((root / "uv.lock").read_text())["package"]
         self.assertEqual(len(expected), len(packages) - 2 + 1)
         self.assertIn(("httpx2", "2.16.0"), expected)
-        self.assertIn(("openapi-generator-cli", "7.26.0"), expected)
+        self.assertIn(("openapi-generator-cli", "7.27.0"), expected)
         self.assertFalse({name for name, _ in expected}.intersection(local))
         with self.assertRaisesRegex(ValueError, "reviewed PyPI"):
             trivy.development_dependencies(root)
@@ -74,7 +74,7 @@ class PolicyTests(unittest.TestCase):
         self.assertNotIn("catalog-dev-tools", {name for name, _ in expected})
         with self.assertRaisesRegex(ValueError, "reviewed PyPI"):
             trivy.development_dependencies(root)
-        self.assertIn(("uv", "0.13.6"), expected)
+        self.assertIn(("uv", "0.13.7"), expected)
         config = '[tool.uv]\nrequired-version = "==0.13.4"\n'
         with tempfile.TemporaryDirectory() as directory:
             private = Path(directory)

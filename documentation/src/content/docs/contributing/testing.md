@@ -167,7 +167,7 @@ The basic `test-minikube` scenario invokes the compiled coordinator for a failed
 
 Native Compose launcher tests check build and configuration validation before drain, then bounded healthy startup. Packaged profiles check real API, worker and database behavior. See the [deployment tool](../../../../../test/deployment/README.md) and [maintenance procedure](../operations/maintenance.mdx#coordinated-release-deployment).
 
-Compose tests the image/process contract without Kubernetes; Minikube tests the chart through standard Kubernetes behavior. Their owned clusters, fixed test database/identity, CNI, subnets, DNS and resource budgets are reproducibility inputs, not production prerequisites. Both charts support Kubernetes 1.34+. The schema gate checks 1.34.0 and the maintained runtime fixture uses 1.37.1. Linux AMD64 and ARM64 image builds and static inspection complement the functional tests without an engine or architecture certification matrix.
+Compose tests the image/process contract without Kubernetes; Minikube tests the chart through standard Kubernetes behavior. Their owned clusters, fixed test database/identity, CNI, subnets, DNS and resource budgets are reproducibility inputs, not production prerequisites. Both charts support Kubernetes 1.34+. The schema gate checks 1.34.0 and the maintained runtime fixture uses 1.37.2. Linux AMD64 and ARM64 image builds and static inspection complement the functional tests without an engine or architecture certification matrix.
 
 Retain fixture isolation and cleanup safeguards without requiring production cluster ownership. Validate namespace/release scoping and standard chart contracts with existing render tests and a focused owned fixture only if a concrete shared-cluster compatibility gap is found. Never adapt the destructive local launcher to discover or reset shared infrastructure.
 
@@ -303,6 +303,8 @@ This analysis imported no coverage. The failed report-only gate is an observatio
 
 `make sonarqube-down` stops the owned server/network while preserving credentials, named volumes and analysis history. `make sonarqube-up` restarts it with the same login. There is no destructive reset target.
 
+The local server uses the embedded H2 database. SonarQube cannot migrate that database across server versions that require a schema upgrade. Keep the pinned Community Build to reopen existing analysis history. The scanner can be updated independently.
+
 | Symptom | Action |
 | --- | --- |
 | Dashboard unavailable | Run `make sonarqube-up`, then `make sonarqube-status`; use its printed port. First startup waits for readiness. |
@@ -354,7 +356,7 @@ The [packaging harness](../../../../../test/packaging/README.md) owns isolated p
 
 ## UI dead-code analysis
 
-Install the locked frontend tools with `make ui-install`, then run `make ui-dead-code-report` to investigate or `make ui-dead-code-check` to enforce. Both invoke local [Knip](https://knip.dev/) 6.43.0 through Node, with one maintained `catalog-ui/knip.json` configuration. There is no global executable fallback, automatic download, fixer, application build, database or browser fixture. The check also runs once through `npm run check`, `make ui-check` and `make test-ui`. Backend `check`/`verify` and isolated unit targets remain independent of it.
+Install the locked frontend tools with `make ui-install`, then run `make ui-dead-code-report` to investigate or `make ui-dead-code-check` to enforce. Both invoke local [Knip](https://knip.dev/) 6.44.2 through Node, with one maintained `catalog-ui/knip.json` configuration. There is no global executable fallback, automatic download, fixer, application build, database or browser fixture. The check also runs once through `npm run check`, `make ui-check` and `make test-ui`. Backend `check`/`verify` and isolated unit targets remain independent of it.
 
 Each command analyzes two scopes: the full application/test/tooling graph and the shipped browser graph without tests or developer launchers. A module imported only by a test can pass the full scan and fail production analysis. The full selection includes visual browser specs, Node tests, Vitest setup and scripts invoked by Make or the UI Containerfile.
 
@@ -384,7 +386,7 @@ Isolated units use controlled transports and local files. Memory-backed function
 
 The Python unit gate includes isolated version, pin and environment-policy checks. Broad local tooling tests use disposable Git repositories. They check paths with spaces, shallow/tagged/dirty/Git-less inputs, Make overrides and actual pinned version bumps.
 
-Install bump tooling with `make dev-tools-install`. For locked-installer qualification, set `CATALOG_TEST_UV=/path/to/uv-0.13.6` when selecting `test/packaging/test_functional_versioning.py`. For complete development-lock scanning and a known vulnerable metadata-only control, set `CATALOG_TEST_TRIVY=/path/to/trivy-0.76.1`.
+Install bump tooling with `make dev-tools-install`. For locked-installer qualification, set `CATALOG_TEST_UV=/path/to/uv-0.13.7` when selecting `test/packaging/test_functional_versioning.py`. For complete development-lock scanning and a known vulnerable metadata-only control, set `CATALOG_TEST_TRIVY=/path/to/trivy-0.76.2`.
 
 Run these actual-tool selections with `go test -tags=functional -race -count=1 ./test/packaging`. `-count=1` prevents cached subprocess tests from hiding changed Python inputs. A skipped qualification is not a pass. Tests create no tag in the application repository. Cleanup fixtures remove only the owned shared environment and preserve `VERSION`, `pyproject.toml`, `uv.lock`, personal environments and retained data.
 
@@ -394,7 +396,7 @@ The security target separately scans every root uv.lock package plus the pinned 
 
 ## Python linting
 
-`make python-lint` runs read-only [Ruff](https://docs.astral.sh/ruff/) 0.17.3 checks on maintained Python under `test/`, `extensions/vscode/tooling/`, `examples/langgraph/`, `examples/tutorials/local-oidc/` and `examples/mcp-scanner/`. It is included in `make check`, not `make verify`, Go builds or the default test suite. Install the shared pinned dev group with `make dev-tools-install`. The [build guide](build-and-release.md#shared-development-tools) documents uv 0.13.6 bootstrap, supported installed Python and exact environment/lock boundaries. Make prefers the owned `.tools/dev` executables automatically:
+`make python-lint` runs read-only [Ruff](https://docs.astral.sh/ruff/) 0.17.4 checks on maintained Python under `test/`, `extensions/vscode/tooling/`, `examples/langgraph/`, `examples/tutorials/local-oidc/` and `examples/mcp-scanner/`. It is included in `make check`, not `make verify`, Go builds or the default test suite. Install the shared pinned dev group with `make dev-tools-install`. The [build guide](build-and-release.md#shared-development-tools) documents uv 0.13.7 bootstrap, supported installed Python and exact environment/lock boundaries. Make prefers the owned `.tools/dev` executables automatically:
 
 ```sh
 make dev-tools-install
@@ -432,7 +434,7 @@ npm --prefix documentation run lint
 npm --prefix test/validation run lint
 ```
 
-Each project owns exact ESLint 10.13.0, `@eslint/js` 10.0.1 and globals 17.13.0 development pins and an independent lockfile. Both commands check maintained `.mjs` files, including configuration, tests and new files, using recommended correctness rules and Node ES-module globals. Undefined names, unused bindings and syntax errors fail.
+Each project owns exact ESLint 10.14.0, `@eslint/js` 10.0.1 and globals 17.14.0 development pins and an independent lockfile. Both commands check maintained `.mjs` files, including configuration, tests and new files, using recommended correctness rules and Node ES-module globals. Undefined names, unused bindings and syntax errors fail.
 
 Dependencies, generated output and tool artifacts are excluded. These commands do not format, write caches, permit inline rule overrides or install anything. Missing local tools fail.
 
@@ -561,7 +563,7 @@ Reference-implementation compatibility evidence is static and local. The maintai
 
 ## Generated API testing
 
-Run `make schemathesis-tools-install`, then `make test-api-generated`, each alone. The isolated, hash-locked [Schemathesis](https://schemathesis.readthedocs.io/en/stable/) 4.32.5 tool uses the unchanged Control OpenAPI against the owned PostgreSQL/API/worker Compose fixture and smoke seed. It requires Python 3.12 on Linux amd64 plus the [packaged-functional prerequisites](#full-stack-functional-environment). Execution checks installed versions without acquiring Python dependencies. Ordinary units and runtime images remain independent.
+Run `make schemathesis-tools-install`, then `make test-api-generated`, each alone. The isolated, hash-locked [Schemathesis](https://schemathesis.readthedocs.io/en/stable/) 4.33.1 tool uses the unchanged Control OpenAPI against the owned PostgreSQL/API/worker Compose fixture and smoke seed. It requires Python 3.12 on Linux amd64 plus the [packaged-functional prerequisites](#full-stack-functional-environment). Execution checks installed versions without acquiring Python dependencies. Ordinary units and runtime images remain independent.
 
 The pilot first checks eight operations: namespace list/create/get/update, Catalog Search/Browse, Resource List and Version List. It generates 20 positive and 20 negative examples for each of seven operations with variable body or query inputs. Namespace GET uses a known-ID control without generated input. Resource List checks exact seeded identities, kind filters and descending update-time/ID order; Version List binds a real parent and checks ascending immutable IDs independently of labels.
 
@@ -640,7 +642,7 @@ Ordinary Go/Python units and local functional wrappers do not import or execute 
 
 ## Local A2A interoperability control
 
-Run `make a2a-tools-install`, then `make test-interoperability-a2a`, each alone. This explicit functional qualification uses official Python A2A SDK 1.2.3 with the unchanged upstream Hello World executor, a single-interface HTTPS deployment card and an actual SDK client. It needs a local Linux Docker engine, a non-root developer, Python 3.10+, Make, OpenSSL, the repository Go toolchain and cached modules; `gh` is needed for installation. Installation downloads hash-locked test tools. Execution builds current Catalog commands offline, uses an owned in-memory Catalog and Docker loopback, ignores deployment environment files and needs no prebuilt binaries, database or model.
+Run `make a2a-tools-install`, then `make test-interoperability-a2a`, each alone. This explicit functional qualification uses official Python A2A SDK 1.3.0 with the unchanged upstream Hello World executor, a single-interface HTTPS deployment card and an actual SDK client. It needs a local Linux Docker engine, a non-root developer, Python 3.10+, Make, OpenSSL, the repository Go toolchain and cached modules; `gh` is needed for installation. Installation downloads hash-locked test tools. Execution builds current Catalog commands offline, uses an owned in-memory Catalog and Docker loopback, ignores deployment environment files and needs no prebuilt binaries, database or model.
 
 Five direct-control outcomes cover the emitted card, completed task and exact request-derived artifact. They also cover four preconnection selection refusals and the exact three-request wire inventory. Task readback must retain only the newest of two history messages and preserve all other fields. The client explicitly selects `JSONRPC` 1.0, disables streaming/polling and supplies the retained protobuf Card to the SDK. Strict private-CA verification remains enabled.
 
@@ -864,7 +866,7 @@ Reports reside in `output/interoperability/minikube-agntcy-*/result.json`. They 
 
 ## Generated Go-client compatibility
 
-Use the repository's Go 1.27.3 toolchain, Python 3.10+, GNU Make and a C compiler for the race detector.
+Use the repository's Go 1.27.4 toolchain, Python 3.10+, GNU Make and a C compiler for the race detector.
 
 Run `make client-go-tools-install` explicitly, then `make client-go-check` when changing the API contract, generator/runtime pins or compatibility tests. The check regenerates all operations twice and compiles them. It runs race-enabled, shuffled consumer tests against an authenticated in-memory Catalog. It also verifies codec and transport boundaries and checks that source files and module locks remain unchanged. No database, Compose stack or existing server is used.
 
@@ -883,7 +885,7 @@ The [compatibility harness](../../../../../test/clientcompat/README.md) owns set
 The [SDK overview](../../../../../sdk/README.md) links to the Go, Python, JavaScript/TypeScript and Rust consumer guides. The independent harness in `test/sdk/` owns package generation and qualification. Install its prerequisites, then run each command separately:
 
 ```sh
-make sdk-tools-install UV=/path/to/uv-0.13.6
+make sdk-tools-install UV=/path/to/uv-0.13.7
 make sdk-check
 make sdk-package
 ```
@@ -930,10 +932,10 @@ Launcher units run through `make test-tooling-unit`; actual Make/process tests r
 
 ## Python SDK verification
 
-The [Python SDK](../../../../../sdk/python/README.md) has independent runtime requirements and locked maintainer tools. Root application tests do not execute its tests. Install uv 0.13.6 explicitly, then run each target alone:
+The [Python SDK](../../../../../sdk/python/README.md) has independent runtime requirements and locked maintainer tools. Root application tests do not execute its tests. Install uv 0.13.7 explicitly, then run each target alone:
 
 ```sh
-make sdk-tools-install SDK_LANGUAGE=python UV=/path/to/uv-0.13.6
+make sdk-tools-install SDK_LANGUAGE=python UV=/path/to/uv-0.13.7
 make sdk-check SDK_LANGUAGE=python
 ```
 
@@ -1018,7 +1020,7 @@ Native LLVM measures handwritten source lines for units and, separately, units p
 
 The [LangGraph example](../../../../../examples/langgraph/README.md) uses the maintained Python SDK for two read-only tools: Search local releases and inspect a selected exact release. Its framework packages live in a separate optional environment. They are not Python SDK requirements or Catalog image inputs.
 
-Install prerequisites explicitly with `make langgraph-tools-install UV=/path/to/uv-0.13.6`. Use installed Python 3.12-3.14 and the repository Go toolchain. Installation synchronizes `examples/langgraph/uv.lock`, checks the installed license inventory and records the compiler used by the HTTP fixture. It does not acquire a model or start services. Run each target separately:
+Install prerequisites explicitly with `make langgraph-tools-install UV=/path/to/uv-0.13.7`. Use installed Python 3.12-3.14 and the repository Go toolchain. Installation synchronizes `examples/langgraph/uv.lock`, checks the installed license inventory and records the compiler used by the HTTP fixture. It does not acquire a model or start services. Run each target separately:
 
 | Target | Execution boundary |
 | --- | --- |
@@ -2146,7 +2148,7 @@ Run `make test-functional-oidc` to check the backend against an independent iden
 | Controlled provider | Go verifier tests plus a minimal HTTPS packaged fixture only where a process boundary matters | Proves malformed and oversized provider documents, redirect and downgrade rejection, exact rotation, cached-key expiry, and outage timing deterministically; it is not independent interoperability evidence. |
 | Selected environment | Operator-run checks with the deployment's actual issuer and owning client | Proves the chosen certificates, claim mapping, token acquisition, ingress, and operational integration; it does not alter the portable Catalog contract. |
 
-The overlay selects [Keycloak](https://www.keycloak.org/server/containers) 26.8.1 at an exact OCI index digest. `test/functional/compose.oidc.yaml` owns this pin. Do not substitute `latest`. Review release notes, source identity, source and image licenses, supported image architectures and the resolved digest before changing the pin.
+The overlay selects [Keycloak](https://www.keycloak.org/server/containers) 26.8.2 at an exact OCI index digest. `test/functional/compose.oidc.yaml` owns this pin. Do not substitute `latest`. Review release notes, source identity, source and image licenses, supported image architectures and the resolved digest before changing the pin.
 
 Keycloak images include operating-system and Java dependencies with mixed licenses, including GPL, LGPL and MPL components. The source project's Apache-2.0 license does not describe the complete image. Record full license inventories and image identities when reviewing an update. The [container guide](https://www.keycloak.org/server/containers) also explains memory sizing. The fixture has finite startup, total-run, CPU and memory limits and runs separately from `check` and `verify`.
 
@@ -2417,7 +2419,7 @@ The deployment runbook describes the owned cluster prerequisites and cleanup.
 
 ## PgBouncer qualification
 
-Direct PostgreSQL remains the baseline. Separately run `make test-pgbouncer` to qualify the actual compiled Catalog through the digest-pinned PgBouncer 1.26.0 image and owned PostgreSQL 18. It requires Docker Compose, Go and OpenSSL.
+Direct PostgreSQL remains the baseline. Separately run `make test-pgbouncer` to qualify the actual compiled Catalog through the digest-pinned PgBouncer 1.26.1 image and owned PostgreSQL 18. It requires Docker Compose, Go and OpenSSL.
 
 The gate creates private TLS/auth inputs, distinct owner/runtime routes and an isolated project with loopback ports. It never redirects the general integration DSN or touches retained Compose data. Pure admission/configuration decisions remain unit tests, while SQL/protocol/process/cancellation/outage/writer-change assertions retain the `integration` selection.
 

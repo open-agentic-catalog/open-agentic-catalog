@@ -71,7 +71,7 @@ Helm can own the application release while a GitOps controller manages the names
 
 #### Hand off a standalone Flux HelmRelease
 
-Use one maintenance operator. Freeze the chart source, values, image digests and every process that can change them for the whole window. The tested arrangement uses Flux v2.10.0, Helm 4.3.1 and Kubernetes 1.37.1. It uses a standalone HelmRelease with inline values, exact-version HelmChart references and the default disabled drift detection. The operator manages the targeting HPA separately. Flux Kustomizations, automated image updates and other reconcilers that can write the release or its HPA need their own suspension and completion checks.
+Use one maintenance operator. Freeze the chart source, values, image digests and every process that can change them for the whole window. The tested arrangement uses Flux v2.10.0, Helm 4.3.1 and Kubernetes 1.37.2. It uses a standalone HelmRelease with inline values, exact-version HelmChart references and the default disabled drift detection. The operator manages the targeting HPA separately. Flux Kustomizations, automated image updates and other reconcilers that can write the release or its HPA need their own suspension and completion checks.
 
 Use client-side apply from the first installation of this release. With Flux server-side apply, Kubernetes refused the coordinator's change to fields owned by `helm-controller`, including chart labels and Pod template fields. The refusal occurred after the migration hook. An existing server-side-managed installation needs a separate ownership transition. For new installations, use the following HelmRelease fields.
 

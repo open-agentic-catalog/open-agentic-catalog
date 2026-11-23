@@ -15,7 +15,7 @@
     "model.safetensors": "b522423ae15d1a6fd48c55ef4f599c0c2c0737603da94e4b4815760c2c06ebac"
   },
   "tei_image": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.4@sha256:2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d",
-  "postgres_image": "pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11",
+  "postgres_image": "pgvector/pgvector:pg18@sha256:38681dc6eaf55308e2a4c6de392d131652dcfac70e1263e35cd9b5ea3fe39782",
   "dimensions": 768,
   "template": "metadata-v1",
   "query_prefix": "",

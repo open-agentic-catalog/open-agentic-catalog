@@ -68,7 +68,7 @@ else:
             self.assertIn("-tags=functional,integration,helm,minikube", report["flags"])
             for call in calls:
                 self.assertEqual(call["work"], "off")
-                self.assertEqual(call["toolchain"], "go1.27.3")
+                self.assertEqual(call["toolchain"], "go1.27.4")
                 self.assertNotIn("NoTests", call["flags"])
             for case in ("runtime", "arm64-runtime", "version", "replacement", "transitive",
                          "unknown", "empty-discovery", "tool-failure"):

@@ -17,7 +17,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demoarchive"
 	"github.com/open-agentic-catalog/open-agentic-catalog/samples"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 func manifestFixture(t *testing.T) (Manifest, fstest.MapFS) {

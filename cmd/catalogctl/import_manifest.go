@@ -12,7 +12,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jsondoc"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/safeerr"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 const (
@@ -110,7 +110,7 @@ func importYAMLValue(node *yaml.Node, depth int, count *int) (any, error) {
 		return nil, invalid
 	}
 	switch node.Kind {
-	case yaml.AliasNode:
+	case yaml.AliasNode, yaml.StreamNode:
 		return nil, invalid
 	case yaml.DocumentNode:
 		return importYAMLValue(node.Content[0], depth+1, count)

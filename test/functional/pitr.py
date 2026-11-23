@@ -14,7 +14,7 @@ from runner import Failure, command, decode, digest_files, write_document
 
 SOURCES = ("Makefile", "test/functional/runner.py", "test/functional/pitr.py",
            "test/functional/pitr.compose.yaml", "test/functional/pitr_archive.sh", "test/functional/pitr_pg_hba.conf", "deployments/postgres/init.sql")
-IMAGE = "pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11"
+IMAGE = "pgvector/pgvector:pg18@sha256:38681dc6eaf55308e2a4c6de392d131652dcfac70e1263e35cd9b5ea3fe39782"
 PROJECT = re.compile(r"open-agentic-catalog-pitr-[0-9a-f]{12}\Z")
 WAL = re.compile(r"[0-9A-F]{24}\Z")
 LSN = re.compile(r"[0-9A-F]{1,8}/[0-9A-F]{1,8}\Z")

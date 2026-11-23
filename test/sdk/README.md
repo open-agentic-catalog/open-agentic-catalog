@@ -29,7 +29,7 @@ The fixture also authors two dependencies on its Plugin Listing. One names the r
 For all four SDKs, install their prerequisites below, then run each target separately:
 
 ```sh
-make sdk-tools-install UV=/path/to/uv-0.13.6
+make sdk-tools-install UV=/path/to/uv-0.13.7
 make sdk-generate
 make sdk-check
 make sdk-package
@@ -60,7 +60,7 @@ Keep complete example fences and their helper names intact when editing the guid
 
 ### Go selection
 
-Use Go 1.27.3, Python 3.12-3.14, GNU Make and a C compiler for the race detector. Run these targets separately:
+Use Go 1.27.4, Python 3.12-3.14, GNU Make and a C compiler for the race detector. Run these targets separately:
 
 ```sh
 make sdk-tools-install SDK_LANGUAGE=go
@@ -106,16 +106,16 @@ Neither these commands nor consumer builds publish packages, create tags or chan
 
 ## Python SDK
 
-The independent [Python package](../../sdk/python/README.md) owns its `pyproject.toml`, typed sources and Apache license. Python 3.12-3.14 is supported. Maintainers also need Java 21, OpenSSL, the repository Go toolchain and pinned uv 0.13.6. Go compiles the reused composed Catalog fixture; it is not a Python SDK runtime dependency.
+The independent [Python package](../../sdk/python/README.md) owns its `pyproject.toml`, typed sources and Apache license. Python 3.12-3.14 is supported. Maintainers also need Java 21, OpenSSL, the repository Go toolchain and pinned uv 0.13.7. Go compiles the reused composed Catalog fixture; it is not a Python SDK runtime dependency.
 
 ```sh
-make sdk-tools-install SDK_LANGUAGE=python UV=/path/to/uv-0.13.6
+make sdk-tools-install SDK_LANGUAGE=python UV=/path/to/uv-0.13.7
 make sdk-generate SDK_LANGUAGE=python
 make sdk-check SDK_LANGUAGE=python
 make sdk-package SDK_LANGUAGE=python
 ```
 
-Installation alone acquires dependencies. `test/sdk/python/pyproject.toml` and `uv.lock` isolate OpenAPI Generator 7.26.0, the build frontend/backend, analyzers and tests. Root `pyproject.toml` stays shared tooling. The installer downloads digest-bound runtime wheels selected from the lock for the tool interpreter and each supported minor in [python-runtimes.json](python-runtimes.json). Pinned uv installs those exact CPython versions under ignored SDK tools without changing default executables. Each interpreter retains its own locked package/license and wheel inventory. The manifest records the tool interpreter, check invoker and consumer runtime identities separately, plus the qualified uv and Go executable hashes. Checks reject changed executables, dependencies, wheels or Python/Go module locks. Go fixture modules are cached at explicit installation; checks use the recorded Go binary with toolchain and module acquisition disabled. No Go SDK analyzer installation is required for the Python selection.
+Installation alone acquires dependencies. `test/sdk/python/pyproject.toml` and `uv.lock` isolate OpenAPI Generator 7.27.0, the build frontend/backend, analyzers and tests. Root `pyproject.toml` stays shared tooling. The installer downloads digest-bound runtime wheels selected from the lock for the tool interpreter and each supported minor in [python-runtimes.json](python-runtimes.json). Pinned uv installs those exact CPython versions under ignored SDK tools without changing default executables. Each interpreter retains its own locked package/license and wheel inventory. The manifest records the tool interpreter, check invoker and consumer runtime identities separately, plus the qualified uv and Go executable hashes. Checks reject changed executables, dependencies, wheels or Python/Go module locks. Go fixture modules are cached at explicit installation; checks use the recorded Go binary with toolchain and module acquisition disabled. No Go SDK analyzer installation is required for the Python selection.
 
 The complete unchanged OpenAPI is the sole API input. The check generates twice, formats with pinned Ruff, rejects nondeterminism/drift and compares current operation IDs, methods, paths, response alternatives/media, named object fields and codec field preservation. Supported templates replace transport and the synchronous bridge, hide Pydantic call inputs and document managed timeout/authentication behavior. No generated source is hand-edited. One template adjustment preserves composed-model fields that the generator otherwise discards during decoding. Four conditional schemas use the maintained JSON-object container: `RepresentationInput`, `TrustAssessmentRequest`, `CatalogSearchResult` and `AuditDetailsV1`. Independent schema tests cover valid and invalid delivery, result-origin and principal alternatives against the unchanged contract. These containers preserve fields; they do not validate every schema constraint. Other generated unions retain their normal models and require independent controls.
 

@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 func TestInstalledVaultChartsPreserveSelectedScope(t *testing.T) {
@@ -50,7 +50,7 @@ func TestInstalledVaultChartsPreserveSelectedScope(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
-			raw, err = exec.CommandContext(ctx, "helm", "template", vaultRelease, chart, "--namespace", vaultNamespace, "--kube-version", "1.37.1", "--include-crds", "-f", path).CombinedOutput() // #nosec G204 -- Fixed Helm and checksum-verified charts.
+			raw, err = exec.CommandContext(ctx, "helm", "template", vaultRelease, chart, "--namespace", vaultNamespace, "--kube-version", "1.37.2", "--include-crds", "-f", path).CombinedOutput() // #nosec G204 -- Fixed Helm and checksum-verified charts.
 			if err != nil {
 				t.Fatalf("native external-chart rendering: %v: %s", err, raw)
 			}

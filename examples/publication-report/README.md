@@ -6,7 +6,7 @@ Notifications trigger current-state reads. They do not establish the current pub
 
 ## Prerequisites
 
-- Use Go 1.27.3 or later and a source checkout.
+- Use Go 1.27.4 or later and a source checkout.
 - Provide a dedicated receiver database on PostgreSQL 18. Do not use the Catalog database or its credentials.
 - Provide a Catalog API origin, tenant UUID and exact configured publication host.
 - Obtain an API token with the permissions below.

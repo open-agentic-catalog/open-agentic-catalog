@@ -17,7 +17,7 @@ import (
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/adapter"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 const clientSkillDirectory = "../../examples/client-skills/catalog-discovery"

@@ -6,7 +6,7 @@ These optional checks run real Pi sessions with the unchanged pi-ard extension. 
 
 [inputs.json](inputs.json) pins unchanged pi-ard 0.2.1 at `8a9db2d345b9978d60e182a652d72cc09ed94d83`. The upstream development lock remains unchanged. The separate first-party [runtime lock](runtime/package-lock.json) selects Pi 1.5.0 through the extension's supported peer dependencies. It contains 124 package paths and 123 distinct package/version identities. No npm override or upstream patch is used.
 
-The maintainer approves ten exact age exceptions: the eight Pi packages at 1.5.0, minimatch 11.0.3 and @isaacs/nonrecursive-glob-match 1.0.3. Other versions meet the 14-day rule. The pins retain each release date and each exception's integrity hash. Source, manifest and lock digests reject changed inputs.
+The runtime lock records each release date and meets the 14-day dependency rule. Source, manifest and lock digests bind the inputs used during acquisition.
 
 Use non-root Linux AMD64 with Python, GitHub CLI, bubblewrap and systemd. Use the repository's Node 22.23.4/npm 12.2.2 and Trivy pins from the [verification tool setup](../../ci/README.md). Reuse already installed matching tools. For a fresh Linux AMD64/Python 3.12 workflow environment, the `security` profile supplies both Node/npm and Trivy; do not run multiple profiles into an existing tool destination. Execution needs noninteractive permission for `sudo systemd-run` and `sudo systemctl` on the invocation-owned transient services. The launcher does not change sudo policy, enable user services or change host settings.
 

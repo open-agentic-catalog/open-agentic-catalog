@@ -493,7 +493,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -506,27 +506,31 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         # process the form parameters
         # process the body parameter
         if adopt_observation is not None:
             _body_params = adopt_observation
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -943,7 +947,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -956,27 +960,31 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         # process the form parameters
         # process the body parameter
         if adopt_resource_version is not None:
             _body_params = adopt_resource_version
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -1503,7 +1511,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -1531,7 +1539,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -1932,7 +1940,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -1943,27 +1951,31 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         # process the form parameters
         # process the body parameter
         if connect_source is not None:
             _body_params = connect_source
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -2377,7 +2389,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -2408,7 +2420,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -2730,7 +2742,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -2746,7 +2758,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -3062,7 +3074,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -3078,7 +3090,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -3412,7 +3424,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -3428,7 +3440,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -3872,7 +3884,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -3895,7 +3907,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -4211,7 +4223,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -4227,7 +4239,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -4610,7 +4622,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -4628,7 +4640,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -4944,7 +4956,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -4960,7 +4972,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -5361,7 +5373,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -5372,27 +5384,31 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         # process the form parameters
         # process the body parameter
         if inspect_source is not None:
             _body_params = inspect_source
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -5904,7 +5920,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -5941,7 +5957,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -6361,7 +6377,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -6383,7 +6399,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -6913,7 +6929,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -6942,7 +6958,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -7356,7 +7372,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -7378,7 +7394,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -7859,7 +7875,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -7885,7 +7901,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -8374,7 +8390,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -8406,7 +8422,7 @@ class FederationApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -8807,7 +8823,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -8818,27 +8834,31 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         # process the form parameters
         # process the body parameter
         if live_search is not None:
             _body_params = live_search
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -9316,7 +9336,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -9329,29 +9349,33 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if reason is not None:
             _body_params = reason
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -9786,7 +9810,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -9799,27 +9823,31 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         # process the form parameters
         # process the body parameter
         if preview_source_change is not None:
             _body_params = preview_source_change
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -10309,7 +10337,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -10322,29 +10350,33 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if remove_source is not None:
             _body_params = remove_source
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -10767,7 +10799,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -10780,27 +10812,31 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         # process the form parameters
         # process the body parameter
         if trust_assessment_request is not None:
             _body_params = trust_assessment_request
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -11278,7 +11314,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -11291,29 +11327,33 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if reason is not None:
             _body_params = reason
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -11644,7 +11684,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -11660,20 +11700,22 @@ class FederationApi:
             _body_params = observation_search
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -12127,7 +12169,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -12140,29 +12182,33 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if set_artwork_override is not None:
             _body_params = set_artwork_override
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -12652,7 +12698,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -12665,29 +12711,33 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if body is not None:
             _body_params = body
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -13177,7 +13227,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -13190,29 +13240,33 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if body is not None:
             _body_params = body
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -13702,7 +13756,7 @@ class FederationApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -13715,29 +13769,33 @@ class FederationApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if update_source is not None:
             _body_params = update_source
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]

@@ -8,7 +8,7 @@ import (
 	"errors"
 	"io"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 //go:embed fixtures/vault/catalog-sync.yaml

@@ -149,10 +149,10 @@ class Tools(unittest.TestCase):
                     acquire.assert_not_called()
 
     def test_absent_registry_revision_requires_a_separate_reviewed_source_pin(self):
-        package = "@modelcontextprotocol/inspector@2.12.0"
+        package = "@modelcontextprotocol/inspector@2.14.0"
         expected = tools.validate_lock()[package]
         self.assertIsNone(expected["gitHead"])
-        self.assertEqual(tools.source_revision(package, expected), "0cac110a809e93753fa353810b9b4c91e89810fc")
+        self.assertEqual(tools.source_revision(package, expected), "4d3464cb3a6dde609d7b5ac24c440b947eb40f23")
         metadata = registry_metadata(package, expected)
         tools.validate_registry_identity(package, expected, metadata)
         for value in (None, "a" * 40):

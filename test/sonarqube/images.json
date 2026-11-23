@@ -2,5 +2,5 @@
   "platform": "linux/amd64",
   "serverVersion": "26.9.0.129388",
   "server": "sonarqube@sha256:f9036a4bb5b8910112a9aa27f3d45fb47fc961759db8aad4fa6a76d93042c83c",
-  "scanner": "sonarsource/sonar-scanner-cli@sha256:47956b669bf486bdad919e1cbd0533223515aa0b6d1d31763e5a3754942df6d7"
+  "scanner": "sonarsource/sonar-scanner-cli@sha256:38207bba3d98c8ce6f6c051ea2b9f05a24480da78c9ee5945ceafc3d9de02b88"
 }

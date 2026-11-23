@@ -4,7 +4,7 @@ package helm_test
 
 import (
 	"errors"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 	"io"
 	"os"
 	"os/exec"

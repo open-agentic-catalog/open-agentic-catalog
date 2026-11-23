@@ -11,6 +11,7 @@ for (const base of ["root", "subpath"]) {
   test(`${base}: personal work and saved searches preserve ownership and explicit execution`, async ({
     page,
     catalog,
+    network,
   }, testInfo) => {
     const draft = await catalog.admin<{ id: string }>(
       "POST",
@@ -201,7 +202,21 @@ for (const base of ["root", "subpath"]) {
     // A new identity gets its own library. The route never reuses a previous result.
     await page.getByTitle("Account", { exact: true }).click();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    // The new identity opens the current saved-item URL before leaving for its library.
+    const itemAPIPath = "/_catalog/api/v1/personal/items/" + saved.id;
+    network.expectFailure("GET", itemAPIPath, 404);
+    const otherUserRead = page.waitForResponse(
+      (reply) =>
+        reply.request().method() === "GET" &&
+        new URL(reply.url()).pathname === basePath + itemAPIPath,
+    );
     await page.locator('[data-login-alias="local-admin"]').click();
+    const refusal = await otherUserRead;
+    expect(refusal.status()).toBe(404);
+    expect(await refusal.json()).toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      page.getByRole("heading", { name: "Research helpers", exact: true }),
+    ).toHaveCount(0);
     await page.goto(origin + basePath + "/saved-items");
     await expect(
       page.getByText(
@@ -212,7 +227,15 @@ for (const base of ["root", "subpath"]) {
     await page.getByTitle("Account", { exact: true }).click();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await page.locator('[data-login-alias="local-contributor"]').click();
-    await page.goto(origin + basePath + "/saved-items/" + saved.id);
+    const ownItem = page.getByRole("link", {
+      name: "Research helpers",
+      exact: true,
+    });
+    await expect(ownItem).toHaveAttribute(
+      "href",
+      basePath + "/saved-items/" + saved.id,
+    );
+    await ownItem.click();
     await expect(
       page.getByRole("heading", { name: "Research helpers", exact: true }),
     ).toBeVisible();

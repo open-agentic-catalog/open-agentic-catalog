@@ -9,6 +9,8 @@ rich>=14.3.3
 lupa>=2.8
 cryptography<49; sys_platform == 'darwin' and platform_machine == 'x86_64'
 # Preserve the SDK's supported MCP 1.x closure instead of its older workspace selection.
-litellm==1.103.9
+litellm==1.103.10
 anyio>=4.14.2
 pyjwt>=2.14.0
+# First reviewed release fixing CVE-2026-128089.
+dnspython==2.9.2

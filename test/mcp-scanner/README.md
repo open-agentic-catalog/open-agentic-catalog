@@ -86,9 +86,9 @@ The isolated campaign units run through the scanner's existing unit selection. O
 
 The installer enforces the ordinary 14-day release-age policy. Set `scannerAgeExceptionApproved` only for an explicitly reviewed exception to the selected release. Age admission does not clear the dependency findings. The current published wheel requires exactly LiteLLM 1.93.2; a relaxed requirement on upstream main is not a replacement for released package metadata.
 
-Use the repository-pinned uv 0.13.6 to regenerate the lock. The command in its header records the fixed cutoff and package-specific exceptions. Start from the repository root. Do not inherit registry credentials or user uv configuration. Review every changed version, wheel hash, release timestamp and dependency requirement before reinstalling.
+Use the repository-pinned uv 0.13.7 to regenerate the lock. The command in its header records the fixed cutoff and package-specific exceptions. Start from the repository root. Do not inherit registry credentials or user uv configuration. Review every changed version, wheel hash, release timestamp and dependency requirement before reinstalling.
 
-The base image and pip 26.2.2 reuse earlier approved exact security exceptions. The lock also reuses certifi 2026.10.23 and filelock 4.2.4. The constraint file preserves earlier approvals for Pillow and setuptools if a future resolution needs them. Constraints do not add absent packages.
+The base image and pip 26.3 reuse earlier approved exact security exceptions. The lock also reuses certifi 2026.10.23 and filelock 4.2.4. The constraint file preserves earlier approvals for Pillow and setuptools if a future resolution needs them. Constraints do not add absent packages.
 
 The rules hash covers a sorted array of filenames and SHA-256 file hashes. Its JSON encoding uses sorted keys, ASCII escapes and compact separators. Setup checks the wheel's actual rules against this independent source-derived pin. Runtime binds each report to the installed rules and image.
 

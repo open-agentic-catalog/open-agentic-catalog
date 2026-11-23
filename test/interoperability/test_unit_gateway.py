@@ -18,17 +18,12 @@ from gateway import native
 
 
 class Acquisition(unittest.TestCase):
-    def test_auth_overlay_requires_the_exact_registry_dependency_closure(self):
-        reference = "example.invalid/registry@sha256:" + "a" * 64
-        tools.validate_auth_base(reference, "# Native auth overlay\nFROM " + reference + "\nUSER 1000\n")
-        for source in (
-            "FROM example.invalid/registry@sha256:" + "b" * 64,
-            "FROM example.invalid/registry:latest",
-            "# no base image",
-            "FROM " + reference + "\nFROM another-image",
-        ):
-            with self.subTest(source=source), self.assertRaisesRegex(ValueError, "auth base must match"):
-                tools.validate_auth_base(reference, source)
+    def test_auth_image_from_another_source_revision_is_rejected_before_execution(self):
+        image = {"Config": {"Labels": {"org.opencontainers.image.revision": "other"}}}
+        with patch.object(tools, "command", return_value=Mock(stdout=json.dumps([image]))) as command:
+            with self.assertRaisesRegex(ValueError, "auth image source revision differs"):
+                tools.inspect_application_image("selected-image", "expected", Path("."), "auth")
+            command.assert_called_once_with("docker", "image", "inspect", "selected-image")
 
     def test_platform_refusal_precedes_docker_and_network(self):
         with (
@@ -41,11 +36,10 @@ class Acquisition(unittest.TestCase):
             daemon.assert_not_called()
             command.assert_not_called()
 
-    def test_incoherent_auth_base_refuses_installation_before_acquisition(self):
+    def test_missing_auth_digest_refuses_installation_before_acquisition(self):
         with tempfile.TemporaryDirectory() as directory:
             assets = Path(directory)
             (assets / "lock.json").write_text(json.dumps({"images": {"registry": "registry@sha256:" + "a" * 64}}))
-            (assets / "Containerfile.auth").write_text("FROM registry@sha256:" + "b" * 64)
             with (
                 patch.object(tools, "ASSETS", assets),
                 patch.object(tools, "TOOLS", assets / "tools"),
@@ -54,7 +48,7 @@ class Acquisition(unittest.TestCase):
                 patch.object(tools.shared, "local_daemon"),
                 patch.object(tools, "command") as command,
             ):
-                with self.assertRaisesRegex(ValueError, "auth base must match"):
+                with self.assertRaisesRegex(ValueError, "exact Registry, auth-server and MongoDB image digests"):
                     tools.install()
                 command.assert_not_called()
 

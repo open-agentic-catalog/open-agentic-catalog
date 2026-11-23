@@ -13,7 +13,7 @@ The optional [signed-webhook receiver](receiver/README.md) collects definitions 
 - Allow registry downloads during explicit setup.
 - Keep enough disk space for the independent scanner image and its dependencies.
 
-The image uses Python 3.13.17, MCP Scanner 4.8.7 and yara-python 4.5.4. Its [hash lock](../../test/mcp-scanner/requirements.txt) fixes the complete Python dependency set. Its [pins](../../test/mcp-scanner/pins.json) identify the base image, source revision and bundled rules.
+The image uses Python 3.13.18, MCP Scanner 4.8.7 and yara-python 4.5.4. Its [hash lock](../../test/mcp-scanner/requirements.txt) fixes the complete Python dependency set. Its [pins](../../test/mcp-scanner/pins.json) identify the base image, source revision and bundled rules.
 
 MCP Scanner has no YARA-only installation extra. Its installed dependencies include LLM libraries. This example selects only YARA and supplies no provider credentials. It disables `.env` loading and container networking.
 

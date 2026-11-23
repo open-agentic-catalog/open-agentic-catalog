@@ -13,7 +13,7 @@ The target builds current `catalogd`/`catalogctl` offline and starts an owned me
 
 It clears inherited Go flags and uses `GOTOOLCHAIN=local`, `GOPROXY=off` and `GOSUMDB=off`; an older launcher is supported only when the exact compiler is already cached. Both wrapper and Catalog builds honor explicit `GOMODCACHE`/`GOCACHE` paths while clearing other inherited Go settings. Missing tools fail without downloads; installation remains an explicit separate action.
 
-Installation acquires Inspector 2.12.0 and official Everything 2026.8.31 from the dedicated npm lock. Everything uses its compatible SDK 1.32.2. Inspector uses the core, client and server SDK modules at 2.3.1.
+Installation acquires Inspector 2.14.0 and official Everything 2026.8.31 from the dedicated npm lock. Everything uses its compatible SDK 1.32.2. Inspector uses the core, client and server SDK modules at 2.4.0.
 
 `provenance.json` binds exact versions, archive locations, SHA-512 integrity and the registry's `gitHead` when published. Inspector's registry record does not publish `gitHead`. Its separate `sourceRevision` records the reviewed immutable commit. The installer compares registry fields and GitHub source package versions. It checks Everything's source license through `gh` and uses `npm ci --ignore-scripts` in the digest-pinned Node 22.23.4 image.
 

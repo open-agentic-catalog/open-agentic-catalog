@@ -29,9 +29,9 @@ Installation acquires immutable GitHub source through `gh` and digest-pinned ima
 
 ## Exact peer inputs and licenses
 
-[lock.json](lock.json) owns the source revision, complete source-tree digest and Linux AMD64 Registry/MongoDB image digests. The Registry image's revision label, all Registry/auth Python files, native entrypoint, bootstrap script, scope JSON files, nginx templates and selected configuration must match that checkout.
+[lock.json](lock.json) owns the source revision, complete source-tree digest and Linux AMD64 Registry, auth-server and MongoDB image digests. The Registry image's revision label, all Registry/auth Python files, native entrypoint, bootstrap script, scope JSON files, nginx templates and selected configuration must match that checkout.
 
-The upstream auth image is unavailable at the selected source revision. [Containerfile.auth](Containerfile.auth) copies unchanged auth files and its native entrypoint over the exact Registry image. The installer rejects a base image that differs from the Registry digest in the lock. This offline layout step uses the same installed dependencies. It does not patch source or resolve packages.
+Registry 1.36.0 and auth-server 1.36.0 use the published upstream images for the same source commit. The installer verifies both revision labels and compares the installed native Python source, configuration and entrypoint bytes with that commit.
 
 The closure inventory records every installed Python distribution, dependency metadata, license classifiers and license-file hashes, plus OS packages and copyright-file hashes. The source also retains the upstream frontend lock. This is HTTP API qualification; the peer's browser application is not executed.
 
@@ -39,7 +39,7 @@ Gateway source uses Apache-2.0. Its full image also includes other licenses, inc
 
 ## Native controls
 
-The fixture runs native registry-only nginx, its auth server and MongoDB 8.2. The unchanged bootstrap script initializes `rs0`, indexes and original privileged scopes. MongoDB uses the peer's private, no-auth local mode; this is not a production deployment recipe. All state uses ordinary disk-backed Kubernetes volumes.
+The fixture runs native registry-only nginx, its auth server and MongoDB 8.3. The unchanged bootstrap script initializes `rs0`, indexes and original privileged scopes. MongoDB uses the peer's private, no-auth local mode; this is not a production deployment recipe. All state uses ordinary disk-backed Kubernetes volumes.
 
 The canonical origin is `https://gateway.gateway-qualification.svc.cluster.local` on port 443. Native nginx serves private TLS on port 8443 behind the ClusterIP Service. The private-key Secret mounts at `/etc/ssl/private` because the image's original directory is root-only. Tests require the owned CA and independently reject that issuer without it.
 

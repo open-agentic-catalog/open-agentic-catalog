@@ -5,7 +5,7 @@ make plugin-tools-install
 make test-interoperability-plugins
 ```
 
-Run each target alone. This explicit functional test installs unchanged OpenHands SDK 1.58.2 at `d2ee0cdea60825608c2f8906eb54e1d4d264fb42`, then calls its native `Plugin.load(directory)` for owned Agent Plugins 1.0.0 packages. The test driver discovers and downloads Catalog content; the SDK loads the verified directory.
+Run each target alone. This explicit functional test installs unchanged OpenHands SDK 1.59.0 at `ccae18cb897bef7960f210aa3f380b577a84be7c`, then calls its native `Plugin.load(directory)` for owned Agent Plugins 1.0.0 packages. The test driver discovers and downloads Catalog content; the SDK loads the verified directory.
 
 No model, agent session, MCP connection, dynamic Skill rendering, component execution or installation into a developer home is requested.
 
@@ -25,7 +25,7 @@ The loader namespace cannot reach even the otherwise-live owned archive peer. A 
 
 ## Assertions
 
-Six direct controls exercise valid portable loading, malformed root JSON, missing/unsupported schema, invalid name and one invalid MCP sibling beside a valid Skill/server. A declared portable manifest takes precedence over the conflicting legacy manifest. OpenHands 1.58.2 treats a root object without `$schema` as a different format and loads the exact legacy decoy, its Skill and no portable MCP definitions; this is a consumer characterization, not Catalog admission. Malformed JSON, an unsupported declared schema and invalid names still require the intended native diagnostic. The governed Catalog handoff continues to require the portable profile and exact retained bytes.
+Six direct controls exercise valid portable loading, malformed root JSON, missing/unsupported schema, invalid name and one invalid MCP sibling beside a valid Skill/server. A declared portable manifest takes precedence over the conflicting legacy manifest. OpenHands 1.59.0 treats a root object without `$schema` as a different format and loads the exact legacy decoy, its Skill and no portable MCP definitions; this is a consumer characterization, not Catalog admission. Malformed JSON, an unsupported declared schema and invalid names still require the intended native diagnostic. The governed Catalog handoff continues to require the portable profile and exact retained bytes.
 
 The SDK deliberately skips the bad MCP sibling and preserves valid siblings; this does not weaken Catalog whole-package admission.
 
@@ -61,9 +61,9 @@ Pure `test_unit_plugins.py` covers archive/materializer, native-output, source-i
 
 `provenance.json` binds the entire SDK package source and root MIT license. Installation verifies extracted checksums and every installed SDK code/data file against that pin. `requirements.in` mirrors declared dependencies/build requirements; no runtime modules are stubbed or removed to make import cheap.
 
-`constraints.txt` retains the selected upstream security floors and LiteLLM 1.103.9, within the SDK's supported `>=1.93.0,<1.106` range. This replaces the upstream workspace's older 1.93.0 selection. Pass this constraint file when regenerating the hash lock with the repository-pinned uv command recorded in `requirements.txt`. Review the closure, reinstall and rerun native controls. No Python package becomes a Catalog runtime dependency.
+`constraints.txt` retains the selected upstream security floors and LiteLLM 1.103.10, within the SDK's supported `>=1.93.0,<1.106` range. This replaces the upstream workspace's older 1.93.0 selection. Pass this constraint file when regenerating the hash lock with the repository-pinned uv command recorded in `requirements.txt`. Review the closure, reinstall and rerun native controls. No Python package becomes a Catalog runtime dependency.
 
-Most installed dependencies declare MIT, Apache, BSD, PSF, ISC or MPL terms; source distributions retain their notices. The SDK also requires `lmnr`, which brings `lmnr-claude-code-proxy` 0.1.24 with `LicenseRef-Proprietary`. Its bundled notice refers to [Laminar terms](https://laminar.sh/policies/terms), which describe internal-use rights and redistribution restrictions.
+Most installed dependencies declare MIT, Apache, BSD, PSF, ISC or MPL terms; source distributions retain their notices. The SDK also requires `lmnr`, which brings `lmnr-claude-code-proxy` 0.2.0 with `LicenseRef-Proprietary`. Its bundled notice refers to [Laminar terms](https://laminar.sh/policies/terms), which describe internal-use rights and redistribution restrictions.
 
 This local qualification neither invokes that proxy nor contacts Laminar. Do not publish or ship this test image as an all-open-source dependency bundle. This is an explicit local-tool limitation, not an Apache redistribution approval or a change to the application license gate.
 

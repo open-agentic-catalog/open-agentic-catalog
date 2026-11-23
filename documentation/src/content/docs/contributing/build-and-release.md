@@ -104,7 +104,7 @@ The optional [pre-commit checks](testing.md#optional-pre-commit-checks) addition
 
 Use GNU Make, installed Python 3.12-3.14 and the repository's Go toolchain. Container builds require a Docker or Podman engine with BuildKit-compatible build arguments and cache mounts. `CONTAINER_ENGINE` selects the engine; `GO`, `PYTHON`, `TRIVY` and `HELM` select tools through Make command-line assignments, for example `make helm-package HELM=/path/to/helm`. Helm is required for chart packaging, not image builds.
 
-The exact Trivy version in `test/packaging/trivy.json` (currently 0.76.1) is required for SBOM and image scanning. The Containerfile pins the native Go builder and Dockerfile frontend by digest and `go-licenses` by version. Initial acquisition needs access to image/module registries; later license collection and compilation run without network access. Cross-compilation itself requires neither QEMU nor target hardware.
+The exact Trivy version in `test/packaging/trivy.json` (currently 0.76.2) is required for SBOM and image scanning. The Containerfile pins the native Go builder and Dockerfile frontend by digest and `go-licenses` by version. Initial acquisition needs access to image/module registries; later license collection and compilation run without network access. Cross-compilation itself requires neither QEMU nor target hardware.
 
 | Input | Meaning |
 | --- | --- |
@@ -122,7 +122,7 @@ Inspection accepts version/commit values of 1-128 ASCII letters, digits, dots, u
 
 ## Shared development tools
 
-Root `pyproject.toml` is dependency-only. Its unpublished virtual project declares `requires-python = ">=3.12,<3.15"`, so uv resolves the declared range rather than inferring one from the selected interpreter. Its dev group pins Ruff 0.17.3, jsonschema 4.26.0, bump-my-version 1.6.7, coverage 7.17.0 and yamllint 1.38.0; `uv.lock` locks their transitive dependencies, including yamllint's PyYAML/pathspec closure and supported wheels. Coverage instruments the optional native tooling selection. It is not a Python application package. The installer requires [uv](https://github.com/astral-sh/uv) 0.13.6 and an installed Python 3.12-3.14 interpreter. Python 3.12.3 is the qualified local baseline. Install uv explicitly if the existing executable is older; do not upgrade a personal tool environment implicitly:
+Root `pyproject.toml` is dependency-only. Its unpublished virtual project declares `requires-python = ">=3.12,<3.15"`, so uv resolves the declared range rather than inferring one from the selected interpreter. Its dev group pins Ruff 0.17.4, jsonschema 4.26.0, bump-my-version 1.8.1, coverage 7.17.2 and yamllint 1.38.0; `uv.lock` locks their transitive dependencies, including yamllint's PyYAML/pathspec closure and supported wheels. Coverage instruments the optional native tooling selection. It is not a Python application package. The installer requires [uv](https://github.com/astral-sh/uv) 0.13.7 and an installed Python 3.12-3.14 interpreter. Python 3.12.3 is the qualified local baseline. Install uv explicitly if the existing executable is older; do not upgrade a personal tool environment implicitly:
 
 ```sh
 mkdir -p output
@@ -149,7 +149,7 @@ Normal Make targets prefer `.tools/dev/bin/python`, `.tools/dev/bin/ruff` and `.
 
 The packaging and interoperability Go functional wrappers also prefer the installed `.tools/dev/bin/python` without activation. They retain the virtual-environment executable path and fall back to `python3` from PATH when it is absent. `PYTHON` overrides select direct Make recipes; each Go wrapper owns its interpreter selection.
 
-Maintain pins deliberately with uv 0.13.6. Update `pyproject.toml`. Regenerate `uv.lock` with `uv lock --python /path/to/python --no-python-downloads`. Rerun locked installation, pin-parity, conformance and tooling tests. Review licenses and advisories. Keep `ruff.toml` as the rule authority.
+Maintain pins deliberately with uv 0.13.7. Update `pyproject.toml`. Regenerate `uv.lock` with `uv lock --python /path/to/python --no-python-downloads`. Rerun locked installation, pin-parity, conformance and tooling tests. Review licenses and advisories. Keep `ruff.toml` as the rule authority.
 
 ## Application version and release checks
 
@@ -539,7 +539,7 @@ make -C extensions/vscode verify
 
 The build installer acquires one pinned Node 24.22.1/npm 12.2.2 runtime and locked npm tools under `extensions/vscode/.tools/` and `node_modules/`. It leaves your default Node and SDK caches alone. Build/check/package need no VS Code download, ORAS, A2A sample, Go or SDK compatibility/browser installation. They validate the SDK source/archive/lock, installed tools and dependencies, acquire nothing and never refresh locks implicitly. See the [dependency policy](../reference/dependencies.md#optional-vs-code-client-and-sdk-runtime).
 
-Full editor qualification also needs Git, Go 1.27.3, the [GitHub CLI](https://cli.github.com/), Xvfb, OpenSSL, OpenSSH client/server, uvx 0.13.6, local Docker and a C compiler for race tests. Install these prerequisites explicitly; the extension does not install resource runtimes. Configure `gh` for public fixture acquisition and install the SDK test tools above. Run `make -C extensions/vscode test-tools-install`, then `make -C extensions/vscode test`. The test installer explicitly adds the pinned desktop host, ORAS, A2A executor, Remote SSH extension, matching VS Code Server and Chrome for Testing; its stamp is separate from build tools. No database, Compose stack, cluster or model account is required. Root `vscode-tools-install` retains this aggregate installation behavior.
+Full editor qualification also needs Git, Go 1.27.4, the [GitHub CLI](https://cli.github.com/), Xvfb, OpenSSL, OpenSSH client/server, uvx 0.13.7, local Docker and a C compiler for race tests. Install these prerequisites explicitly; the extension does not install resource runtimes. Configure `gh` for public fixture acquisition and install the SDK test tools above. Run `make -C extensions/vscode test-tools-install`, then `make -C extensions/vscode test`. The test installer explicitly adds the pinned desktop host, ORAS, A2A executor, Remote SSH extension, matching VS Code Server and Chrome for Testing; its stamp is separate from build tools. No database, Compose stack, cluster or model account is required. Root `vscode-tools-install` retains this aggregate installation behavior.
 
 ### Build, watch and debug
 

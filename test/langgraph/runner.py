@@ -162,8 +162,8 @@ def main():
     args = parser.parse_args()
     if args.action == "install":
         version = subprocess.check_output([args.uv, "--version"], text=True).split()
-        if version[:2] != ["uv", "0.13.6"]:
-            raise RuntimeError("uv 0.13.6 required; select its installed path with UV")
+        if version[:2] != ["uv", "0.13.7"]:
+            raise RuntimeError("uv 0.13.7 required; select its installed path with UV")
         command(
             [
                 args.uv,

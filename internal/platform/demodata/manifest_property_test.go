@@ -6,7 +6,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 	"pgregory.net/rapid"
 )
 

@@ -8,7 +8,7 @@ Run Make commands from the repository root with GNU Make. Managed builds and loc
 
 | Workflow | Start here |
 | --- | --- |
-| Backend development | Go 1.27.3. `make run` starts the in-memory API/worker; `make build` writes `catalogd` and `catalogctl` to `bin/`. No Python packages are needed to compile. |
+| Backend development | Go 1.27.4. `make run` starts the in-memory API/worker; `make build` writes `catalogd` and `catalogctl` to `bin/`. No Python packages are needed to compile. |
 | Persistent local environment | Docker with the `docker compose` plugin and BuildKit. `make compose-up` starts PostgreSQL and the backend. Add `LOCAL_UI=on` for the UI and bundled manual. No host Go or Node.js is needed. |
 | Direct Docker | Build with Docker/BuildKit, or use a supplied image. No host Go is needed with an explicit build platform. Follow the [PostgreSQL procedure](documentation/src/content/docs/operations/docker.mdx) for separate roles and file inputs. |
 | UI development | The backend toolchain plus Node.js 22.23.4 and npm 12.2.2, recorded in `catalog-ui/.nvmrc` and `catalog-ui/package.json`. Run `make ui-install`, then `make ui-dev` against a backend on port 8080. See the [UI developer guide](catalog-ui/README.md). |

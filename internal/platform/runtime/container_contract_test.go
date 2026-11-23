@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	goruntime "runtime"
 	"slices"
 	"strings"
@@ -55,7 +56,7 @@ func TestContainerBuildContract(t *testing.T) {
 	content := string(containerfile)
 	requireTextFragments(t, content, []string{
 		"# syntax=docker/dockerfile:1.28.0@sha256:",
-		"FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3-alpine3.24@sha256:",
+		"FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.4-alpine3.24@sha256:",
 		"FROM scratch AS runtime",
 		"ENV GOTOOLCHAIN=local",
 		"ARG TARGETOS",
@@ -1019,8 +1020,19 @@ func TestHelmConfigurationUsesValidatedEnvironmentAndConditionalSecrets(t *testi
 		"HELM_KUBE_VERSION := 1.34.0",
 		"ambiguous-values.yaml",
 		"--is-upgrade --values $(HELM_CHART)/ci/optional-values.yaml",
-		"$(KUBECONFORM_IMAGE) -strict -summary",
 	})
+	schemaLocation := regexp.MustCompile(`(?m)^KUBECONFORM_SCHEMA_LOCATION := https://raw\.githubusercontent\.com/yannh/kubernetes-json-schema/[0-9a-f]{40}/`)
+	if !schemaLocation.MatchString(makefile) {
+		t.Fatal("Kubernetes schema location must select an immutable upstream revision")
+	}
+	const validator = "$(KUBECONFORM_IMAGE) -schema-location '$(KUBECONFORM_SCHEMA_LOCATION)' -strict -summary"
+	for _, target := range []string{"helm-schema-check:", "monitoring-schema-check:"} {
+		_, section, found := strings.Cut(makefile, "\n"+target)
+		recipe, _, _ := strings.Cut(section, "\n\n")
+		if !found || !strings.Contains(recipe, validator) {
+			t.Fatalf("%s must use strict validation and the pinned schemas", target)
+		}
+	}
 	profiles, err := fs.Glob(repository.FS(), "deployments/helm/open-agentic-catalog/ci/*.yaml")
 	if err != nil || len(profiles) == 0 {
 		t.Fatalf("chart profile inventory: %v", err)

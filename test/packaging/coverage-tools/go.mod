@@ -1,6 +1,6 @@
 module catalog.tools/coverage
 
-go 1.27.3
+go 1.27.4
 
 tool (
 	github.com/axw/gocov/gocov

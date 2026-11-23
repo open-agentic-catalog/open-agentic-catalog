@@ -3,4 +3,4 @@
 // The actual oasdiff tool module remains independently owned by tools/go.mod.
 module github.com/open-agentic-catalog/open-agentic-catalog/test/validation
 
-go 1.27.3
+go 1.27.4
