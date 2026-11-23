@@ -214,7 +214,7 @@ make ui-coverage-e2e UI_E2E_PROFILE=oidc
 make ui-coverage-e2e UI_E2E_PROFILE=semantic
 ```
 
-The default is `local`: the complete nonvisual Playwright selection with fresh memory-backed processes. Coverage uses four independent workers and retains the complete selection's ten-minute deadline. Each fixture owns its processes and context counter files. The report requires every case and exact context counts. `compose` and `oidc` reuse their existing owned PostgreSQL/image/provider launchers. They measure different workflows; keep the results separate.
+The default `local` profile runs every nonvisual Playwright journey that loads the React application, using fresh memory-backed processes. The root and subpath checks for disabled public discovery receive a JSON error from the Go host and exercise the native CLI. They run in the ordinary browser suite and carry the `@ui-host-only` tag to keep them outside React coverage. Coverage uses four independent workers and a ten-minute deadline. Each fixture owns its processes and context counter files. The report requires every case and exact context counts. `compose` and `oidc` reuse their existing owned PostgreSQL/image/provider launchers. They measure different workflows; keep the results separate.
 
 `semantic` reuses the full real-model `test/embeddings/semantic.py` supervisor, including its 1,000-release and load checks, with both hybrid and provider-outage browser contexts. It reports only after all qualification and cleanup succeed. Visual selection is not included.
 

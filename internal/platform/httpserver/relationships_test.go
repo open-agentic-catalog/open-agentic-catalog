@@ -66,6 +66,19 @@ func TestRelationshipHandlerPagesSealedDeclarations(t *testing.T) {
 	query.AfterReleaseID, query.AfterOrdinal, query.Generation = projectionItem, 1, generation
 	w = read("view=outgoing&limit=1&cursor=" + url.QueryEscape(page.NextCursor))
 	requireControlJSON(t, w, 200, map[string]any{"items": []any{map[string]any{"declaration": last.Declaration, "related": last.Related}}})
+	// Start from the emitted cursor so a binding mismatch cannot mask a bad position.
+	resume := httptest.NewRequestWithContext(ctx, http.MethodGet, "/?view=outgoing&limit=1&cursor="+url.QueryEscape(page.NextCursor), nil)
+	bound, err := server.parseAdminPage(resume, "release-relationships", projectionItem, "source-release,ordinal", map[string]string{"view": "outgoing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, position := range [][]string{{projectionItem}, {projectionItem, "0", generation}, {projectionItem, "65", generation}} {
+		token, err := server.encodeAdminCursor(bound, position)
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireProjectionProblem(t, read("view=outgoing&limit=1&cursor="+url.QueryEscape(token)), http.StatusBadRequest, catalog.CodeInvalidArgument)
+	}
 	for _, invalid := range []string{"", "view=unrecognized", "view=incoming&view=outgoing", "view=outgoing&limit=0", "view=incoming&limit=1&cursor=" + url.QueryEscape(page.NextCursor)} {
 		requireProjectionProblem(t, read(invalid), 400, catalog.CodeInvalidArgument)
 	}

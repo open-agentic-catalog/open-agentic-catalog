@@ -84,10 +84,10 @@ def reconcile(unit, local, postgres, processes, minimum):
     database = {key for key in unit if "/internal/platform/database/" in key[0]}
     if postgres.keys() != database:
         raise ValueError("PostgreSQL profile inventory differs from database source")
-    expected_process_files = {key[0] for key in unit if any(key[0].endswith("/" + file) for file in (
-        "cmd/catalogctl/main.go", "cmd/catalogd/main.go", "internal/platform/runtime/runtime.go"))}
-    if not expected_process_files <= {key[0] for key in processes}:
-        raise ValueError("process profile omits a required application file")
+    process_packages = ("/cmd/catalogctl", "/cmd/catalogd", "/internal/platform/runtime")
+    expected_process_blocks = {key for key in unit if key[0].rsplit("/", 1)[0].endswith(process_packages)}
+    if processes.keys() != expected_process_blocks:
+        raise ValueError("process profile inventory differs from instrumented application packages")
     combined = merge(unit, [local, postgres, processes], allow_harness=True)
     files, _, _ = totals(combined)
     lines = []

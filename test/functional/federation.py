@@ -29,7 +29,6 @@ class Client:
     def request(self, method, path, body=None, expected=(200,), headers=None, *, retry_unavailable=False, decode_body=True):
         if retry_unavailable and (method != "GET" or path != "/readyz"):
             raise ClientFailure("readiness retry classification requires readyz")
-        observed_expected = (*expected, 503) if retry_unavailable else expected
         raw = None if body is None else json.dumps(body, separators=(",", ":")).encode()
         request_headers = dict(headers or {})
         if self.token:
@@ -41,10 +40,12 @@ class Client:
             status, headers, payload = bounded_request(request, self.ssl_context)
         except ClientFailure:
             if coverage.enabled() and self.catalog:
-                observe_response(method, path, 0, {}, b"", observed_expected)
+                observe_response(method, path, 0, {}, b"", expected)
             raise
         response_headers = dict(headers.items())
         if coverage.enabled() and self.catalog:
+            # A polling caller tolerates a transient 503 without asserting an outage.
+            observed_expected = None if retry_unavailable and status == 503 and status not in expected else expected
             observe_response(method, path, status, response_headers, payload, observed_expected)
         if status not in expected:
             # Preserve only a closed diagnostic category, never arbitrary

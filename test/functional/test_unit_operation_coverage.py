@@ -138,7 +138,9 @@ class OperationCoverageTests(unittest.TestCase):
                 for retry in (False, True):
                     with self.assertRaises(AssertionError):
                         api.request("GET", "/readyz", retry_unavailable=retry)
-                    self.assertEqual(observe.call_args.args[-1], (200, 503) if retry else (200,))
+                    self.assertEqual(coverage.outcome(503, observe.call_args.args[-1]), "unchecked" if retry else "unexpected")
+                api.request("GET", "/readyz", expected=(503,), retry_unavailable=True)
+                self.assertEqual(coverage.outcome(503, observe.call_args.args[-1]), "negative")
                 observe.reset_mock()
                 fixture.request("GET", "/readyz", expected=(503,))
                 observe.assert_not_called()
@@ -146,6 +148,11 @@ class OperationCoverageTests(unittest.TestCase):
                 fixture.request("GET", "/api/v1/namespaces")
                 validate.assert_called_once_with("GET", "/api/v1/namespaces", 200, {}, b'{}', collect=False)
                 observe.assert_not_called()
+                api.request("GET", "/readyz", retry_unavailable=True)
+                self.assertEqual(coverage.outcome(200, observe.call_args.args[-1]), "positive")
+            with patch("federation.bounded_request", return_value=(500, {}, b'{}')), self.assertRaisesRegex(AssertionError, "HTTP 500"):
+                api.request("GET", "/readyz", retry_unavailable=True)
+            self.assertEqual(coverage.outcome(500, observe.call_args.args[-1]), "unexpected")
             with self.assertRaises(ClientFailure):
                 api.request("POST", "/api/v1/namespaces", retry_unavailable=True)
             with patch("federation.bounded_request", side_effect=ClientFailure("functional HTTP transport failed")):
@@ -249,6 +256,14 @@ class OperationCoverageTests(unittest.TestCase):
             self.assertEqual(combined["expectedPositiveOperations"], 1)
             self.assertEqual(combined["observedOperations"], 2)
             self.assertTrue(next(v for v in combined["operations"] if v["operationId"] == "getCapabilities")["expectedNegative"])
+            additional.update(operationId="getReadiness", status=503, outcome="unchecked")
+            runner.write_document(second, other)
+            polled = coverage.summarize([first, second])
+            self.assertEqual(polled["status"], "passed")
+            readiness = next(v for v in polled["operations"] if v["operationId"] == "getReadiness")
+            self.assertTrue(readiness["observed"])
+            self.assertFalse(readiness["expectedPositive"])
+            self.assertFalse(readiness["expectedNegative"])
             other["operationCoverage"]["rows"].pop()
             for mutation in (lambda r: r["source"].update(commit="f" * 40),
                              lambda r: r.update(contractDigest="sha256:" + "0" * 64),

@@ -514,7 +514,7 @@ class PeerTests(unittest.TestCase):
             with self.assertRaisesRegex(AssertionError, "HTTP 503"):
                 client.request("GET", "/readyz", retry_unavailable=True, decode_body=False)
         transport.assert_called_once()
-        observe.assert_called_once_with("GET", "/readyz", 503, {}, b"{}", (200, 503))
+        observe.assert_called_once_with("GET", "/readyz", 503, {}, b"{}", None)
 
     def test_polling_rejects_callbacks_that_finish_at_or_after_either_deadline(self):
         scenario = object.__new__(peers.Peers)

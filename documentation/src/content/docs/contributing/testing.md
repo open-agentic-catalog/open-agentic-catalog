@@ -1146,7 +1146,7 @@ The UI lint gate includes the semantic browser/coverage scripts under `test/embe
 
 ### Browser source coverage
 
-`make ui-coverage-e2e UI_E2E_PROFILE=local` measures source execution from the complete Chromium browser suite. The local profile uses four independent workers and retains the ten-minute deadline for the complete selection. Every case must pass without skipped or repeated execution. Select `compose` or `oidc` explicitly for the owned packaged workflows, or `semantic` for the complete real-model supervisor. Run them serially.
+`make ui-coverage-e2e UI_E2E_PROFILE=local` measures React source execution in the nonvisual Chromium journeys that load the application. The ordinary browser suite also checks that disabling public discovery returns a JSON error at the root and under a subpath. These host-only cases exercise the CLI and Go host and have no React counters. The local coverage profile uses four workers and a ten-minute deadline. Every selected case must pass once. Select `compose` or `oidc` explicitly for the owned packaged workflows, or `semantic` for the complete real-model supervisor. Run them serially.
 
 The semantic selection also requires the pinned offline model/images from `embeddings-install` and retains its 1,000-release qualification. Install dependencies and Chromium through `ui-install` and `ui-browser-install` first. Each profile runs real collector calibration, including automatically navigating new tabs and rejection of missing document checkpoints, and writes weighted Istanbul statements, branches, functions and lines plus execution status, source/build/browser identities, per-file JSON, LCOV and local HTML under a unique `output/coverage/e2e/<profile>/run-*/` directory.
 
@@ -1847,6 +1847,8 @@ Run `make coverage-full` alone for fresh combined Go application coverage with a
 
 `make coverage-process-postgres-profile` runs instrumented CLI/API/worker binaries against an owned PostgreSQL 18 fixture and writes `coverage/process-postgres.out`; `make test-process-postgres` runs the same assertions without application instrumentation. Both reuse the integration Compose launcher and clean their project and volume. These profiles supplement the database-package tests with real operator command reports, stale-revision rejection, role admission, startup/shutdown and persistence across API process replacement. They require Docker Compose and the Go toolchain, and are separate from the default local and unit selections. See the [process fixture](../../../../../test/functional/README.md#native-postgresql-process-tests) for exact scope.
 
+The PostgreSQL process total covers `cmd/catalogctl`, `cmd/catalogd` and `internal/platform/runtime`. The combined report checks the process counters against every instrumented block in those three packages, including files the processes never executed. The database repository tests supply their own statement counts.
+
 All Go floor comparisons use exact weighted covered/total statement counts. Rounded display values are informational: 93.69887% cannot pass a 93.7% floor. Thresholds accept plain decimal percentages from 0 through 100.
 
 Empty, negative, exponent-form, nonfinite and over-100 values fail. `coverage-unit` and `coverage-full` bypass workflow env files. Set overrides on the Make command line; `coverage-full` forwards them to its recursive gates, for example `make coverage-full FULL_COVERAGE_MIN=96 UNIT_CRITICAL_PACKAGE_COVERAGE_MIN=91`.
@@ -2044,6 +2046,7 @@ This read-only target neither runs tests nor chooses the latest reports. Inputs 
 | `totalOperations` | All implemented API-listener operations from OpenAPI, including disabled and lower-level-only operations. Worker routes, operator commands and fixture traffic have separate evidence. |
 | `observedOperations` | Unique operations observed by the selected clients; an expected rejection is still an observation. |
 | `expectedPositiveOperations` | Unique operations with an expected, contract-valid 2xx/3xx response. Repetition and replay do not increase this count. |
+| Per-operation `expectedNegative` | A successful test explicitly expected a contract-valid error response. A transient 503 while waiting for readiness is recorded as observed. Only an explicit 503 expectation earns negative coverage for that response. |
 | `packagedGaps` | Applicable packaged operations with no measured positive response in the selected runs. A focused profile may need another profile's evidence; a gap does not itself establish missing implementation. |
 
 The default-off, webhook and OIDC profiles cover the core API operations. Optional `reindexCatalog` needs separate real-model evidence from `make test-semantic`. With semantic search disabled, the three-profile summary has fewer expected-positive operations than `totalOperations`; `packagedGaps` includes `reindexCatalog`. The semantic report is separate evidence and is not an input to this summary.
