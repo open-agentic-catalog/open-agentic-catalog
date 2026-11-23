@@ -86,14 +86,15 @@ test('all tab alternatives, disclosure content and exact code text survive print
   assert.equal(text(elements(parsed,node=>node.tagName==='code')[0]),'  a < b\n\tUnicode: café \uD83D\uDE00\n');
 });
 
-test('download references remain readable without a temporary-server hyperlink', () => {
-  const values=pages('<a href="/book/generated/example.json">Example</a><a href="https://example.org/reference">External reference</a><img src="/book/diagram.svg">');
+test('print chapters label downloads, retain external links and load local images eagerly', () => {
+  const values=pages('<a href="/book/generated/example.json">Example</a><a href="https://example.org/reference">External reference</a><img loading="LAZY" src="/book/diagram.svg">');
   const result=printChapter(values[0],values,options);
   assert.equal(result.downloads,1);
   assert.match(result.html,/HTML download: \/book\/generated\/example.json/);
   assert.doesNotMatch(result.html,/href="\/book\/generated/);
   assert.match(result.html,/href="https:\/\/example.org\/reference"/);
   assert.match(result.html,/src="\/book\/diagram.svg"/);
+  assert.match(result.html,/loading="eager"/);
 });
 
 test('missing anchors, external images and absent local images are refused before rendering', () => {

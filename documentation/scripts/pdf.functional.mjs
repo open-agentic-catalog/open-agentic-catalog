@@ -5,14 +5,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { parse } from 'parse5';
 import { bundle, manifestName } from './bundle.mjs';
-import { exportManual } from './pdf-export.mjs';
+import { deliveryFixture } from './delivery.fixture.mjs';
+import { elements } from './pdf.mjs';
+import { browserDirectory, exportManual } from './pdf-export.mjs';
 import { project, root } from './site.mjs';
 
 const lock = fs.readFileSync(path.join(project, 'package-lock.json'));
 const version = fs.readFileSync(path.join(root, 'VERSION'), 'utf8').trim();
 const contract = {manualRoutes:['','chapter'],operationIds:['LastOperation']};
-const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jQ1sAAAAASUVORK5CYII=', 'base64');
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64');
 const secondTitle='Second chapter with a long title that must preserve every word and space when its heading wraps across printed lines';
 const requiredText = ['COMPOSE_ALTERNATIVE_COMPLETE','HELM_ALTERNATIVE_COMPLETE','INTERRUPTED_LOAD_RECOVERY_COMPLETE','SVG_LABEL_COMPLETE','LAST_API_OPERATION_COMPLETE','WIDE_TABLE_FINAL_CELL','SCHEMA_FIELD_DESCRIPTION_COMPLETE','Owned third-party fixture notice'];
 const tokens = Array.from({length:130}, (_, i) => 'LONG_CODE_SEGMENT_' + i + '_' + 'x'.repeat(22));
@@ -25,6 +29,7 @@ function fixture(t, base = '/') {
   fs.writeFileSync(path.join(input,'generated/LICENSE'),fs.readFileSync(path.join(root,'LICENSE')));
   fs.writeFileSync(path.join(input,'generated/third-party-notices.txt'),'Owned third-party fixture notice');
   fs.writeFileSync(path.join(input,'image.png'),png);
+  fs.writeFileSync(path.join(input,'icon.svg'),'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 8"><rect width="10" height="8" fill="red"/></svg>');
   const html = (title,body) => '<html><head><link rel="stylesheet" href="' + base + 'style.css"></head><body>' +
     '<nav class="sidebar"><a href="' + base + '">Home</a><details><summary>Closed group</summary><a href="' + base + 'chapter/#same">Chapter</a></details>' +
     '<a href="' + base + 'api/">API overview</a><a href="' + base + 'api/operations/lastoperation/">Last operation</a></nav>' +
@@ -37,7 +42,8 @@ function fixture(t, base = '/') {
     [1,2,3,4,5].map(i=>'<td>Long cell '+i+'</td>').join('') + '<td>WIDE_TABLE_FINAL_CELL</td></tr></table>' +
     '<svg class="architecture-svg" viewBox="0 0 640 180"><title id="drawing">SVG_LABEL_COMPLETE</title><defs><linearGradient id="shade"><stop stop-color="#164e80"/></linearGradient></defs>' +
     '<rect width="640" height="180" fill="url(#shade)"></rect><text x="20" y="80" fill="white">SVG_LABEL_COMPLETE</text></svg>' +
-    '<img src="' + base + 'image.png" alt="Owned fixture pixel"><a href="' + base + '#same">First duplicate heading</a><a href="https://example.org/reference">External reference</a>';
+    '<img loading="lazy" src="' + base + 'image.png" alt="Owned fixture pixel"><img src="' + base + 'icon.svg" alt="Fixture icon" width="10" height="8">' +
+    '<a href="' + base + '#same">First duplicate heading</a><a href="https://example.org/reference">External reference</a>';
   const write = (file, bytes) => {fs.mkdirSync(path.dirname(path.join(input,file)),{recursive:true});fs.writeFileSync(path.join(input,file),bytes);};
   write('index.html',html('First chapter','<h2 id="same">First duplicate heading</h2><p>Owned reader manual.</p>'));
   write('chapter/index.html',html(secondTitle,content));
@@ -54,8 +60,31 @@ function inspectPDF(file) {
   const info = execFileSync('pdfinfo',[file],{encoding:'utf8',timeout:10000});
   const outline = execFileSync('mutool',['show',file,'outline'],{encoding:'utf8',timeout:10000,maxBuffer:1024*1024});
   const annotations = execFileSync('mutool',['show',file,'pages/*/Annots/*'],{encoding:'utf8',timeout:10000,maxBuffer:2*1024*1024});
-  return {content,info,outline,annotations};
+  const images = execFileSync('mutool',['info','-I',file],{encoding:'utf8',timeout:10000});
+  return {content,info,outline,annotations,images};
 }
+
+test('docs-delivery stages the advertised PDF and preserves neighboring files', t => {
+  const fixture = deliveryFixture(t);
+  fs.mkdirSync(path.join(fixture.checkout, '.tools'));
+  fs.symlinkSync(browserDirectory, path.join(fixture.checkout, '.tools/documentation-pdf'), 'dir');
+  const result = fixture.run();
+  assert.equal(result.status, 0, result.stderr);
+  fixture.checkNeighbors(true);
+
+  const inventory = JSON.parse(fs.readFileSync(path.join(fixture.output, 'documentation-delivery.json'), 'utf8'));
+  const home = parse(fs.readFileSync(path.join(fixture.output, 'index.html'), 'utf8'));
+  const downloads = elements(home, node => node.tagName === 'a' && node.attrs.some(attr => attr.name === 'download'));
+  const filename = 'catalog-manual.pdf';
+  assert.deepEqual(downloads.map(link => link.attrs.find(attr => attr.name === 'href')?.value),
+    ['https://example.test/catalog/' + filename]);
+  const pdf = path.join(fixture.output, filename);
+  const bytes = fs.readFileSync(pdf);
+  assert.deepEqual(inventory.files.find(file => file.path === filename), {
+    path: filename, size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'),
+  });
+  assert.match(execFileSync('pdftotext', [pdf, '-'], { encoding: 'utf8', timeout: 10000 }), /Verify the PDF checksum\./);
+});
 
 async function resourcesClosed(evidence) {
   assert.equal(evidence.cleanup,'passed');
@@ -76,9 +105,10 @@ for(const base of ['/','/nested/manual/']) {
     assert.deepEqual(fs.readFileSync(path.join(f.input,manifestName)),before);
     assert.deepEqual(bundle(f.input,base,lock),JSON.parse(before));
     assert.equal(result.layout.apiFields,1);assert.equal(result.layout.unstackedAPIFields,0);assert.equal(result.layout.clippedBlocks,0);
-    assert.equal(result.layout.panels,2);assert.equal(result.layout.diagrams,1);assert.equal(result.layout.images,1);
+    assert.equal(result.layout.panels,2);assert.equal(result.layout.diagrams,1);assert.equal(result.layout.images,2);
     await resourcesClosed(result);
     const native=inspectPDF(f.output), normalized=native.content.replace(/\s/g,'');
+    assert.match(native.images,/\b1x1 8bpc\b/,'The PDF must embed the chapter image');
     for(const expected of [...requiredText,...tokens,...tokens.map((_,i)=>'END_OF_LINE_'+i)]) assert(normalized.includes(expected.replace(/\s/g,'')),expected);
     const title=native.info.split(/\r?\n/u).find(line=>line.startsWith('Title:'));
     assert.equal(title?.slice('Title:'.length).trimStart(),'Open Agentic Catalog manual - '+version);
@@ -113,6 +143,11 @@ test('real refusal, timeout and cancellation preserve a successful PDF and close
   f.write('api/operations/lastoperation/index.html','<main>incomplete</main>');f.seal();
   await refused({},'prepare');
   f.write('api/operations/lastoperation/index.html','<html><head></head><body><main><h1>Last API operation</h1><div class="sl-markdown-content">Complete</div></main></body></html>');f.seal();
+  const damagedPNG = Buffer.from(png);
+  damagedPNG[damagedPNG.indexOf('IDAT') + 4] ^= 1;
+  f.write('image.png',damagedPNG);f.seal();
+  await refused({},'layout');
+  f.write('image.png',png);
   f.write('style.css','@font-face{font-family:Missing;src:url("missing.woff")}body.pdf-book{font-family:Missing!important}');f.seal();
   await refused({},'layout');
   f.write('style.css','body{font-family:sans-serif}');f.seal();

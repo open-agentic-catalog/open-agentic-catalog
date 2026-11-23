@@ -190,7 +190,12 @@ export async function exportManual({input = path.join(project, 'dist'), output =
     await guard(page.evaluate(() => globalThis.document.body.style.removeProperty('display')), controller.signal);
     await guard(page.evaluate(async () => {
       await globalThis.document.fonts.ready;
-      await Promise.all(Array.from(globalThis.document.images).map(image => image.decode()));
+      // Validate pixels without waiting for an animation frame. An explicit size
+      // also permits SVGs with only a viewBox. Printing uses the original image.
+      for (const image of globalThis.document.images) {
+        const bitmap = await globalThis.createImageBitmap(image, {resizeWidth:1, resizeHeight:1});
+        bitmap.close();
+      }
     }), controller.signal);
     const layout = await guard(page.evaluate(() => ({
       chapters:globalThis.document.querySelectorAll('.pdf-chapter').length,

@@ -172,6 +172,7 @@ export function printChapter(value, chapters, {base, files}) {
   let downloads = 0;
   for (const node of elements(value.fragment, node => Boolean(node.tagName))) {
     const a = attrs(node);
+    if (node.tagName === 'img' && a.loading?.toLowerCase() === 'lazy') set(node, 'loading', 'eager');
     if (a.id) set(node, 'id', prefix + a.id);
     for (const attribute of node.attrs ?? []) {
       if (/^on/i.test(attribute.name)) throw new Error('Unexpected manual event handler');
