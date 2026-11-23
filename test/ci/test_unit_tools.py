@@ -129,6 +129,25 @@ class WorkflowAdmissionTests(unittest.TestCase):
                 tools.actionlint_check()
             command.assert_not_called()
 
+    def test_workflow_inventory_includes_both_yaml_extensions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workflows = root / ".github/workflows"
+            nested = workflows / "fixtures"
+            nested.mkdir(parents=True)
+            (nested / "sample.yml").touch()
+            (workflows / "README.md").touch()
+            (workflows / "build.yaml.example").touch()
+            with self.assertRaisesRegex(ValueError, "no workflow files found"):
+                tools.workflow_files(root)
+
+            caller = workflows / "contributions.yml"
+            reusable = workflows / "quality.yaml"
+            reusable.touch()
+            self.assertEqual(tools.workflow_files(root), [reusable])
+            caller.touch()
+            self.assertCountEqual(tools.workflow_files(root), [caller, reusable])
+
     def test_markdown_profiles_preserve_tool_scope(self):
         for profile in ("quality", "docs", "unit"):
             with self.subTest(profile=profile):

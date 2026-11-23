@@ -80,6 +80,11 @@ def select(paths, projected=()):
         elif name.startswith("sdk/"):
             matched = [value for prefix, value in mapping.items() if name.startswith(prefix)]
             selected.update(matched or LANGUAGES)
+        if name in {"LICENSE", "catalog-ui/scripts/native-test-completion.mjs"}:
+            ui = docs = True
+            selected.add("typescript")
+        if name == "examples/tutorials/local-oidc/service-read.py":
+            selected.add("python")
         for prefix, value in examples.items():
             if name.startswith(prefix):
                 selected.add(value)
@@ -100,17 +105,28 @@ def languages(value):
 
 
 def outcomes(plan, results):
+    selection = results.get("selection") or "missing"
+    if selection != "success":
+        raise ValueError(f"Incomplete required check: selection ({selection})")
+    if (not isinstance(plan, dict) or not all(isinstance(plan.get(flag), bool) for flag in ("ui", "docs"))
+            or not isinstance(plan.get("languages"), list) or any(lang not in LANGUAGES for lang in plan["languages"])):
+        raise ValueError("Invalid contribution selection plan")
     required = {"baseline", "unit"}
     required.update(name for name in ("ui", "docs") if plan[name])
     if plan["languages"]:
         required.add("clients")
-    for name in required:
-        if results.get(name) != "success":
-            raise ValueError("Incomplete required check: " + name)
-    for name in {"ui", "docs", "clients"} - required:
-        if results.get(name) not in {"skipped", "success"}:
-            raise ValueError("Unexpected unselected check result: " + name)
-    return {name: "passed" if name in required else "unselected" for name in sorted(required | {"ui", "docs", "clients"})}
+    summary = {"selection": "passed"}
+    for name in ("baseline", "unit", "ui", "docs", "clients"):
+        status = results.get(name) or "missing"
+        if name in required:
+            if status != "success":
+                raise ValueError(f"Incomplete required check: {name} ({status})")
+            summary[name] = "passed"
+        else:
+            if status not in {"skipped", "success"}:
+                raise ValueError(f"Unexpected unselected check result: {name} ({status})")
+            summary[name] = "unselected"
+    return summary
 
 
 def regular(root, relative):
@@ -216,7 +232,7 @@ def main():
     elif args.command == "languages":
         print(json.dumps(languages(args.value), separators=(",", ":")))
     elif args.command == "outcomes":
-        print(json.dumps(outcomes(json.loads(args.plan), json.loads(args.results)), sort_keys=True))
+        print(json.dumps(outcomes(json.loads(args.plan or "null"), json.loads(args.results)), sort_keys=True))
     elif args.command == "release-policy":
         value = release_intent(os.environ, (ROOT / "VERSION").read_text().strip())
         for key, enabled in value.items():

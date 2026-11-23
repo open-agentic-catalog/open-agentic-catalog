@@ -14,7 +14,7 @@ import candidate as c
 
 
 class AdmissionFunctionalTests(unittest.TestCase):
-    def test_each_root_python_manifest_selects_and_requires_all_conditional_jobs(self):
+    def test_changed_inputs_select_and_require_their_consumers(self):
         with tempfile.TemporaryDirectory(prefix="catalog-admission-manifests-") as temporary:
             root = Path(temporary)
             env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
@@ -31,25 +31,41 @@ class AdmissionFunctionalTests(unittest.TestCase):
             script.write_bytes(Path(a.__file__).read_bytes())
             (root / "documentation").mkdir()
             (root / "documentation/content-map.json").write_text("[]")
-            for name in ("pyproject.toml", "uv.lock"):
-                (root / name).write_text("initial shared Python tool input\n")
+            all_jobs = {"ui": True, "docs": True, "languages": ["go", "python", "typescript", "rust"]}
+            cases = (
+                ("pyproject.toml", all_jobs, "docs"),
+                ("uv.lock", all_jobs, "docs"),
+                ("catalog-ui/scripts/native-test-completion.mjs", {"ui": True, "docs": True, "languages": ["typescript"]}, "clients"),
+                ("LICENSE", {"ui": True, "docs": True, "languages": ["typescript"]}, "ui"),
+                ("examples/tutorials/local-oidc/service-read.py", {"ui": False, "docs": True, "languages": ["go", "python"]}, "clients"),
+            )
+            for name, _, _ in cases:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("original fixture\n")
             git("add", ".")
-            git("commit", "-qm", "fixture before shared manifests")
-            for name in ("pyproject.toml", "uv.lock"):
+            git("commit", "-qm", "shared input fixtures")
+            for name, plan, required_job in cases:
                 with self.subTest(name=name):
                     before = git("rev-parse", "HEAD").decode().strip()
-                    (root / name).write_text("changed shared Python tool input with a new tool pin\n")
-                    git("add", name)
-                    git("commit", "-qm", "fixture shared manifest")
+                    if name == "LICENSE":
+                        git("rm", name)
+                    else:
+                        (root / name).write_text("changed fixture\n")
+                        git("add", name)
+                    git("commit", "-qm", "change one shared input")
                     result = subprocess.run([sys.executable, "-B", str(script), "select", "--base", before],
                                             env=env, capture_output=True, text=True, timeout=20, check=True)
-                    self.assertEqual(json.loads(result.stdout), {"ui": True, "docs": True, "languages": ["go", "python", "typescript", "rust"]})
-                    results = dict.fromkeys(("baseline", "unit", "ui", "docs", "clients"), "success")
+                    self.assertEqual(json.loads(result.stdout), plan)
+                    results = dict.fromkeys(("selection", "baseline", "unit", "docs", "clients"), "success")
+                    results["ui"] = "success" if plan["ui"] else "skipped"
                     for outcome in ("success", "failure", "cancelled", "skipped"):
                         completion = subprocess.run([sys.executable, "-B", str(script), "outcomes", "--plan", result.stdout,
-                                                     "--results", json.dumps({**results, "docs": outcome})],
+                                                     "--results", json.dumps({**results, required_job: outcome})],
                                                     env=env, capture_output=True, timeout=20, check=False)
                         self.assertEqual(completion.returncode == 0, outcome == "success", completion.stderr)
+                        if outcome != "success":
+                            self.assertIn(f"{required_job} ({outcome})".encode(), completion.stderr)
 
     def test_renamed_inputs_select_both_original_and_destination_owners(self):
         with tempfile.TemporaryDirectory(prefix="catalog-admission-rename-") as temporary:

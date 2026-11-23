@@ -31,7 +31,7 @@ class AdmissionTests(unittest.TestCase):
                      "test/ci/tools.py", "test/packaging/versioning.py"):
             with self.subTest(name=name):
                 self.assertEqual(a.select([name]), expected)
-        results = dict.fromkeys(("baseline", "unit", "ui", "docs", "clients"), "success")
+        results = dict.fromkeys(("selection", "baseline", "unit", "ui", "docs", "clients"), "success")
         plan = a.select(["uv.lock"])
         self.assertEqual(set(a.outcomes(plan, results).values()), {"passed"})
         for job in ("ui", "docs", "clients"):
@@ -59,6 +59,18 @@ class AdmissionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 a.select([invalid])
 
+    def test_shared_inputs_select_the_jobs_that_consume_them(self):
+        for path, ui, docs, languages in (
+            ("catalog-ui/scripts/native-test-completion.mjs", True, True, ["typescript"]),
+            ("catalog-ui/scripts/native-test-completion.unit.test.mjs", True, False, []),
+            ("LICENSE", True, True, ["typescript"]),
+            ("sdk/rust/LICENSE", False, True, ["rust"]),
+            ("examples/tutorials/local-oidc/service-read.py", False, True, ["go", "python"]),
+            ("examples/tutorials/local-oidc/local_auth.py", False, True, ["go"]),
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(a.select([path]), {"ui": ui, "docs": docs, "languages": languages})
+
     def test_invalid_language_never_silently_returns_an_empty_matrix(self):
         self.assertEqual(a.languages("all"), list(a.LANGUAGES))
         for value in ("", "unknown", "--publish"):
@@ -67,12 +79,30 @@ class AdmissionTests(unittest.TestCase):
 
     def test_selected_failure_skip_and_cancellation_cannot_complete(self):
         plan = {"ui": True, "docs": False, "languages": ["rust"]}
-        result = {"baseline": "success", "unit": "success", "ui": "success", "docs": "skipped", "clients": "success"}
+        result = {"selection": "success", "baseline": "success", "unit": "success", "ui": "success",
+                  "docs": "skipped", "clients": "success"}
         self.assertEqual(a.outcomes(plan, result)["docs"], "unselected")
         for name in ("baseline", "unit", "ui", "clients"):
             for failure in ("failure", "cancelled", "skipped", ""):
                 with self.subTest(name=name, failure=failure), self.assertRaises(ValueError):
                     a.outcomes(plan, {**result, name: failure})
+        for status in ("failure", "cancelled", None):
+            with self.subTest(unselected=status), self.assertRaisesRegex(ValueError, "docs"):
+                a.outcomes(plan, {**result, "docs": status})
+
+    def test_baseline_only_plan_cannot_hide_a_failed_selector_or_invalid_plan(self):
+        plan = {"ui": False, "docs": False, "languages": []}
+        results = {"baseline": "success", "unit": "success", "ui": "skipped", "docs": "skipped", "clients": "skipped"}
+        for status in ("failure", "cancelled", "skipped", None):
+            with self.subTest(selection=status), self.assertRaisesRegex(ValueError, "selection"):
+                a.outcomes(plan, results if status is None else {**results, "selection": status})
+        results["selection"] = "success"
+        self.assertEqual(a.outcomes(plan, results), {"selection": "passed", "baseline": "passed", "unit": "passed",
+                                                     "ui": "unselected", "docs": "unselected", "clients": "unselected"})
+        for invalid in (None, {**plan, "ui": None}, {**plan, "docs": 0}, {**plan, "languages": ""},
+                        {**plan, "languages": ["other"]}):
+            with self.subTest(plan=invalid), self.assertRaisesRegex(ValueError, "plan"):
+                a.outcomes(invalid, results)
 
     def sdk(self, root):
         directory = root / "output/artifacts/sdk/typescript"

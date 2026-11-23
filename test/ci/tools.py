@@ -321,6 +321,15 @@ def actionlint_install():
     actionlint_check(validate=False)
 
 
+def workflow_files(root):
+    """Select the workflow definitions checked by actionlint and repository policy."""
+    paths = sorted(path for path in (root / ".github/workflows").iterdir()
+                   if path.suffix in {".yml", ".yaml"})
+    if not paths:
+        raise ValueError("no workflow files found")
+    return paths
+
+
 def actionlint_check(*, validate=True):
     executable = OWNED / "bin/actionlint"
     if not executable.is_file():
@@ -337,11 +346,7 @@ def actionlint_check(*, validate=True):
         raise ValueError("actionlint version differs from test/ci/pins.json")
     record_tool("actionlint-module", module + " v" + PINS["actionlint"]["version"])
     if validate:
-        workflows = sorted(path for path in (ROOT / ".github/workflows").iterdir()
-                           if path.suffix in {".yml", ".yaml"})
-        if not workflows:
-            raise ValueError("no workflow files found")
-        run([executable, "-color", "-shellcheck=shellcheck", *workflows])
+        run([executable, "-color", "-shellcheck=shellcheck", *workflow_files(ROOT)])
 
 
 def install(profile):

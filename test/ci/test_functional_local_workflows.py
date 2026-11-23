@@ -271,6 +271,29 @@ sys.exit(int(os.environ["CONTROL_EXIT"]))
                     self.assertIn("Status at summary: " + env["STATUS_AT_SUMMARY"] + "\n", content)
                     self.assertEqual(content, (directory / "reports/summary.txt").read_text())
 
+    def test_contribution_final_step_propagates_selector_failure(self):
+        source = (local.ROOT / ".github/workflows/contributions.yml").read_text()
+        step = next(step for step in re.split(r"(?m)^      - ", source) if step.startswith("name: Require every selected check\n"))
+        command = step.split("        run: ", 1)[1].strip()
+        plan = json.dumps({"ui": False, "docs": False, "languages": []})
+        results = {"baseline": "success", "unit": "success", "ui": "skipped", "docs": "skipped", "clients": "skipped"}
+        for output, status in ((plan, "success"), (plan, "failure"), ("", "cancelled"), ("", "success")):
+            with self.subTest(plan=output, selection=status):
+                summary = self.base / "step-summary.md"
+                summary.write_text("")
+                env = {**local.environment(self.base), "PLAN": output, "RESULTS": json.dumps({**results, "selection": status}),
+                       "GITHUB_STEP_SUMMARY": str(summary)}
+                completed = subprocess.run(["bash", "-e", "-c", command], cwd=local.ROOT, env=env,
+                                           capture_output=True, text=True, timeout=15)
+                if output and status == "success":
+                    self.assertEqual(completed.returncode, 0, completed.stderr)
+                    self.assertEqual(json.loads(summary.read_text())["selection"], "passed")
+                else:
+                    self.assertNotEqual(completed.returncode, 0)
+                    error = "Invalid contribution selection plan" if status == "success" else f"selection ({status})"
+                    self.assertIn(error, completed.stderr)
+                    self.assertNotIn('"passed"', summary.read_text())
+
     def test_client_dispatch_runs_one_gate_per_language_and_preserves_its_exit(self):
         source = (local.ROOT / ".github/workflows/clients.yml").read_text()
         step = next(step for step in re.split(r"(?m)^      - ", source) if "id: sdk_checks\n" in step)
