@@ -4,8 +4,7 @@ set -eu
 
 mkdir -p /out/licenses/project /out/licenses/go /out/licenses/upstream
 cp LICENSE /out/licenses/project/LICENSE
-cp /usr/local/go/LICENSE /out/licenses/go/LICENSE
-if [ -f /usr/local/go/PATENTS ]; then cp /usr/local/go/PATENTS /out/licenses/go/PATENTS; fi
+cp /usr/local/go/LICENSE /usr/local/go/PATENTS /out/licenses/go/
 /tools/go-licenses save --ignore github.com/open-agentic-catalog/open-agentic-catalog \
     --save_path /out/licenses/dependencies ./cmd/catalogd ./cmd/catalogctl
 # The entire pinned upstream tree is embedded. Preserve existing attribution paths.

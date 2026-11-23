@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 from packaging_test_helpers import IDENTIFIER
-from test_unit_spdx import native_fixture
+from test_unit_spdx import add_conflicting_version, native_fixture
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -85,7 +85,7 @@ def inputs(profile):
 
 class StandaloneSPDXProcessTests(unittest.TestCase):
     def test_cli_rejects_incomplete_native_graphs_before_publication(self):
-        modes = {"valid": None, "missing": "inventory mismatch", "wrong-version": "inventory mismatch",
+        modes = {"valid": None, "missing": "inventory mismatch", "wrong-version": "inventory mismatch", "conflicting-version": "inventory mismatch",
                  "wrong-stdlib": "inventory mismatch", "shared-edge": "inventory mismatch",
                  "wrong-image": "image identity mismatch", "array": "image identity mismatch",
                  "null": "image identity mismatch", "truncated": "Local image operation failed",
@@ -105,6 +105,8 @@ class StandaloneSPDXProcessTests(unittest.TestCase):
                         identifier = "SPDXRef-" + name + "-own"
                         document["packages"] = [p for p in document["packages"] if p["SPDXID"] != identifier]
                         document["relationships"] = [r for r in document["relationships"] if r["relatedSpdxElement"] != identifier]
+                    elif mode == "conflicting-version":
+                        add_conflicting_version(document, "SPDXRef-" + name + "-own")
                     elif mode in ("wrong-version", "wrong-stdlib"):
                         identifier = "SPDXRef-" + name + ("-stdlib" if mode == "wrong-stdlib" else "-own")
                         next(p for p in document["packages"] if p["SPDXID"] == identifier)["versionInfo"] = "v0.0.1"

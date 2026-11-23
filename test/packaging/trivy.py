@@ -213,16 +213,19 @@ def spdx_go_inventory(document, inspected):
         applications = [p for p in packages if p.get("name") == path and p.get("primaryPackagePurpose") == "APPLICATION"]
         if len(applications) != 1:
             raise ValueError("missing or ambiguous SPDX Go application: " + name)
-        roots = [p for p in children(applications[0]["SPDXID"], "CONTAINS") if identity(p) == main]
-        if not roots:
-            raise ValueError("missing SPDX main module for: " + name)
+        roots = [p for p in children(applications[0]["SPDXID"], "CONTAINS") if identity(p)[0] == main[0]]
+        if not roots or any(identity(p) != main for p in roots):
+            raise ValueError("missing or conflicting SPDX main module for: " + name)
+        linked_names = {module for module, _ in required}
         actual = set()
         for root in roots:
             for package in [root, *children(root["SPDXID"], "DEPENDS_ON")]:
                 if package.get("sourceInfo") != "package found in: " + path:
                     raise ValueError("SPDX Go package belongs to another application: " + name)
-                actual.add(identity(package))
-        if not required.issubset(actual):
+                module = identity(package)
+                if module[0] in linked_names:
+                    actual.add(module)
+        if actual != required:
             raise ValueError("SPDX Go dependency inventory mismatch: " + name)
 
 

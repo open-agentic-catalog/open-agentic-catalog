@@ -106,6 +106,20 @@ class ImageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "notice mismatch"):
                 image.check_licenses(root)
 
+    def test_backend_requires_the_go_patent_notice_with_its_license(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            license_tree(root)
+            patents = root / "go/PATENTS"
+            for content in (None, b"", b" \n"):
+                with self.subTest(content=content):
+                    if content is None:
+                        patents.unlink()
+                    else:
+                        patents.write_bytes(content)
+                    with self.assertRaisesRegex(ValueError, "go/PATENTS"):
+                        image.check_licenses(root)
+
     def test_upstream_notice_manifest_rejects_invalid_paths_and_empty_sets(self):
         for entry in ("bad", "a" * 64 + "  ", "a" * 64 + "  ../outside", "a" * 64 + "  /outside", "a" * 64 + "  upstream/../outside", "a" * 64 + "  upstream/schema.json"):
             with self.subTest(entry=entry), tempfile.TemporaryDirectory() as directory:
@@ -122,13 +136,18 @@ class ImageTests(unittest.TestCase):
         struct.pack_into("<HHIQQQIHHHHHH", raw, 16, 2, 62, 1, 0, 64, 120, 0, 64, 56, 1, 64, 1, 0)
         struct.pack_into("<IIQQQQIIQQ", raw, 120, 0, 3, 0, 0, 184, 10, 0, 0, 0, 0)
         raw[184:194] = b"\0.shstrtab"
-        metadata = "\tdep\tgolang.org/x/crypto/x509roots/fallback\tv1\n" + "".join("\tbuild\t" + s + "\n" for s in ["CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64", "GOAMD64=v1", "-trimpath=true", "-tags=netgo,osusergo"])
+        main_package = "github.com/open-agentic-catalog/open-agentic-catalog/cmd/catalogctl"
+        metadata = f"\tpath\t{main_package}\n\tdep\tgolang.org/x/crypto/x509roots/fallback\tv1\n" + "".join("\tbuild\t" + s + "\n" for s in ["CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64", "GOAMD64=v1", "-trimpath=true", "-tags=netgo,osusergo"])
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "binary"
+            path = Path(directory) / "catalogctl"
             path.write_bytes(raw)
             with patch.object(image, "run", side_effect=[metadata.encode(), b""]) as run:
                 image.executable(path, "linux/amd64", ["go"])
                 self.assertEqual(run.call_args_list[0].args[0][:3], ["go", "version", "-m"])
+            daemon_metadata = metadata.replace("/cmd/catalogctl", "/cmd/catalogd")
+            with patch.object(image, "run", side_effect=[daemon_metadata.encode(), b""]):
+                with self.assertRaisesRegex(ValueError, "catalogctl: expected Go main package"):
+                    image.executable(path, "linux/amd64", ["go"])
             with self.assertRaises(ValueError):
                 image.executable(path, "linux/arm64", ["go"])
             struct.pack_into("<I", raw, 64, 3)

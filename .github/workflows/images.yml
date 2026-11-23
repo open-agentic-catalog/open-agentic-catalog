@@ -102,8 +102,8 @@ jobs:
             ui) make ui-sbom ARTIFACT_OUTPUT="$ARTIFACT_OUTPUT/sbom" ;;
             *) printf '%s\n' 'Unsupported fixed image product.' >&2; exit 2 ;;
           esac
-      - name: Check the native CLI download without rebuilding the image
-        if: matrix.product == 'backend' && matrix.arch == 'amd64'
+      - name: Check the CLI archive for the selected architecture
+        if: matrix.product == 'backend'
         run: >-
           python3.12 -B test/ci/release_packages.py cli --image "$IMAGE"
           --platform "$CONTAINER_PLATFORM" --output "$ARTIFACT_OUTPUT/cli"
