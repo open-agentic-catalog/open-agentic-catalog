@@ -41,7 +41,7 @@ func TestValidate(t *testing.T) {
 			if test.wantErr != nil && !errors.Is(err, test.wantErr) {
 				t.Fatalf("error=%v, want %v", err, test.wantErr)
 			}
-			if test.wantErr == ErrTrailingValue {
+			if errors.Is(test.wantErr, ErrTrailingValue) {
 				var syntaxErr *json.SyntaxError
 				if got := errors.As(err, &syntaxErr); got != test.wantSyntaxError {
 					t.Errorf("Validate(%q) returned %v (has syntax error: %t, want %t)", test.document, err, got, test.wantSyntaxError)
