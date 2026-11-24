@@ -74,6 +74,9 @@ class ToolingFunctionalTests(unittest.TestCase):
                 self.assertEqual(json.loads(report.read_text())['results']['tests'], 2)
 
     def test_actual_make_package_failure_watch_and_scoped_cleanup(self):
+        # Exercise foreground Ctrl+C even when the test runner is a background job.
+        previous_sigint = signal.signal(signal.SIGINT, signal.default_int_handler)
+        self.addCleanup(signal.signal, signal.SIGINT, previous_sigint)
         stamp = core.installed()
         with tempfile.TemporaryDirectory(prefix="vscode-tooling-", dir=ROOT / "output/vscode") as temporary:
             root = Path(temporary) / "checkout with spaces"

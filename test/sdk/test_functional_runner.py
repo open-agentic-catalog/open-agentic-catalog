@@ -199,6 +199,8 @@ runner.qualification_context = lambda language: (None, "fixture", {})
 def generate(destination, work):
     (work / "attempt").write_text(mode)
     if mode == "interrupt":
+        # Background callers may pass SIG_IGN through exec. Exercise a real Python interrupt.
+        signal.signal(signal.SIGINT, signal.default_int_handler)
         signal.raise_signal(signal.SIGINT)
     rust_runner.run([sys.executable, root / "child.py"], capture=True)
 rust_runner.generate = generate

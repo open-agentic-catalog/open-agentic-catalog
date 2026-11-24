@@ -266,7 +266,7 @@ def check_runtime(action, stamp):
     manifest = json.loads((SDK / "package.json").read_text())
     if manifest["version"] != (ROOT / "VERSION").read_text().strip():
         raise RuntimeError("SDK version differs from VERSION")
-    watched = [ROOT / "api/openapi/control-v1.yaml", ROOT / "VERSION", ROOT / "test/packaging/completion.py", ROOT / "catalog-ui/scripts/native-test-completion.mjs", HERE / "runner.py", *(SDK / name for name in ("README.md", "LICENSE", "NOTICE")), SDK / "package.json", SDK / "package-lock.json", SDK / "tsconfig.json", SDK / "eslint.config.mjs", *SDK.glob("src/*.ts"), *PROJECT.glob("*.mjs"), *PROJECT.glob("*.ts"), Path(__file__), HERE / "typescript_consumer_functional_test.go.txt"]
+    watched = [ROOT / "api/openapi/control-v1.yaml", ROOT / "VERSION", ROOT / "test/packaging/completion.py", ROOT / "catalog-ui/scripts/native-test-completion.mjs", ROOT / "test/vscode/listen.mjs", HERE / "runner.py", *(SDK / name for name in ("README.md", "LICENSE", "NOTICE")), SDK / "package.json", SDK / "package-lock.json", SDK / "tsconfig.json", SDK / "eslint.config.mjs", *SDK.glob("src/*.ts"), *PROJECT.glob("*.mjs"), *PROJECT.glob("*.ts"), Path(__file__), HERE / "typescript_consumer_functional_test.go.txt"]
     watched.extend(p for p in ard_example_sources() if p.is_file())
     original = {p: digest(p) for p in watched}
     parent = ROOT / "output/sdk"

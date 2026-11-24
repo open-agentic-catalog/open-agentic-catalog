@@ -1,0 +1,15 @@
+# The optional Cisco scanner pins LiteLLM. Review both entries on the next
+# scanner upgrade. Only the repository filesystem scan uses this file.
+vulnerabilities:
+  - id: CVE-2026-114612
+    paths:
+      - test/mcp-scanner/requirements.txt
+    purls:
+      - pkg:pypi/litellm@1.93.2
+    statement: Cisco MCP Scanner 4.8.7 pins this version for the optional webhook example. Catalog release packages do not include it.
+  - id: GHSA-g5ff-637f-6q2m
+    paths:
+      - test/mcp-scanner/requirements.txt
+    purls:
+      - pkg:pypi/litellm@1.93.2
+    statement: Cisco MCP Scanner 4.8.7 pins this version for the optional webhook example. Catalog release packages do not include it.

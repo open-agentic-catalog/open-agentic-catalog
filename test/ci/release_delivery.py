@@ -12,9 +12,20 @@ import tempfile
 
 import admission
 import candidate
+import release_standalone
 
 ROOT = admission.ROOT
 SUITES = ("api", "ui-compose", "ui-oidc")
+
+
+def sdk_downloads(version):
+    python = version.replace("-rc.", "rc")
+    return {
+        "go": {f"open-agentic-catalog-go-{version}.tar.gz"},
+        "python": {f"open_agentic_catalog-{python}-py3-none-any.whl", f"open_agentic_catalog-{python}.tar.gz"},
+        "typescript": {f"open-agentic-catalog-client-{version}.tgz"},
+        "rust": {f"open-agentic-catalog-{version}.crate"},
+    }
 
 
 def downloadable(name):
@@ -22,7 +33,7 @@ def downloadable(name):
     return ((len(parts) == 3 and parts[0] == "sdk" and parts[1] in admission.LANGUAGES
              and name.endswith((".tgz", ".crate", ".whl", ".tar.gz")))
             or (len(parts) == 2 and parts[0] == "charts" and name.endswith(".tgz"))
-            or (len(parts) == 2 and parts[0] == "cli" and name.endswith(".tar.gz"))
+            or (len(parts) == 2 and parts[0] in {"cli", "standalone"} and name.endswith(".tar.gz"))
             or (len(parts) == 2 and parts[0] == "editor" and name.endswith(".vsix")))
 
 
@@ -35,7 +46,11 @@ def public_assets(directory, value):
 
 
 def public_checksums(directory, value):
-    return "".join(candidate.digest(path) + "  " + name + "\n" for name, path in sorted(public_assets(directory, value).items()))
+    return checksums(public_assets(directory, value))
+
+
+def checksums(assets):
+    return "".join(candidate.digest(path) + "  " + name + "\n" for name, path in sorted(assets.items()))
 
 
 def runtime_result(suite, backend, ui, output):
@@ -52,10 +67,20 @@ def runtime_result(suite, backend, ui, output):
     output.write_text(json.dumps(value, sort_keys=True) + "\n")
 
 
+def release_chart_names():
+    names = set()
+    for name in ("open-agentic-catalog", "open-agentic-catalog-monitoring"):
+        metadata = (admission.ROOT / "deployments/helm" / name / "Chart.yaml").read_text()
+        versions = [line.removeprefix("version: ").strip() for line in metadata.splitlines() if line.startswith("version: ")]
+        if len(versions) != 1:
+            raise ValueError("Missing or duplicate release chart version")
+        names.add(f"{name}-{versions[0]}.tgz")
+    return names
+
+
 def chart_result(directory):
     files = sorted(directory.glob("*.tgz"))
-    if (len(files) != 2 or not any(path.name.startswith("open-agentic-catalog-monitoring-") for path in files)
-            or not any(path.name.startswith("open-agentic-catalog-") and "monitoring-" not in path.name for path in files)):
+    if {path.name for path in files} != release_chart_names():
         raise ValueError("Missing maintained chart packages")
     value = {"source": admission.source_identity(ROOT), "result": "success",
              "files": {path.name: candidate.digest(path) for path in files}}
@@ -110,10 +135,9 @@ def assemble(directory, results, output):
                     or receipt["sourceSha256"] != source["sourceSha256"] or receipt["manifestSha256"] != candidate.digest(manifest_path)):
                 raise ValueError("Invalid SDK qualification")
             manifest = json.loads(manifest_path.read_text())
-            expected_suffixes = {"go": [".gz"], "python": [".gz", ".whl"], "typescript": [".tgz"], "rust": [".crate"]}
             if (manifest["language"] != language or manifest["releaseBase"] != (ROOT / "VERSION").read_text().strip()
                     or manifest["openapiSha256"] != admission.digest(ROOT / "api/openapi/control-v1.yaml")
-                    or sorted(Path(name).suffix for name in manifest["artifacts"]) != expected_suffixes[language]
+                    or set(manifest["artifacts"]) != sdk_downloads(manifest["releaseBase"])[language]
                     or not manifest["sources"] or not manifest["tools"]):
                 raise ValueError("Incomplete SDK package set")
             for name, checksum in manifest["sources"].items():
@@ -132,7 +156,7 @@ def assemble(directory, results, output):
             clients[language] = receipt
             sdk_hashes[language] = set(manifest["artifacts"].values())
         elif "files" in receipt:
-            if charts is not None or receipt["source"] != source or receipt["result"] != "success" or len(receipt["files"]) != 2:
+            if charts is not None or receipt["source"] != source or receipt["result"] != "success" or set(receipt["files"]) != release_chart_names():
                 raise ValueError("Invalid chart qualification")
             for name, checksum in receipt["files"].items():
                 package = admission.regular(path.parent, name)
@@ -163,6 +187,7 @@ def assemble(directory, results, output):
     assets["evidence/editor.json"] = editor
     expected_hashes["evidence/editor.json"] = candidate.digest(editor)
     cli_platforms = set()
+    cli_archives = {}
     for path in directory.rglob("cli.json"):
         receipt = json.loads(admission.regular(directory, path.relative_to(directory).as_posix()).read_text())
         platform = receipt.get("platform")
@@ -179,12 +204,16 @@ def assemble(directory, results, output):
         if candidate.digest(artifact) != receipt["sha256"]:
             raise ValueError("CLI package changed")
         cli_platforms.add(platform)
+        cli_archives[arch] = (path.parent, receipt, assets["images/backend-" + arch + "/inspection.json"])
         assets["cli/" + expected_name] = artifact
         expected_hashes["cli/" + expected_name] = receipt["sha256"]
         assets["evidence/cli-" + arch + ".json"] = path
         expected_hashes["evidence/cli-" + arch + ".json"] = candidate.digest(path)
     if cli_platforms != set(candidate.PLATFORMS):
         raise ValueError("Missing CLI packages")
+    for name, (path, checksum) in release_standalone.qualified_files(directory, source, images, cli_archives).items():
+        assets[name] = path
+        expected_hashes[name] = checksum
     if output.exists() or output.is_symlink():
         raise ValueError("Select a new release output")
     output.mkdir(parents=True)
@@ -284,12 +313,16 @@ def existing_assets(version, paths):
     if release.get("tagName") != "v" + version or type(release.get("isDraft")) is not bool:
         raise ValueError("Prepared release identity differs")
     names = {item["name"] for item in release["assets"]}
+    if len(names) != len(release["assets"]) or names.difference(path.name for path in paths):
+        raise ValueError("Unexpected or duplicate release asset")
     missing = []
     with tempfile.TemporaryDirectory(prefix="catalog-release-assets-") as temporary:
         for path in paths:
             if path.name not in names:
                 missing.append(path)
                 continue
+            if not path.is_file():
+                raise ValueError("Final release metadata exists before its registry inputs")
             subprocess.run(["gh", "release", "download", "v" + version, "--repo", repository, "--pattern", path.name,
                             "--dir", temporary], check=True, timeout=300)
             if candidate.digest(Path(temporary) / path.name) != candidate.digest(path):
@@ -297,19 +330,18 @@ def existing_assets(version, paths):
     return {"draft": release["isDraft"], "missing": missing}
 
 
-def destination_commit(version):
-    """Resolve the current remote tag before writes, including annotated tags."""
+def destination_commit(version, expected_tag):
+    """Refuse a replacement tag even when it points to the same commit."""
     prefix = "repos/" + admission.REPOSITORY + "/git/"
+    if not admission.SHA.fullmatch(expected_tag):
+        raise ValueError("Missing admitted release tag object")
     value = json.loads(subprocess.check_output(["gh", "api", prefix + "ref/tags/v" + version], text=True, timeout=120))["object"]
-    for _ in range(4):
-        if not admission.SHA.fullmatch(value.get("sha", "")):
-            break
-        if value.get("type") == "commit":
-            return value["sha"]
-        if value.get("type") != "tag":
-            break
-        value = json.loads(subprocess.check_output(["gh", "api", prefix + "tags/" + value["sha"]], text=True, timeout=120))["object"]
-    raise ValueError("Cannot resolve release tag to a commit")
+    if value.get("type") != "tag" or value.get("sha") != expected_tag:
+        raise ValueError("Remote release tag differs from admitted tag")
+    target = json.loads(subprocess.check_output(["gh", "api", prefix + "tags/" + expected_tag], text=True, timeout=120))["object"]
+    if target.get("type") != "commit" or not admission.SHA.fullmatch(target.get("sha", "")):
+        raise ValueError("Release tag must directly identify a commit")
+    return target["sha"]
 
 
 def image_target(product, version, arch=None):
@@ -342,6 +374,11 @@ def registry_preflight(value):
 
 def publish(directory):
     value = delivery_plan(directory, os.environ)
+    with tempfile.TemporaryDirectory(prefix="catalog-release-public-") as temporary:
+        deliver(directory, value, Path(temporary))
+
+
+def deliver(directory, value, public_directory):
     # This function is selected only by the protected hosted job. Never used by
     # ordinary builds, act or local verification. Preserve partial progress.
     record = {"source": value["source"], "completed": [], "result": "incomplete"}
@@ -353,16 +390,29 @@ def publish(directory):
         destination.write_text(json.dumps(record, sort_keys=True) + "\n")
 
     version = value["build"]["version"]
-    release_assets = [*public_assets(directory, value).values(), directory / "SHA256SUMS"]
+    assets = public_assets(directory, value)
+    assets["release.json"] = public_directory / "release.json"
+    release_assets = [*assets.values(), public_directory / "SHA256SUMS"]
+
+    def write_metadata(index_digests, platform_digests):
+        public = {**value, "indexDigests": index_digests, "platformDigests": platform_digests}
+        assets["release.json"].write_text(json.dumps(public, sort_keys=True, indent=2) + "\n")
+        (public_directory / "SHA256SUMS").write_text(checksums(assets))
+
     # Confirm the maintainer prepared the release, and refuse changed existing
     # assets before pushing any container layer.
     try:
-        if destination_commit(version) != value["source"]["commit"]:
+        if destination_commit(version, os.environ.get("RELEASE_TAG_OBJECT", "")) != value["source"]["commit"]:
             raise ValueError("Remote release tag no longer matches approved source")
-        release = existing_assets(version, release_assets)
         present, digests, indexes = registry_preflight(value)
+        registry_complete = all(indexes.values()) and all(present.values())
+        if registry_complete:
+            record["indexDigests"] = {product: registry_digest(image_target(product, version)) for product in candidate.PRODUCTS}
+            record["platformDigests"] = dict(digests)
+            write_metadata(record["indexDigests"], digests)
+        release = existing_assets(version, release_assets)
         if not release["draft"]:
-            if release["missing"] or not all(present.values()) or not all(indexes.values()):
+            if release["missing"] or not registry_complete:
                 raise ValueError("Published release is incomplete; no writes are permitted")
             record.update(result="success", releaseState="published", delivery="verified-existing")
             return
@@ -393,14 +443,23 @@ def publish(directory):
             if index is None:
                 raise ValueError("Pushed platform index is unavailable")
             existing_index(index, members)
-            record.setdefault("indexDigests", {})[product] = registry_digest(target)
+            verified_digest = registry_digest(target)
+            if registry_complete and verified_digest != record["indexDigests"][product]:
+                raise ValueError("Registry index changed during verification")
+            record.setdefault("indexDigests", {})[product] = verified_digest
             destination.write_text(json.dumps(record, sort_keys=True) + "\n")
         # No release creation or guessed notes. The maintainer prepares the
         # matching GitHub release; this job only attaches qualified assets.
+        if not registry_complete:
+            write_metadata(record["indexDigests"], digests)
+            release = existing_assets(version, release_assets)
+            if not release["draft"]:
+                raise ValueError("Prepared draft changed during delivery")
         if release["missing"]:
             operation(["gh", "release", "upload", "v" + version, "--repo", admission.REPOSITORY, *map(str, release["missing"])], "release-assets")
-        if existing_assets(version, release_assets)["missing"]:
-            raise ValueError("Release asset upload is incomplete")
+        final = existing_assets(version, release_assets)
+        if not final["draft"] or final["missing"]:
+            raise ValueError("Prepared draft changed or release asset upload is incomplete")
         record.update(result="success", releaseState="draft", delivery="images-pushed-files-in-draft")
     finally:
         destination.write_text(json.dumps(record, sort_keys=True) + "\n")

@@ -41,7 +41,7 @@ Add the boundary-specific checks below. Use [coverage accounting](#coverage-acco
 
 ## GitHub Actions
 
-The workflows under `.github/workflows/` call existing Make targets. Contribution checks run on pull requests and pushes to `main`. Pushes to `main` also build AMD64 images and charts. Release checks run on exact version tags or manual selection. Other verification selections remain manual. Pages also prepares the manual on `main`; external delivery requires maintainer activation.
+The workflows under `.github/workflows/` call existing Make targets. Contribution checks run on pull requests and pushes to `main`. Pushes to `main` also build AMD64 images and charts. A maintainer starts release checks by manually selecting the exact signed version tag. Other verification selections remain manual. Pages also prepares the manual on `main`; external delivery requires maintainer activation.
 
 Local act commands use disposable source copies and exclude developer credentials. Run `make workflow-local-tools-install`, then `make workflow-local-list`. The [local runner guide](../../../../../test/ci/README.md#local-workflow-commands) lists prerequisites, fixed selections and current qualification limits. Setup and parser checks do not establish that full application jobs pass locally. Agents do not dispatch hosted workflows or upload project data.
 
@@ -57,7 +57,7 @@ The workflow files must exist on the repository's default branch. Open **Actions
 | --- | --- | --- |
 | **Contribution checks** (`contributions.yml`) | Automatic changed-path selection, or manual full selection. | Always run lint and isolated units. Select UI, docs and SDKs conservatively. Require `Contribution checks complete` in branch protection. |
 | **Manual website and PDF** (`pages.yml`) | `deploy`: false. Optional `PAGES_ENABLED` repository variable for `main`. | Build the final Pages base and export the same completed manual. Deploy only from `main` through `github-pages`. |
-| **Qualified release candidates** (`release.yml`) | Tag checks supply required handoff uploads. Manual runs require `upload_artifacts=true`; `publish` defaults to false. | Qualify retained images, source, clients and charts before protected delivery. See the [candidate procedure](build-and-release.md#run-checks-for-a-release-candidate). |
+| **Qualified release candidates** (`release.yml`) | Manual dispatch on the exact signed version tag requires `upload_artifacts=true`. Select `publish=false` for qualification alone. | Qualify retained images, source, clients and charts before protected delivery. See the [candidate procedure](build-and-release.md#run-checks-for-a-release-candidate). |
 | **Source quality** (`quality.yml`) | `suite`: `all` (default), `unit`, `source`, `lint`, `ui` or `docs`. | Separate jobs run `coverage-unit` and Python tooling units; `check verify` and API validator tests; lint-only `check`; `test-ui`; or `docs-check` followed by `docs-site-check`. |
 | **SDK and editor checks** (`clients.yml`) | `language`: `all` (default), `go`, `python`, `typescript` or `rust`. | Go runs `webhook-report-check`, which includes its SDK gate, and separate `client-go-check`. Other languages run `sdk-check`; TypeScript adds editor units and VSIX packaging. `release_checks=true` also runs Linux installed-editor tests. |
 | **Images and charts** (`images.yml`) | `scan` and `release_candidate`, both false by default. | AMD64 builds on `main`, both architectures manually, image inspection, SBOMs, a native CLI archive and both Helm packages. See [artifact and release checks](build-and-release.md#github-actions). |
@@ -218,6 +218,8 @@ Go unreachable-function checks run through `lint`, `check` and `verify`. See the
 Security scanning is a separate check: `make security` runs the pinned Go vulnerability analyzer plus Trivy dependency, secret and deployment-misconfiguration scans. Ignored tool inputs under `.tools/` and research checkouts under `specs/` are excluded from the source scan. Owned dependency manifests, deployment inputs and retained profiles under `schemas/upstream/` remain in scope. Separate checks scan the locked Python development dependencies and exact application images.
 
 The filesystem scan excludes installed npm dependencies, tool caches and virtual environments. Lockfiles and maintained container recipes remain in scope. Use `make ui-deps-check` for the full UI lockfile, including development dependencies. The separate `make ui-deps-audit` sends dependency metadata externally and remains maintainer-only.
+
+Maintain reviewed source dependency exceptions in `test/packaging/trivy-source-ignore.yaml`. Name the advisory, exact lockfile path and versioned package URL, and explain why the project accepts the finding. Review the entry when upgrading that dependency. The filesystem scan lists accepted findings separately and fails on other High or Critical findings. Development lockfile, UI and release image scans use their own policies.
 
 These scans need their documented tools and advisory data. A clean source lint result does not replace them. See [dependency maintenance](../reference/dependencies.md).
 

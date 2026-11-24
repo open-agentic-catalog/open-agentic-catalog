@@ -890,12 +890,16 @@ sys.exit(41 if json.dumps(call) == os.environ.get("FAIL_CALL") else 0)
 
     def test_security_keeps_scanners_and_limits_vendor_recipe_exclusion(self):
         commands = self.run_make("-n", "security")
-        arguments_by_line = [shlex.split(line) for line in commands.splitlines()
+        # Make preserves shell line continuations in its dry-run output.
+        arguments_by_line = [shlex.split(line) for line in commands.replace("\\\n", "").splitlines()
                              if line.strip() and not line.lstrip().startswith("#")]
         scan = next(arguments for arguments in arguments_by_line
                     if "fs" in arguments and "--scanners" in arguments)
         self.assertIn("--disable-telemetry", scan)
         self.assertIn("--skip-version-check", scan)
+        self.assertEqual([scan[i + 1] for i, word in enumerate(scan) if word == "--ignorefile"],
+                         ["test/packaging/trivy-source-ignore.yaml"])
+        self.assertIn("--show-suppressed", scan)
         self.assertEqual(scan[scan.index("--scanners") + 1], "vuln,secret,misconfig")
         self.assertEqual(scan[scan.index("--exit-code") + 1], "1")
         self.assertEqual(scan[-1], ".")
