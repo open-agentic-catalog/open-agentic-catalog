@@ -373,12 +373,17 @@ class ReleaseTests(unittest.TestCase):
             (root / "VERSION").write_text("0.2.0-rc.1\n")
             (root / "api/openapi").mkdir(parents=True)
             (root / "api/openapi/control-v1.yaml").write_text("fixture contract")
+            for chart, version in (("open-agentic-catalog", "1.2.3"), ("open-agentic-catalog-monitoring", "4.5.6")):
+                source = root / "deployments/helm" / chart
+                source.mkdir(parents=True)
+                (source / "Chart.yaml").write_text(f"version: {version}\nappVersion: 0.2.0-rc.1\n")
             with patch.object(r, "ROOT", root):
                 _, directory, value = self.fixture(root)
             self.assertEqual(value["build"]["version"], "0.2.0-rc.1")
             self.assertIn("catalogctl-0.2.0-rc.1-linux-arm64.tar.gz", r.public_assets(directory, value))
             self.assertIn("open-agentic-catalog-0.2.0-rc.1.vsix", r.public_assets(directory, value))
-            self.assertIn("charts/open-agentic-catalog-0.1.0.tgz", value["files"])
+            self.assertIn("charts/open-agentic-catalog-1.2.3.tgz", value["files"])
+            self.assertIn("charts/open-agentic-catalog-monitoring-4.5.6.tgz", value["files"])
 
     def test_existing_assets_downloads_only_matching_names_and_refuses_changed_bytes(self):
         with tempfile.TemporaryDirectory() as tmp:

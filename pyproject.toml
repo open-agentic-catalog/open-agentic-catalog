@@ -57,6 +57,16 @@ search = "\nappVersion: {current_version}\n"
 replace = "\nappVersion: {new_version}\n"
 
 [[tool.bumpversion.files]]
+filename = "examples/mcp-scanner/receiver/go.mod"
+search = "\n\tgithub.com/open-agentic-catalog/open-agentic-catalog/sdk/go v{current_version}\n"
+replace = "\n\tgithub.com/open-agentic-catalog/open-agentic-catalog/sdk/go v{new_version}\n"
+
+[[tool.bumpversion.files]]
+filename = "examples/publication-report/go.mod"
+search = "\n\tgithub.com/open-agentic-catalog/open-agentic-catalog/sdk/go v{current_version}\n"
+replace = "\n\tgithub.com/open-agentic-catalog/open-agentic-catalog/sdk/go v{new_version}\n"
+
+[[tool.bumpversion.files]]
 filename = "sdk/rust/Cargo.toml"
 search = '''name = "open-agentic-catalog"
 version = "{current_version}"'''

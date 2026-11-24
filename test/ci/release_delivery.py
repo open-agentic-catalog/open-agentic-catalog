@@ -5,6 +5,7 @@ import gzip
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import tarfile
@@ -67,21 +68,30 @@ def runtime_result(suite, backend, ui, output):
     output.write_text(json.dumps(value, sort_keys=True) + "\n")
 
 
-def release_chart_names():
-    names = set()
+def release_charts():
+    charts = {}
     for name in ("open-agentic-catalog", "open-agentic-catalog-monitoring"):
-        metadata = (admission.ROOT / "deployments/helm" / name / "Chart.yaml").read_text()
+        metadata = (ROOT / "deployments/helm" / name / "Chart.yaml").read_text()
         versions = [line.removeprefix("version: ").strip() for line in metadata.splitlines() if line.startswith("version: ")]
         if len(versions) != 1:
             raise ValueError("Missing or duplicate release chart version")
-        names.add(f"{name}-{versions[0]}.tgz")
-    return names
+        version = versions[0]
+        charts[f"{name}-{version}.tgz"] = (name, version)
+    return charts
 
 
 def chart_result(directory):
     files = sorted(directory.glob("*.tgz"))
-    if {path.name for path in files} != release_chart_names():
+    expected = release_charts()
+    if {path.name for path in files} != expected.keys():
         raise ValueError("Missing maintained chart packages")
+    app_version = (ROOT / "VERSION").read_text().strip()
+    helm = shlex.split(os.environ.get("HELM", "helm"))
+    for path in files:
+        name, version = expected[path.name]
+        metadata = subprocess.check_output(helm + ["show", "chart", str(path.resolve())], text=True, timeout=30).splitlines()
+        if not {f"name: {name}", f"version: {version}", f"appVersion: {app_version}"}.issubset(metadata):
+            raise ValueError(f"Packaged chart {path.name} must declare {name} {version} with appVersion {app_version}")
     value = {"source": admission.source_identity(ROOT), "result": "success",
              "files": {path.name: candidate.digest(path) for path in files}}
     (directory / "qualification.json").write_text(json.dumps(value, sort_keys=True) + "\n")
@@ -156,7 +166,7 @@ def assemble(directory, results, output):
             clients[language] = receipt
             sdk_hashes[language] = set(manifest["artifacts"].values())
         elif "files" in receipt:
-            if charts is not None or receipt["source"] != source or receipt["result"] != "success" or set(receipt["files"]) != release_chart_names():
+            if charts is not None or receipt["source"] != source or receipt["result"] != "success" or set(receipt["files"]) != release_charts().keys():
                 raise ValueError("Invalid chart qualification")
             for name, checksum in receipt["files"].items():
                 package = admission.regular(path.parent, name)

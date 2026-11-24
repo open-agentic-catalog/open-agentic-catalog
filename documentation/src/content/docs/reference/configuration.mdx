@@ -898,7 +898,7 @@ These variables configure Make, Compose, or validation workflows and are not rea
 | `CATALOG_CONTAINER_CONFIG_FILE` | `config/local.json` | Read-only profile mounted by `make container-run`. |
 | `CONTAINER_PLATFORM` | Current Linux host architecture | Image target for `make container-build`; supported release values are `linux/amd64` and `linux/arm64`. |
 | `ARTIFACT_OUTPUT` | `output/artifacts` | Destination for extracted image licenses, local-image SPDX SBOMs and versioned Helm packages. Existing outputs are preserved; choose another directory or chart version to regenerate. |
-| `CHART_VERSION` | `0.1.0` | SemVer for both independent archives from `make helm-package`, including prereleases and build metadata. Tracked chart sources are not rewritten. |
+| `CHART_VERSION` | Empty | Each chart uses the package version in its own `Chart.yaml`. Supply a SemVer value to override both archive versions for `make helm-package`. |
 | `APP_VERSION` | `$(VERSION)` | Catalog application version recorded by chart packaging, independent of chart version. See [build and release](../contributing/build-and-release.md) for image tags and digest precedence. |
 | `CATALOG_MIGRATION_DATABASE_DSN` | Local Compose migration identity | Dedicated Catalog schema-owner DSN used only by migration and focused repair Make targets. |
 | `CATALOG_DATABASE_API_ROLE`, `CATALOG_DATABASE_WORKER_ROLE` | `catalog_api`, `catalog_worker` | Existing distinct role names passed by `make migrate-apply` for exact grant reconciliation; these are non-secret workflow selectors, not service runtime configuration or credentials. |

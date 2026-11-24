@@ -242,6 +242,9 @@ func TestDocumentationContracts(t *testing.T) {
 	t.Run("workflow defaults", func(t *testing.T) {
 		makefile := string(readTestFile(t, repository, "Makefile"))
 		environment := string(readTestFile(t, repository, ".env.example"))
+		if !strings.Contains(makefile, "\nCHART_VERSION ?=\n") || !strings.Contains(environment, "\nCHART_VERSION=\n") {
+			t.Error("the chart version override must default to empty so Helm uses each chart's own version")
+		}
 		for _, name := range []string{
 			"CATALOG_CONFIG_FILE",
 			"CATALOG_CONFIG_ROLE",
@@ -263,7 +266,6 @@ func TestDocumentationContracts(t *testing.T) {
 			"CATALOG_MONITORING_RETENTION_MB",
 			"IMAGE",
 			"ARTIFACT_OUTPUT",
-			"CHART_VERSION",
 			"APP_VERSION",
 			"COVERAGE_MIN",
 			"CORE_COVERAGE_MIN",

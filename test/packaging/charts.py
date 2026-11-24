@@ -17,25 +17,28 @@ spec.loader.exec_module(monitoring)
 
 def package(output, version, app_version, helm, kube_version="1.34.0"):
     """Publish complete, validated archives; existing caller outputs are preserved."""
-    if len(version) > 128 or not monitoring.SEMVER.fullmatch(version):
+    if version is not None and (len(version) > 128 or not monitoring.SEMVER.fullmatch(version)):
         raise ValueError("CHART_VERSION must be SemVer (without a leading v)")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}", app_version):
         raise ValueError("invalid APP_VERSION")
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     names = ["open-agentic-catalog", monitoring.CHART_NAME]
-    destinations = [output / (name + "-" + version + ".tgz") for name in names]
-    if any(path.exists() for path in destinations):
-        raise ValueError("chart output already exists; choose another version or ARTIFACT_OUTPUT")
     published = []
     with tempfile.TemporaryDirectory(prefix=".charts-", dir=output) as temporary:
         stage = Path(temporary)
         source = stage / names[0]
         shutil.copytree(ROOT / "deployments/helm" / names[0], source)
         shutil.copyfile(ROOT / "LICENSE", source / "LICENSE")
-        subprocess.run(helm + ["package", str(source), "--version", version, "--app-version", app_version,
+        override = ["--version", version] if version is not None else []
+        subprocess.run(helm + ["package", str(source), *override, "--app-version", app_version,
                               "--destination", str(stage)], check=True, timeout=60, capture_output=True)
-        monitoring.package(stage, version, app_version)
+        # Helm names the application archive from its own Chart.yaml or the override.
+        application, = stage.glob("*.tgz")
+        companion = monitoring.package(stage, version, app_version)
+        destinations = [output / archive.name for archive in (application, companion)]
+        if any(path.exists() for path in destinations):
+            raise ValueError("chart output already exists; choose another version or ARTIFACT_OUTPUT")
         project_license = (ROOT / "LICENSE").read_bytes()
         for chart_name, destination in zip(names, destinations, strict=True):
             archive = stage / destination.name
@@ -61,7 +64,7 @@ def package(output, version, app_version, helm, kube_version="1.34.0"):
 if __name__ == "__main__":
     try:
         for result in package(os.environ.get("PACKAGING_OUTPUT", "output/artifacts"),
-                              os.environ.get("PACKAGING_CHART_VERSION", "0.1.0"),
+                              os.environ.get("PACKAGING_CHART_VERSION") or None,
                               os.environ.get("PACKAGING_APP_VERSION", "dev"),
                               shlex.split(os.environ.get("PACKAGING_HELM", "helm")),
                               os.environ.get("PACKAGING_KUBE_VERSION", "1.34.0")):

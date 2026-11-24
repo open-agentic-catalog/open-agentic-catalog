@@ -16,6 +16,8 @@ TOOL_PINS = {"ruff": "0.17.4", "jsonschema": "4.26.0", "bump-my-version": "1.8.1
 BASE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-rc\.([1-9][0-9]*))?\Z")
 IDENTITY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}\Z")
 SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
+GO_SDK = "github.com/open-agentic-catalog/open-agentic-catalog/sdk/go"
+GO_EXAMPLE_MODULES = ("examples/mcp-scanner/receiver/go.mod", "examples/publication-report/go.mod")
 
 
 def environment():
@@ -133,6 +135,7 @@ def bump_files():
         ("api/openapi/control-v1.yaml", '\n  version: {version}\n'),
         ("deployments/helm/open-agentic-catalog/Chart.yaml", '\nappVersion: {version}\n'),
         ("deployments/helm/open-agentic-catalog-monitoring/Chart.yaml", '\nappVersion: {version}\n'),
+        *((path, "\n\t" + GO_SDK + " v{version}\n") for path in GO_EXAMPLE_MODULES),
         ("sdk/rust/Cargo.toml", 'name = "open-agentic-catalog"\nversion = "{version}"'),
         ("sdk/rust/Cargo.lock", 'name = "open-agentic-catalog"\nversion = "{version}"'),
         ("test/sdk/rust/consumer/Cargo.toml", 'open-agentic-catalog = {{ path = "../../../../sdk/rust", version = "{version}" }}'),
@@ -162,6 +165,10 @@ def bump_files():
 
 def sdk_version_check(root, base):
     """Root VERSION owns the release base; package formats are derived copies."""
+    for path in GO_EXAMPLE_MODULES:
+        versions = re.findall(r"(?m)^[ \t]*" + re.escape(GO_SDK) + r"[ \t]+v(\S+)[ \t]*$", (root / path).read_text())
+        if versions != [base]:
+            raise ValueError(f"Go SDK version in {path} must match VERSION")
     if tomllib.loads((root / "sdk/rust/Cargo.toml").read_text())["package"]["version"] != base:
         raise ValueError("Rust SDK version must match VERSION")
     for filename in ("sdk/rust/Cargo.lock", "test/sdk/rust/consumer/Cargo.lock", "examples/rust-catalog-report/Cargo.lock"):

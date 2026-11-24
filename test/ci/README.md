@@ -145,36 +145,58 @@ python3 -B test/ci/admission.py stage-sdk --language python --run review-python-
 
 A stale receipt, changed package, incomplete package set or changed source fails admission. Do not run `sdk-package` between qualification and staging. Preserve the existing language/runtime matrices and TypeScript extension-lock checks.
 
-To prepare a local Linux AMD64 backend candidate, start with the image tools and Trivy database installed. From the repository root, run the following with `VERSION`, `COMMIT` and `SOURCE_STATE` unset so Make derives the same build identity for every step. Choose fresh candidate and scan directories for each run.
+To prepare both Linux AMD64 candidates, install the image tools and a current [Trivy database](../../documentation/src/content/docs/contributing/build-and-release.md#scan-local-images). Start a shell at the repository root. Keep the `candidates` directory for the runtime and standalone checks below.
+
+```sh
+set -eu
+mkdir -p output/release
+candidates=$(mktemp -d output/release/local-XXXXXXXX)
+(
+  export CATALOG_ENV_FILE=/dev/null CONTAINER_PLATFORM=linux/amd64
+  unset VERSION COMMIT
+  image_tag=$(basename "$candidates" | tr '[:upper:]' '[:lower:]')
+  export IMAGE="open-agentic-catalog:$image_tag" UI_IMAGE="open-agentic-catalog-ui:$image_tag"
+  backend="$candidates/backend"
+  ui="$candidates/ui"
+  mkdir "$backend" "$ui"
+
+  make container-build
+  make --silent container-inspect > "$backend/inspection.json"
+  make licenses ARTIFACT_OUTPUT="$backend/licenses"
+  make sbom ARTIFACT_OUTPUT="$backend/sbom"
+  make container-scan ARTIFACT_OUTPUT="$backend-scan-private"
+  python3 -B test/ci/candidate.py seal --product backend --image "$IMAGE" \
+    --directory "$backend" --platform "$CONTAINER_PLATFORM" --scan-directory "$backend-scan-private"
+
+  make ui-container-build
+  make --silent ui-container-inspect > "$ui/inspection.json"
+  make ui-sbom ARTIFACT_OUTPUT="$ui/sbom"
+  make ui-container-scan ARTIFACT_OUTPUT="$ui-scan-private"
+  python3 -B test/ci/candidate.py seal --product ui --image "$UI_IMAGE" \
+    --directory "$ui" --platform "$CONTAINER_PLATFORM" --scan-directory "$ui-scan-private"
+)
+```
+
+Each `seal` command checks the inspection, scan and SPDX inventory against the selected image. It writes `candidate.json` and `image.tar` in that product's directory. You can rehearse on modified source. For release builds, use the clean matching tag.
+
+To rehearse the three Linux AMD64 runtime jobs, use the checkout that produced the candidates and install the packaged UI prerequisites, including Chromium. In the same shell, run the commands below. For a downloaded workflow handoff, set `candidates=output/release` after unpacking the backend and UI candidates there. Admission checks each candidate's commit and source digest before loading its archive.
 
 ```sh
 (
   set -eu
-  export IMAGE=open-agentic-catalog:candidate-review-amd64 CONTAINER_PLATFORM=linux/amd64
-  candidate=output/release/backend-amd64
-  scans=output/release/backend-amd64-scan-private
-  mkdir -p output/release
-  mkdir "$candidate" "$scans"
-  make container-build
-  make --silent container-inspect > "$candidate/inspection.json"
-  make licenses ARTIFACT_OUTPUT="$candidate/licenses"
-  make sbom ARTIFACT_OUTPUT="$candidate/sbom"
-  make container-scan ARTIFACT_OUTPUT="$scans"
-  python3 -B test/ci/candidate.py seal --directory "$candidate" --image "$IMAGE" \
-    --product backend --platform "$CONTAINER_PLATFORM" --scan-directory "$scans"
+  export CATALOG_ENV_FILE=/dev/null
+  unset VERSION COMMIT
+  export CATALOG_CANDIDATE_BACKEND="${candidates:?select the candidate directory}/backend/candidate.json"
+  export CATALOG_CANDIDATE_UI="$candidates/ui/candidate.json"
+  python3 -B test/ci/candidate.py load \
+    --backend "$CATALOG_CANDIDATE_BACKEND" --ui "$CATALOG_CANDIDATE_UI" --platform linux/amd64
+  make -j1 test-functional-default-off
+  make test-ui-compose
+  make test-ui-oidc
 )
 ```
 
-The command requires the matching successful scan, exact inspection and SPDX inventory. It saves `image.tar` and inventories exact bytes. The release workflow provides the complete build sequence for both products/platforms. A local modified source is permitted for testing; hosted release qualification separately requires a clean matching tag.
-
-Load transferred archives before using another engine. Explicit admission refuses source drift, archive changes, wrong platforms and substituted image IDs:
-
-```sh
-python3 -B test/ci/candidate.py load --backend output/release/backend-amd64/candidate.json --ui output/release/ui-amd64/candidate.json
-CATALOG_CANDIDATE_BACKEND="$PWD/output/release/backend-amd64/candidate.json" make test-functional-default-off
-CATALOG_CANDIDATE_BACKEND="$PWD/output/release/backend-amd64/candidate.json" CATALOG_CANDIDATE_UI="$PWD/output/release/ui-amd64/candidate.json" make test-ui-compose
-CATALOG_CANDIDATE_BACKEND="$PWD/output/release/backend-amd64/candidate.json" CATALOG_CANDIDATE_UI="$PWD/output/release/ui-amd64/candidate.json" make test-ui-oidc
-```
+The [release workflow](../../.github/workflows/release.yml) uses the backend image for the API suite and both images for the browser suites. Keep both candidate variables set for all three jobs. Write a `runtime-result` receipt only after its suite and fixture cleanup succeed. The receipt records the admitted image IDs.
 
 These journeys use immutable local image IDs and verify served build identity. They still create owned database, identity-provider and fixture services. Cleanup removes fixture images, not borrowed candidates. Instrumented, MCP-only and other specialized modes reject candidate inputs. Harness source/configuration identity remains separate from image identity.
 
@@ -188,13 +210,24 @@ Release delivery uses the protected `release` environment. Configure its tag res
 
 ## Release package handoffs
 
+The [release chart check](../../documentation/src/content/docs/contributing/build-and-release.md#package-helm-charts) uses `helm show chart` on each archive produced by `make helm-package`. The chart name and package version must match that chart's source metadata, and `appVersion` must match root `VERSION`. It then records the archive hashes for assembly.
+
 The release workflow runs `release_packages.py cli --standalone` against each sealed backend candidate. It extracts the Linux server and CLI, cross-builds the additional CLI and coordinator downloads, checks linked Go modules against the image notices, and packages the five portable Skill files. Each native runner exercises the retained programs on its own OS and architecture. Assembly checks the Linux executables against image inspection, every archived notice against the image inventory, the Skill against its source and every native result against the archive digest. To repeat the native check on a matching host, run `python3 -B test/ci/release_standalone.py --directory <program-handoff> --platform <os>/<arch> --output <new-result-file>`.
 
 ```sh
-python3 -B test/ci/release_packages.py cli --standalone --candidate output/release/backend-amd64/candidate.json --platform linux/amd64 --output output/release/cli-amd64
+python3 -B test/ci/release_packages.py cli --standalone \
+  --candidate "${candidates:?select the candidate directory}/backend/candidate.json" \
+  --platform linux/amd64 --output "$candidates/cli-amd64"
 ```
 
-`release_packages.py editor --output output/artifacts/qualified-editor/<run>` runs `make test-vscode`, then stages only the tested VSIX and `editor.json`. Its receipt binds the source, SDK, artifact and successful cleanup. Do not run another package command after testing. The command requires the existing full editor test tools and Linux prerequisites. Raw reports remain private.
+Check the [Linux host prerequisites](../vscode/README.md). With the qualified TypeScript SDK archive in place, run `make vscode-tools-install` to install the pinned editor tools. Use the same SDK run ID and a fresh editor output directory for the check.
+
+```sh
+python3 -B test/ci/release_packages.py editor \
+  --output "output/artifacts/qualified-editor/${SDK_RUN_ID:?set the tested TypeScript SDK run ID}"
+```
+
+This command runs `make test-vscode` and stages the installed VSIX with `editor.json`. The receipt records its SHA-256, the tested SDK hash, the source and successful fixture cleanup. Use the staged VSIX for release assembly.
 
 Release assembly requires every native program result, the Skill, the editor receipt, all four SDK receipts, both charts and the existing runtime/image evidence. `SHA256SUMS` lists only flat public downloads. Internal image archive hashes remain in `release.json`. The evidence archive excludes image archives and package downloads.
 

@@ -26,16 +26,26 @@ The backend AMD64 build executes both version commands and packages its extracte
 
 Read the root `VERSION` file and run `make version-check`. If it already contains the intended version, keep it. For a different version, follow [Application version and release checks](#application-version-and-release-checks) before building the candidate.
 
-Use the [testing guide](testing.md#start-here) for tool prerequisites. Run each Make command below separately from the repository root.
+Install the [testing prerequisites](testing.md#start-here). For a release rehearsal, check the versions the selected CI job actually uses. In the shell that runs Make, compare `node --version`, `npm --version`, `docker compose version` and `shellcheck --version` with the applicable job pins. CI installs npm separately from Node. See the [CI tool profiles](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#interfaces).
+
+Run each Make command separately from the repository root. In the release shell, use the following settings to exclude a developer's `.env` and any inherited version overrides.
+
+```sh
+export CATALOG_ENV_FILE=/dev/null
+unset VERSION COMMIT CHART_VERSION APP_VERSION
+```
 
 | What to verify | Local checks |
 | --- | --- |
-| Source, units and manual | Run `make check verify`, `make coverage-unit`, `make test-tooling-unit`, `make test-ui` and `make docs-site-check`. |
-| Database and packaged application | Run `make test-integration` and `make test-functional`. Run `make test-ui-compose` and `make test-ui-oidc` one at a time. |
-| Downloads | Run `make sdk-check` for all four languages. Run `make vscode-check` and `make test-vscode` for the extension. Run `make deploy-check` and `make helm-package` for both charts, with a fresh `ARTIFACT_OUTPUT` directory for packaging. |
-| Security and standalone programs | Run `make security`. Build, inspect and scan each target image. Use the [candidate procedure in the repository](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#exact-candidate-qualification) to seal the image and exercise the programs extracted or built from it. |
+| Source, units and manual | Run `make check verify`, `make api-validation-test`, `make coverage-unit`, `make test-tooling-unit`, `make test-ui` and `make docs-site-check`. The API validation tests exercise the installed validators with both valid and invalid inputs. |
+| Database and Compose | Run `make test-integration`. Run `make test-functional-webhooks` and `make test-functional-oidc` with the candidate variables unset. Use the sealed images for the remaining default-off API profile, followed by the packaged UI and OIDC browser suites. [Exact candidate commands](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#exact-candidate-qualification) |
+| SDKs and VS Code | Run `make webhook-report-check` for the Go SDK and its example, then `make client-go-check` for the generated client. Run `make sdk-check` with `SDK_LANGUAGE` set to `python`, `typescript` and `rust` in turn. Run `make vscode-check`. The release editor command runs `make test-vscode` and retains the tested VSIX with its TypeScript SDK hash. [Package handoffs](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#release-package-handoffs) |
+| Helm charts | Run `make deploy-check`. On the clean version tag, run `make helm-package` with the default versions and set `ARTIFACT_OUTPUT` to a fresh directory. Pass that directory to the release chart check. It reads each archive's name, chart version and `appVersion`. [Package both charts](#package-helm-charts) |
+| Security and standalone programs | Run `make security` and `make ui-deps-check` with a current [Trivy database](#scan-local-images). Build, inspect and scan each target image. Exercise the standalone downloads on matching hardware. [Native package checks](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#release-package-handoffs) |
 
-Fix failures and repeat the affected checks before merging the preparation changes. A local rehearsal can use a modified checkout. Record which programs ran on matching hardware. The hosted workflow repeats qualification on the selected signed tag and uses its own tested files for delivery.
+Use a branch rehearsal to find and fix problems before merge. A clean, untagged commit produces a development version. The same commit at the exact `v<VERSION>` tag produces the release version. Compare `make version` with the build reported by the candidate. A tracked documentation edit also changes the source digest used by the release checks, and the UI image includes the manual.
+
+In the release review, identify the native platforms tested and any that still need a runner. Report optional checks, such as the [UI performance budget](../guides/performance-and-monitoring.md#ui-performance-budgets), separately from required release jobs. The hosted workflow qualifies its own files for delivery.
 
 ### Run checks for a release candidate
 
@@ -122,6 +132,8 @@ Use a clean checkout of the reviewed commit on `main`. The examples use one shel
 
 ```sh
 set -eu
+export CATALOG_ENV_FILE=/dev/null
+unset VERSION COMMIT
 repo=open-agentic-catalog/open-agentic-catalog
 : "${RELEASE_SHA:?set the approved commit}" "${SIGNING_PUB:?select the public signing key}" "${ALLOWED_SIGNERS:?select the trusted signers file}"
 git fetch origin refs/heads/main:refs/remotes/origin/main
@@ -138,7 +150,9 @@ verified=$(python3 -B test/ci/admission.py release-tag --commit "$RELEASE_SHA" -
 test "$verified" = "tag_object=$tag_object"
 ```
 
-`make release-check` checks the clean checkout and exact version tag. The admission helper verifies the SSH signature, the annotated tag's name, its direct commit target and ancestry on `origin/main`. Keep the verified `tag_object` for the push below. If a check fails, stop before pushing.
+`make release-check` checks the clean checkout and exact version tag. The admission helper verifies the SSH signature, the annotated tag's name, its direct commit target and ancestry on `origin/main`. Keep the verified `tag_object` for the push below.
+
+Before pushing, [rehearse the release locally](#prepare-the-release-locally) on the available native platforms. Rebuild and test packages whose embedded version changed at the tag. Credit an earlier package test only when the source, build identity and tested bytes match. Resolve failed local checks and record which platforms still need the hosted runners.
 
 #### Prepare the draft and dispatch
 
@@ -219,6 +233,10 @@ The first supported release establishes the compatibility baseline. For subseque
 
 #### Recover a failed release run
 
+Find the first failing step in each failed job. Save its log with the run ID, attempt number, commit and available artifact hashes. Use the matching checkout to replay any retained images before editing. For the editor, `make test-vscode` builds and installs a fresh VSIX. Compare its SHA-256 with the failing run's VSIX if the original hash is available. If the hashes differ or the original hash is unavailable, report that you tested a rebuild.
+
+Reproduce the failing action with the same inputs. For a browser outage, verify the expected failed request and the page after recovery. For a missed editor click, reproduce the layout and check which file the installed VSIX opens. After the fix, rerun the focused case and the complete owning suite, including cleanup. If the original failure remains unexplained, record that alongside any passing rerun.
+
 | What happened | Maintainer action |
 | --- | --- |
 | Qualification failed before delivery | Fix the cause. For a runner or tool failure on unchanged source, choose **Re-run all jobs**. Assembly requires one complete qualification attempt. A source fix needs a new tag and version. |
@@ -245,7 +263,7 @@ The exact Trivy version in `test/packaging/trivy.json` (currently 0.76.2) is req
 | `sourceState` | Derived clean, modified or unknown provenance, embedded in all three binaries and the `io.open-agentic-catalog.source-state` image label. |
 | `IMAGE` | Local engine tag or, for inspection, an existing local image ID. Building requires a tag. |
 | `CONTAINER_PLATFORM` | `linux/amd64` or `linux/arm64`; defaults to the host Go architecture. |
-| `CHART_VERSION` | Chart version in [Semantic Versioning (SemVer)](https://semver.org/spec/v2.0.0.html) format, default `0.1.0`, independent of the binary version. |
+| `CHART_VERSION` | Chart version in [Semantic Versioning (SemVer)](https://semver.org/spec/v2.0.0.html) format. Empty uses each chart's own `Chart.yaml` version. An override applies to both packages. |
 | `APP_VERSION` | Chart application version, default `$(VERSION)`; does not rebuild an image or change upstream monitoring image pins. |
 | `ARTIFACT_OUTPUT` | License/SBOM/chart output directory, default ignored `output/artifacts`. |
 
@@ -295,13 +313,14 @@ make version-bump-dry-run PART=patch
 make version-bump PART=patch
 ```
 
-Bumps require a clean actual Git checkout and the pinned installed bump tool. The bump updates `VERSION`, derived Python/npm/Cargo SDK metadata and extension release metadata. No command commits, creates tags or pushes.
+Bumps require a clean actual Git checkout and the pinned installed bump tool. The bump updates `VERSION`, the Go SDK requirement in each example, Python/npm/Cargo SDK metadata and extension release metadata. No command commits, creates tags or pushes.
 
 The derived metadata includes these files:
 
 | Consumer | Files changed by a version bump |
 | --- | --- |
 | Helm | The application and monitoring charts update `appVersion`. Each chart keeps its independent package version. |
+| Go SDK consumers | The publication report and MCP scanner receiver update the Catalog Go SDK requirement in their `go.mod` files. Both examples build against the SDK in this checkout. |
 | Control API | `api/openapi/control-v1.yaml`, changing only `info.version`. |
 | Python SDK and example | `sdk/python/pyproject.toml` and the SDK entries in `test/sdk/python/uv.lock` and `examples/langgraph/uv.lock`. |
 | TypeScript SDK | `sdk/typescript/package.json` and its lockfile. |
@@ -310,6 +329,8 @@ The derived metadata includes these files:
 | VS Code extension | `extensions/vscode/package.json` and `extensions/vscode/package-lock.json`, including local SDK archive references. |
 
 Third-party dependency versions stay unchanged. `make version-check` rejects an OpenAPI `info.version` that differs from root `VERSION`. The bump command updates the canonical two-space `version` field under `info`; other version fields remain unchanged.
+
+The Go examples use a local module replacement, so they can build even when their declared SDK version is stale. After changing version propagation, run `make webhook-report-build` and `make mcp-scanner-receiver-build` separately. Read the SDK version in each executable with `go version -m bin/examples/publication-report bin/examples/mcp-scan-receiver`.
 
 Python maps an RC to PEP 440 (`0.2.0-rc.1` becomes `0.2.0rc1`); npm and Cargo keep SemVer. `version-check` rejects mismatched metadata. The Rust report application retains its own independent package version.
 
@@ -357,8 +378,8 @@ make binary-check
 For an explicit fixture build, supply bounded metadata overrides:
 
 ```sh
-make build VERSION=0.1.0 COMMIT=unknown
-make binary-check VERSION=0.1.0 COMMIT=unknown
+make build VERSION=local-test COMMIT=unknown
+make binary-check VERSION=local-test COMMIT=unknown
 ```
 
 `build` writes `bin/catalogd` and `bin/catalogctl` using Go's selected OS and architecture, disables cgo, trims source paths and strips symbols and debug information. Automatic metadata needs Python 3.12+ and Git for a checkout. It does not need installed Python packages, uv, a container engine, Helm or Node. `CONTAINER_PLATFORM` selects container builds only; it does not change these local binaries.
@@ -454,8 +475,8 @@ These commands do not stop containers or inspect Docker. Host mount checks canno
 Run from the repository root, substituting your version and source identity:
 
 ```sh
-make container-build IMAGE=open-agentic-catalog:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=0.1.0 COMMIT=unknown
-make container-build IMAGE=open-agentic-catalog:local-arm64 CONTAINER_PLATFORM=linux/arm64 VERSION=0.1.0 COMMIT=unknown
+make container-build IMAGE=open-agentic-catalog:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=local-test COMMIT=unknown
+make container-build IMAGE=open-agentic-catalog:local-arm64 CONTAINER_PLATFORM=linux/arm64 VERSION=local-test COMMIT=unknown
 ```
 
 Each command creates one image in the selected engine's local image store. The compiler runs on the build machine and produces static, stripped binaries with portable CPU defaults. The scratch runtime contains the executables and `/licenses/`, not a shell, compiler, credentials or deployment configuration. Both architectures use the maintained embedded public TLS roots.
@@ -465,8 +486,8 @@ Separate local tags work with ordinary single-platform image stores. For a relea
 ## Inspect and test
 
 ```sh
-make container-inspect IMAGE=open-agentic-catalog:local-arm64 CONTAINER_PLATFORM=linux/arm64 VERSION=0.1.0 COMMIT=unknown
-make container-verify IMAGE=open-agentic-catalog:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=0.1.0 COMMIT=unknown
+make container-inspect IMAGE=open-agentic-catalog:local-arm64 CONTAINER_PLATFORM=linux/arm64 VERSION=local-test COMMIT=unknown
+make container-verify IMAGE=open-agentic-catalog:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=local-test COMMIT=unknown
 ```
 
 `container-inspect` never builds or executes the selected image. It resolves the local image ID, validates platform, labels, non-root settings, commands and exposed ports, then copies both binaries from a temporary stopped container. It checks each installed command against its expected Go main package, so a daemon copied as `catalogctl` fails inspection on either architecture. It also checks ELF architecture, static linking, stripped debug and symbol tables, Go build settings, the fallback-root dependency and license-file readability. Its JSON output records the image ID, platform and binary hashes/build information. Trimpath builds omit linker flags from Go metadata: cross-architecture inspection checks version/commit labels, while execution verifies the binaries' version responses.
@@ -508,9 +529,9 @@ Open `http://127.0.0.1:14180`. The launcher accepts literal-loopback HTTP API or
 Build the optional client separately, then inspect the same selected image:
 
 ```sh
-make ui-container-build UI_IMAGE=open-agentic-catalog-ui:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=0.1.0 COMMIT=unknown
-make ui-container-inspect UI_IMAGE=open-agentic-catalog-ui:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=0.1.0 COMMIT=unknown
-make ui-sbom UI_IMAGE=open-agentic-catalog-ui:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=0.1.0 COMMIT=unknown
+make ui-container-build UI_IMAGE=open-agentic-catalog-ui:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=local-test COMMIT=unknown
+make ui-container-inspect UI_IMAGE=open-agentic-catalog-ui:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=local-test COMMIT=unknown
+make ui-sbom UI_IMAGE=open-agentic-catalog-ui:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=local-test COMMIT=unknown
 ```
 
 Use `linux/arm64` and a distinct local tag for the ARM64 build. Inspection does not execute foreign binaries. UI image inspection checks the static Go host, non-root entrypoint, readable browser assets and included Go/frontend notices. It does not require the backend binaries or embedded standards bundle.
@@ -553,9 +574,9 @@ Backend license collection runs during every image build. The pinned `go-license
 The manual collector includes nested license files for Pagefind. Its default UI package omits a license file, so the collector includes the license from the pinned upstream revision. Generation requires notice text for every reviewed browser supplier and includes the navigation icons' attribution. SDK packaging checks each archive's LICENSE and NOTICE against that SDK's source files.
 
 ```sh
-make licenses IMAGE=open-agentic-catalog:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=0.1.0 COMMIT=unknown
-make sbom IMAGE=open-agentic-catalog:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=0.1.0 COMMIT=unknown
-make sbom IMAGE=open-agentic-catalog:local-arm64 CONTAINER_PLATFORM=linux/arm64 VERSION=0.1.0 COMMIT=unknown
+make licenses IMAGE=open-agentic-catalog:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=local-test COMMIT=unknown
+make sbom IMAGE=open-agentic-catalog:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=local-test COMMIT=unknown
+make sbom IMAGE=open-agentic-catalog:local-arm64 CONTAINER_PLATFORM=linux/arm64 VERSION=local-test COMMIT=unknown
 ```
 
 `licenses` extracts the exact files already in the image; it does not generate a second inventory. Output is `licenses-linux-<architecture>-<image-ID-prefix>/`. An SBOM records components; it does not replace license and attribution texts. Inventories and hashes support verification, but the licenses do not require these particular formats. `sbom` uses Trivy's selected local Docker/Podman source against the resolved image ID, without rebuilding or falling back to registry pulls.
@@ -570,14 +591,32 @@ The license tool can warn about assembly in Go modules because it cannot analyze
 
 ## Package Helm charts
 
+On the clean release tag, check the same packages the workflow would deliver. Use the default chart and application versions in a fresh output directory.
+
 ```sh
-make helm-package CHART_VERSION=0.1.0 APP_VERSION=0.1.1
+(
+  set -eu
+  export CATALOG_ENV_FILE=/dev/null
+  unset VERSION COMMIT CHART_VERSION APP_VERSION
+  mkdir -p output
+  charts=$(mktemp -d output/release-charts-XXXXXXXX)
+  make helm-package ARTIFACT_OUTPUT="$charts"
+  python3 -B test/ci/release_delivery.py charts --directory "$charts"
+)
+```
+
+For a branch build, you can set the application version or override both chart package versions explicitly.
+
+```sh
+make helm-package APP_VERSION="$(cat VERSION)"
 make helm-package CHART_VERSION=0.1.1-rc.1+build.2 APP_VERSION=0.1.1
 ```
 
-The target stages and validates `open-agentic-catalog-<CHART_VERSION>.tgz` and `open-agentic-catalog-monitoring-<CHART_VERSION>.tgz` without rewriting tracked files. Before writing either archive to the output directory, the packager checks that each chart's top-level `LICENSE` matches the repository license byte for byte. The independent monitoring companion includes its shared dashboards, configuration and image pins; the application chart does not depend on it. Charts do not include Go dependencies or inventories of externally referenced Prometheus/Grafana images. Install the companion only when needed; see [optional Helm monitoring](../operations/helm-monitoring.mdx).
+The first command packages each chart at the version in its own `Chart.yaml` and sets the application version from root `VERSION`. The second uses the same explicit package version for both archives. Both commands print the archive paths. Before writing either archive to the output directory, the packager checks that each chart's top-level `LICENSE` matches the repository license byte for byte. The independent monitoring companion includes its shared dashboards, configuration and image pins; the application chart does not depend on it. Charts do not include Go dependencies or inventories of externally referenced Prometheus/Grafana images. Install the companion only when needed; see [optional Helm monitoring](../operations/helm-monitoring.mdx).
 
 Chart versions accept SemVer prereleases and `+` build metadata, without a leading `v`.
+
+The release workflow opens both archives with Helm and checks the packaged chart name, package version and application version before accepting them as downloads. The application version must match the tagged checkout's `VERSION`.
 
 The Catalog's full `appVersion` is retained in chart metadata. Kubernetes version labels replace `+` with `_`, truncate to 63 characters and strip trailing punctuation. When `image.tag` is empty, the application chart replaces `+` with `_` in the default image tag too; build/tag the image accordingly.
 
@@ -600,8 +639,8 @@ If ARM64 verification reports an execution-format error on AMD64, use `container
 Build the desired backend/UI image first, then pass the same version, commit and platform used by the build. These targets inspect and scan existing local artifacts without rebuilding, pulling target images or executing their binaries:
 
 ```sh
-make container-scan IMAGE=open-agentic-catalog:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=0.1.0 COMMIT=unknown
-make ui-container-scan UI_IMAGE=open-agentic-catalog-ui:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=0.1.0 COMMIT=unknown
+make container-scan IMAGE=open-agentic-catalog:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=local-test COMMIT=unknown
+make ui-container-scan UI_IMAGE=open-agentic-catalog-ui:local-amd64 CONTAINER_PLATFORM=linux/amd64 VERSION=local-test COMMIT=unknown
 ```
 
 Repeat with the matching `linux/arm64` images and build inputs for that architecture. `TRIVY=/absolute/path/to/trivy` selects the [qualified scanner](../reference/dependencies.md#coverage-reporters-and-trivy); `CONTAINER_ENGINE` must be one Docker or Podman executable, with connection settings supplied through its environment. Docker defaults and `DOCKER_HOST` remain available; Podman can use `TRIVY_PODMAN_HOST`. The inspected image ID, platform, labels, binary metadata, licenses and UI assets must match.
