@@ -91,7 +91,7 @@ Choose the matching tag on the [GitHub Releases page](https://github.com/open-ag
 To verify one download, save it and `SHA256SUMS` from the same release into an empty directory. Set `asset` to the filename you downloaded. For example, on Linux AMD64 run:
 
 ```sh
-asset=catalogctl-0.1.1-linux-amd64.tar.gz
+asset=catalogctl-0.1.2-linux-amd64.tar.gz
 awk -v name="$asset" '$2 == name {print}' SHA256SUMS > selected.sha256
 sha256sum -c selected.sha256
 ```
@@ -111,8 +111,8 @@ Use the [Go](../../../../../sdk/go/README.md#install-the-sdk), [Python](../../..
 After container delivery, pull explicit versions:
 
 ```sh
-docker pull ghcr.io/open-agentic-catalog/open-agentic-catalog:0.1.1
-docker pull ghcr.io/open-agentic-catalog/catalog-ui:0.1.1
+docker pull ghcr.io/open-agentic-catalog/open-agentic-catalog:0.1.2
+docker pull ghcr.io/open-agentic-catalog/catalog-ui:0.1.2
 ```
 
 Both indexes contain `linux/amd64` and `linux/arm64` members. No floating `latest` tag is created. Helm users set `image.repository`, `image.tag`, `ui.image.repository` and `ui.image.tag` through existing chart values. Set `ui.enabled=true` when required. Use the chart's digest values when selecting immutable image digests. [Deployment instructions](../operations/deployment.mdx) own configuration, Secrets, PostgreSQL and migration prerequisites. A downloaded chart alone does not configure those dependencies.
@@ -609,7 +609,7 @@ For a branch build, you can set the application version or override both chart p
 
 ```sh
 make helm-package APP_VERSION="$(cat VERSION)"
-make helm-package CHART_VERSION=0.1.1-rc.1+build.2 APP_VERSION=0.1.1
+make helm-package CHART_VERSION=0.1.2-rc.1+build.2 APP_VERSION=0.1.2
 ```
 
 The first command packages each chart at the version in its own `Chart.yaml` and sets the application version from root `VERSION`. The second uses the same explicit package version for both archives. Both commands print the archive paths. Before writing either archive to the output directory, the packager checks that each chart's top-level `LICENSE` matches the repository license byte for byte. The independent monitoring companion includes its shared dashboards, configuration and image pins; the application chart does not depend on it. Charts do not include Go dependencies or inventories of externally referenced Prometheus/Grafana images. Install the companion only when needed; see [optional Helm monitoring](../operations/helm-monitoring.mdx).

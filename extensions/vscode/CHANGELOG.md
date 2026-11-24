@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2
 
 - Add combined Control origins, kinds, tags and categories with per-request live disclosure consent.
 - Add personal ratings and private feedback, current-revision edits, own lists, withdrawal and explicit uncertain-command recovery.
@@ -39,7 +39,7 @@
 - Validate and reproduce local VSIX packages, with guarded staged output.
 - Improve first-use guidance, debugging and local installation procedures.
 
-## 0.1.0
+## 0.1.0 development builds
 
 - Discover Agents, MCP Servers, Skills and Plugins through the Catalog SDK.
 - Support explicit OIDC login, exact evidence and saved references.

@@ -11,7 +11,7 @@ For a complete consumer application, use the [Go webhook publication report](../
 Extract `open-agentic-catalog-go-<version>.tar.gz` from a published release, or use this checkout. Add a local replacement in your consumer module:
 
 ```sh
-go mod edit -require=github.com/open-agentic-catalog/open-agentic-catalog/sdk/go@v0.1.1
+go mod edit -require=github.com/open-agentic-catalog/open-agentic-catalog/sdk/go@v0.1.2
 go mod edit -replace=github.com/open-agentic-catalog/open-agentic-catalog/sdk/go=/absolute/path/to/open-agentic-catalog/sdk/go
 ```
 

@@ -4,7 +4,7 @@ go 1.27.4
 
 require (
 	github.com/jackc/pgx/v5 v5.12.0
-	github.com/open-agentic-catalog/open-agentic-catalog/sdk/go v0.1.1
+	github.com/open-agentic-catalog/open-agentic-catalog/sdk/go v0.1.2
 )
 
 require (
