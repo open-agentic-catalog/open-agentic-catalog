@@ -85,7 +85,7 @@ Choose the matching tag on the [GitHub Releases page](https://github.com/open-ag
 | `open-agentic-catalog-<version>.crate` | Extract it and set the Rust dependency's `path` to that directory. |
 | `open-agentic-catalog-<version>.vsix` | Use **Extensions: Install from VSIX** in VS Code. |
 | `open-agentic-catalog-<chart-version>.tgz` | Application Helm chart. Its version is independent of the application version. |
-| `open-agentic-catalog-monitoring-<chart-version>.tgz` | Optional monitoring chart. The release packages both charts with the same chart version. |
+| `open-agentic-catalog-monitoring-<chart-version>.tgz` | Optional monitoring chart. Each chart uses its own package version and records the Catalog release in `appVersion`. |
 | `release.json`, `release-evidence.tar.gz`, `SHA256SUMS` | Source identity, bounded test/package evidence and public download checksums. |
 
 To verify one download, save it and `SHA256SUMS` from the same release into an empty directory. Set `asset` to the filename you downloaded. For example, on Linux AMD64 run:
