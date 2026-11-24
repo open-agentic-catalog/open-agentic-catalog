@@ -6,7 +6,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/open-agentic-catalog/open-agentic-catalog/sdk/go v0.1.1
+	github.com/open-agentic-catalog/open-agentic-catalog/sdk/go v0.1.2
 )
 
 require (

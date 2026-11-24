@@ -1,6 +1,6 @@
 {
   "name": "@open-agentic-catalog/client",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Explicit, bounded Open Agentic Catalog client",
   "type": "module",
   "license": "Apache-2.0",

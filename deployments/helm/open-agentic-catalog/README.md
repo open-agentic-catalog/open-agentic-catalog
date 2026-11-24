@@ -79,7 +79,7 @@ The default runtime login names are `catalog_api` and `catalog_worker`. If your 
 Use Helm 3 (3.15 or later) or Helm 4. The coordinator also requires kubectl and the repository's Go toolchain. Run both commands from the repository root with the same local chart and complete values file. The example selects the [packaged chart](#image-selection). For an existing database, review pending changes with `catalogctl migrate plan` from the exact release image first. Set the deployment timeout above `migration.activeDeadlineSeconds` to allow for image pulls and scheduling.
 
 ```sh
-chart=output/artifacts/open-agentic-catalog-0.1.1.tgz
+chart=output/artifacts/open-agentic-catalog-0.1.2.tgz
 make helm-deploy-check HELM_CONTEXT=my-cluster HELM_NAMESPACE=catalog \
   HELM_RELEASE=catalog HELM_CHART="$chart" HELM_VALUES=catalog-values.yaml
 make helm-deploy HELM_CONTEXT=my-cluster HELM_NAMESPACE=catalog \
@@ -360,7 +360,7 @@ ui:
   enabled: true
   image:
     repository: registry.example.com/catalog-ui
-    tag: "0.1.1" # Use the tag of your published UI image.
+    tag: "0.1.2" # Use the tag of your published UI image.
   existingSecret: catalog-ui-inputs
   config:
     origin: https://browse.example.com

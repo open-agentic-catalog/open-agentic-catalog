@@ -20,7 +20,7 @@ Run each command separately. Installation acquires the pinned tools; packaging u
 Install the actual tarball in your consumer project:
 
 ```sh
-npm install /absolute/path/to/open-agentic-catalog-client-0.1.1.tgz \
+npm install /absolute/path/to/open-agentic-catalog-client-0.1.2.tgz \
   --ignore-scripts --no-audit --no-fund
 ```
 
