@@ -117,7 +117,7 @@ The generated Service name must start with a lowercase letter and contain only l
 
 `image.tag` defaults to the chart `appVersion` with `+` replaced by `_` when empty. Set `image.digest` to an exact `sha256:` manifest digest for an immutable deployment. A digest takes precedence over the tag. The chart references the same `imagePullSecrets` in API, worker, migration and any enabled UI or PgBouncer Pods. Keep registry credentials in the referenced Secrets.
 
-Use `make helm-package CHART_VERSION=0.1.0 APP_VERSION=0.1.0` from the repository root to create versioned application and independent monitoring archives under `output/artifacts/`. The target includes the project license, excludes CI fixtures, and lints/renders the actual archives before publishing local output. It never rewrites the tracked chart or publishes to a registry. See [build and release](../../../documentation/src/content/docs/contributing/build-and-release.md) for version metadata, image tags/digests and output collisions.
+Use `make helm-package CHART_VERSION=0.1.0 APP_VERSION=0.1.1` from the repository root to create versioned application and independent monitoring archives under `output/artifacts/`. The target includes the project license, excludes CI fixtures, and lints/renders the actual archives before publishing local output. It never rewrites the tracked chart or publishes to a registry. See [build and release](../../../documentation/src/content/docs/contributing/build-and-release.md) for version metadata, image tags/digests and output collisions.
 
 ```yaml
 image:

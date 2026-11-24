@@ -30,7 +30,7 @@ Copy this directory into your own working directory, or use it directly. Install
 
 ```sh
 cd examples/typescript-ard-list
-npm install /absolute/path/to/open-agentic-catalog-client-0.1.0.tgz \
+npm install /absolute/path/to/open-agentic-catalog-client-0.1.1.tgz \
   --ignore-scripts --no-audit --no-fund
 ```
 

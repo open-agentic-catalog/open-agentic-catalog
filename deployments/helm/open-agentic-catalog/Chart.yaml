@@ -4,4 +4,4 @@ description: Catalog API, worker and database migration Job with optional UI and
 type: application
 kubeVersion: ">=1.34.0-0"
 version: 0.1.0
-appVersion: 0.1.0
+appVersion: 0.1.1

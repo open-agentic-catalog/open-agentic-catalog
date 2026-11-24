@@ -6,7 +6,7 @@ This independently installed chart defaults to `enabled: false` and renders no r
 
 Run `make monitoring-package` from the repository root. Install the resulting `output/helm-monitoring/open-agentic-catalog-monitoring-0.1.0.tgz`, not this source directory: packaging includes the authoritative image pins, dashboard and applicable Grafana configuration from `deployments/monitoring/`. No chart dependencies or network downloads are needed to package it.
 
-For supplied chart/application versions, `make helm-package CHART_VERSION=0.1.0 APP_VERSION=0.1.0` packages this companion and the independent application chart under `output/artifacts/`, using the same shared-asset assembly. It includes the project license and does not change the upstream monitoring image pins. See [build and release](../../../documentation/src/content/docs/contributing/build-and-release.md).
+For supplied chart/application versions, `make helm-package CHART_VERSION=0.1.0 APP_VERSION=0.1.1` packages this companion and the independent application chart under `output/artifacts/`, using the same shared-asset assembly. It includes the project license and does not change the upstream monitoring image pins. See [build and release](../../../documentation/src/content/docs/contributing/build-and-release.md).
 
 Existing Secret and PVC references accept Kubernetes DNS subdomain names, including dots, up to 253 characters. Namespace values retain the 63-character DNS label limit.
 

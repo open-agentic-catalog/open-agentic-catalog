@@ -7,7 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-open-agentic-catalog = { path = "../../../../sdk/rust", version = "0.1.0" }
+open-agentic-catalog = { path = "../../../../sdk/rust", version = "0.1.1" }
 serde = "1.0.229"
 serde_json = { version = "1.0.154", features = ["arbitrary_precision"] }
 tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "time"] }

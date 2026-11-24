@@ -81,7 +81,7 @@ Choose the matching tag on the [GitHub Releases page](https://github.com/open-ag
 To verify one download, save it and `SHA256SUMS` from the same release into an empty directory. Set `asset` to the filename you downloaded. For example, on Linux AMD64 run:
 
 ```sh
-asset=catalogctl-0.1.0-linux-amd64.tar.gz
+asset=catalogctl-0.1.1-linux-amd64.tar.gz
 awk -v name="$asset" '$2 == name {print}' SHA256SUMS > selected.sha256
 sha256sum -c selected.sha256
 ```
@@ -101,8 +101,8 @@ Use the [Go](../../../../../sdk/go/README.md#install-the-sdk), [Python](../../..
 After container delivery, pull explicit versions:
 
 ```sh
-docker pull ghcr.io/open-agentic-catalog/open-agentic-catalog:0.1.0
-docker pull ghcr.io/open-agentic-catalog/catalog-ui:0.1.0
+docker pull ghcr.io/open-agentic-catalog/open-agentic-catalog:0.1.1
+docker pull ghcr.io/open-agentic-catalog/catalog-ui:0.1.1
 ```
 
 Both indexes contain `linux/amd64` and `linux/arm64` members. No floating `latest` tag is created. Helm users set `image.repository`, `image.tag`, `ui.image.repository` and `ui.image.tag` through existing chart values. Set `ui.enabled=true` when required. Use the chart's digest values when selecting immutable image digests. [Deployment instructions](../operations/deployment.mdx) own configuration, Secrets, PostgreSQL and migration prerequisites. A downloaded chart alone does not configure those dependencies.
@@ -286,7 +286,7 @@ Maintain pins deliberately with uv 0.13.7. Update `pyproject.toml`. Regenerate `
 
 ## Application version and release checks
 
-Root `VERSION` supplies the application release version, currently `0.1.0`. All three binaries, OpenAPI `info.version`, SDK packages and the VS Code package share this release base. UI/docs npm toolchain versions, the OpenAPI format version, standards profiles and chart package versions remain independent. The `/api/v1` route prefix identifies the API family and does not change with the application release version.
+Root `VERSION` supplies the application release version. All three binaries, OpenAPI `info.version`, SDK packages and the VS Code package share this release base. UI/docs npm toolchain versions, the OpenAPI format version, standards profiles and chart package versions remain independent. The `/api/v1` route prefix identifies the API family and does not change with the application release version.
 
 ```sh
 make version
@@ -301,6 +301,7 @@ The derived metadata includes these files:
 
 | Consumer | Files changed by a version bump |
 | --- | --- |
+| Helm | The application and monitoring charts update `appVersion`. Each chart keeps its independent package version. |
 | Control API | `api/openapi/control-v1.yaml`, changing only `info.version`. |
 | Python SDK and example | `sdk/python/pyproject.toml` and the SDK entries in `test/sdk/python/uv.lock` and `examples/langgraph/uv.lock`. |
 | TypeScript SDK | `sdk/typescript/package.json` and its lockfile. |
@@ -570,8 +571,8 @@ The license tool can warn about assembly in Go modules because it cannot analyze
 ## Package Helm charts
 
 ```sh
-make helm-package CHART_VERSION=0.1.0 APP_VERSION=0.1.0
-make helm-package CHART_VERSION=0.1.1-rc.1+build.2 APP_VERSION=0.1.0
+make helm-package CHART_VERSION=0.1.0 APP_VERSION=0.1.1
+make helm-package CHART_VERSION=0.1.1-rc.1+build.2 APP_VERSION=0.1.1
 ```
 
 The target stages and validates `open-agentic-catalog-<CHART_VERSION>.tgz` and `open-agentic-catalog-monitoring-<CHART_VERSION>.tgz` without rewriting tracked files. Before writing either archive to the output directory, the packager checks that each chart's top-level `LICENSE` matches the repository license byte for byte. The independent monitoring companion includes its shared dashboards, configuration and image pins; the application chart does not depend on it. Charts do not include Go dependencies or inventories of externally referenced Prometheus/Grafana images. Install the companion only when needed; see [optional Helm monitoring](../operations/helm-monitoring.mdx).
