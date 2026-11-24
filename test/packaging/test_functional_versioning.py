@@ -35,6 +35,17 @@ class GitVersionTests(unittest.TestCase):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(v.ROOT / name, target)
+        # Exercise a fixed sequence of SemVer transitions regardless of the
+        # checkout version. Change only the release fields copied above.
+        source_version = v.base_version(v.ROOT)
+        for rule in v.bump_files():
+            path = self.root / rule["filename"]
+            current = source_version.replace("-rc.", "rc") if "serialize" in rule else source_version
+            search = rule["search"].format(current_version=current)
+            fixture = rule["replace"].format(new_version="0.1.0")
+            contents = path.read_text()
+            self.assertIn(search, contents)
+            path.write_text(contents.replace(search, fixture))
         (self.root / ".gitignore").write_text(".tools/\nignored/\n")
         self.git("init", "-q")
         self.git("config", "user.name", "Local fixture")
@@ -217,6 +228,20 @@ class GitVersionTests(unittest.TestCase):
                 v.bump(self.root, str(BMV), "patch", False)
             self.git("add", *sorted({rule["filename"] for rule in v.bump_files()}))
             self.git("commit", "-qm", "fixture version")
+
+    def test_chart_package_versions_can_differ_but_app_versions_must_match(self):
+        for chart in ("open-agentic-catalog", "open-agentic-catalog-monitoring"):
+            with self.subTest(chart=chart):
+                path = self.root / "deployments/helm" / chart / "Chart.yaml"
+                original = path.read_text()
+                lines = original.splitlines(keepends=True)
+                distinct = "".join("version: 3.4.5\n" if line.startswith("version: ") else line for line in lines)
+                path.write_text(distinct)
+                v.check(self.root)
+                path.write_text(distinct.replace("appVersion: 0.1.0", "appVersion: 3.4.5"))
+                with self.assertRaisesRegex(ValueError, chart + " appVersion"):
+                    v.check(self.root)
+                path.write_text(original)
 
     def test_make_version_check_refuses_stale_openapi_without_modifying_files(self):
         shutil.copyfile(v.ROOT / "Makefile", self.root / "Makefile")

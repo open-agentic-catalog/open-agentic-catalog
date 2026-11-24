@@ -105,6 +105,10 @@ def check(root):
         raise ValueError("bump configuration must not duplicate VERSION or enable repository mutation")
     if bump["files"] != bump_files():
         raise ValueError("bump files must match VERSION, OpenAPI and the derived package metadata")
+    for chart in ("open-agentic-catalog", "open-agentic-catalog-monitoring"):
+        manifest = (root / "deployments/helm" / chart / "Chart.yaml").read_text()
+        if re.findall(r"(?m)^appVersion: (.+)$", manifest) != [base]:
+            raise ValueError(f"{chart} appVersion must match VERSION")
     openapi_version_check(root, base)
     sdk_version_check(root, base)
 
@@ -127,6 +131,8 @@ def bump_files():
     rules = [{"filename": "VERSION", "search": "{current_version}", "replace": "{new_version}"}]
     for filename, pattern in (
         ("api/openapi/control-v1.yaml", '\n  version: {version}\n'),
+        ("deployments/helm/open-agentic-catalog/Chart.yaml", '\nappVersion: {version}\n'),
+        ("deployments/helm/open-agentic-catalog-monitoring/Chart.yaml", '\nappVersion: {version}\n'),
         ("sdk/rust/Cargo.toml", 'name = "open-agentic-catalog"\nversion = "{version}"'),
         ("sdk/rust/Cargo.lock", 'name = "open-agentic-catalog"\nversion = "{version}"'),
         ("test/sdk/rust/consumer/Cargo.toml", 'open-agentic-catalog = {{ path = "../../../../sdk/rust", version = "{version}" }}'),

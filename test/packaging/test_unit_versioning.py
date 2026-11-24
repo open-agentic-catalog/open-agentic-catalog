@@ -156,13 +156,20 @@ class VersionTests(unittest.TestCase):
             target = self.root / rule["filename"]
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(v.ROOT / rule["filename"], target)
-        v.sdk_version_check(self.root, "0.1.0")
-        for name in ("sdk/rust/Cargo.toml", "sdk/rust/Cargo.lock", "test/sdk/rust/consumer/Cargo.toml", "test/sdk/rust/consumer/Cargo.lock", "examples/rust-catalog-report/Cargo.toml", "examples/rust-catalog-report/Cargo.lock", "sdk/python/pyproject.toml", "test/sdk/python/uv.lock", "examples/langgraph/uv.lock", "sdk/typescript/package.json", "sdk/typescript/package-lock.json", "extensions/vscode/package.json", "extensions/vscode/package-lock.json"):
-            path = self.root / name
+        base = v.base_version(v.ROOT)
+        v.sdk_version_check(self.root, base)
+        for rule in v.bump_files():
+            if not rule["filename"].startswith(("sdk/", "test/sdk/", "examples/", "extensions/")):
+                continue
+            path = self.root / rule["filename"]
             original = path.read_text()
-            path.write_text(original.replace('"0.1.0"', '"0.2.0"'))
-            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "version"):
-                v.sdk_version_check(self.root, "0.1.0")
+            current = base.replace("-rc.", "rc") if "serialize" in rule else base
+            search = rule["search"].format(current_version=current)
+            with self.subTest(name=path.name, field=search):
+                self.assertIn(search, original)
+                path.write_text(original.replace(search, rule["replace"].format(new_version="9.9.9-test")))
+                with self.assertRaisesRegex(ValueError, "version|reference|filename"):
+                    v.sdk_version_check(self.root, base)
             path.write_text(original)
 
     def test_openapi_metadata_matches_the_release_base_without_processes(self):

@@ -47,6 +47,16 @@ search = "\n  version: {current_version}\n"
 replace = "\n  version: {new_version}\n"
 
 [[tool.bumpversion.files]]
+filename = "deployments/helm/open-agentic-catalog/Chart.yaml"
+search = "\nappVersion: {current_version}\n"
+replace = "\nappVersion: {new_version}\n"
+
+[[tool.bumpversion.files]]
+filename = "deployments/helm/open-agentic-catalog-monitoring/Chart.yaml"
+search = "\nappVersion: {current_version}\n"
+replace = "\nappVersion: {new_version}\n"
+
+[[tool.bumpversion.files]]
 filename = "sdk/rust/Cargo.toml"
 search = '''name = "open-agentic-catalog"
 version = "{current_version}"'''
