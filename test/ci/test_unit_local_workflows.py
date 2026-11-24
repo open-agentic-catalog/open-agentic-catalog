@@ -310,7 +310,9 @@ class WorkflowSourcePolicyTests(unittest.TestCase):
         self.assertIn("contents: write", delivery)
         self.assertNotIn("make ", delivery)
         self.assertNotIn("docker build", delivery)
-        self.assertIn("qualified-release-${{ needs.policy.outputs.key }}", delivery)
+        self.assertIn("artifact-ids: ${{ needs.qualify.outputs.bundle_id }}", delivery)
+        self.assertIn("bundle_id: ${{ steps.bundle.outputs.artifact-id }}", verification)
+        self.assertNotIn("pattern: '*'", verification)
         self.assertIn("release_delivery.py publish", delivery)
         self.assertIn("delivery-result.json", delivery)
 
@@ -407,7 +409,7 @@ class WorkflowSourcePolicyTests(unittest.TestCase):
                     expected = "needs.policy.outputs.upload == 'true'" if path.name == "release.yml" else "inputs.upload_artifacts"
                     self.assertIn(expected, condition[1], path)
                     self.assertIn("&& !env.ACT", condition[1], path)
-        self.assertEqual(uploads, 18)
+        self.assertEqual(uploads, 19)
 
     def test_main_builds_and_release_tags_have_separate_read_only_entry_points(self):
         images = (local.ROOT / ".github/workflows/images.yml").read_text()
@@ -417,7 +419,8 @@ class WorkflowSourcePolicyTests(unittest.TestCase):
         self.assertNotIn("packages: write", images)
         self.assertNotIn("release_delivery.py publish", images)
         release = (local.ROOT / ".github/workflows/release.yml").read_text()
-        self.assertIn("tags: ['v*']", release)
+        triggers = release.split("on:\n", 1)[1].split("\npermissions:", 1)[0]
+        self.assertEqual(re.findall(r"^  ([a-z_]+):$", triggers, re.MULTILINE), ["workflow_dispatch"])
         self.assertIn("needs.policy.outputs.upload == 'true'", release)
         self.assertIn("github.repository == 'open-agentic-catalog/open-agentic-catalog'", release)
 

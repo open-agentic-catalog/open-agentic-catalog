@@ -145,10 +145,24 @@ python3 -B test/ci/admission.py stage-sdk --language python --run review-python-
 
 A stale receipt, changed package, incomplete package set or changed source fails admission. Do not run `sdk-package` between qualification and staging. Preserve the existing language/runtime matrices and TypeScript extension-lock checks.
 
-For local candidate preparation, select fresh ignored directories. Build each image once. Run its existing inspection, SBOM and scanner against that image. Store inspection JSON and SBOM/notices inside the candidate directory. Keep raw scans outside it. For example, use `make --silent container-inspect > output/release/backend-amd64/inspection.json`. Then seal the candidate:
+To prepare a local Linux AMD64 backend candidate, start with the image tools and Trivy database installed. From the repository root, run the following with `VERSION`, `COMMIT` and `SOURCE_STATE` unset so Make derives the same build identity for every step. Choose fresh candidate and scan directories for each run.
 
 ```sh
-python3 -B test/ci/candidate.py seal --directory output/release/backend-amd64 --image open-agentic-catalog:candidate-review-amd64 --product backend --platform linux/amd64 --scan-directory output/release/backend-amd64-scan-private
+(
+  set -eu
+  export IMAGE=open-agentic-catalog:candidate-review-amd64 CONTAINER_PLATFORM=linux/amd64
+  candidate=output/release/backend-amd64
+  scans=output/release/backend-amd64-scan-private
+  mkdir -p output/release
+  mkdir "$candidate" "$scans"
+  make container-build
+  make --silent container-inspect > "$candidate/inspection.json"
+  make licenses ARTIFACT_OUTPUT="$candidate/licenses"
+  make sbom ARTIFACT_OUTPUT="$candidate/sbom"
+  make container-scan ARTIFACT_OUTPUT="$scans"
+  python3 -B test/ci/candidate.py seal --directory "$candidate" --image "$IMAGE" \
+    --product backend --platform "$CONTAINER_PLATFORM" --scan-directory "$scans"
+)
 ```
 
 The command requires the matching successful scan, exact inspection and SPDX inventory. It saves `image.tar` and inventories exact bytes. The release workflow provides the complete build sequence for both products/platforms. A local modified source is permitted for testing; hosted release qualification separately requires a clean matching tag.
@@ -166,30 +180,30 @@ These journeys use immutable local image IDs and verify served build identity. T
 
 Candidate runtime admission binds to the current native Linux AMD64 or ARM64 host. `admit` and `load` accept `--platform linux/amd64|linux/arm64` as an additional exact-host assertion; it never enables emulation. Backend and UI candidates must select that same platform and build. This bounded admission does not qualify an ARM64 workflow toolchain: the maintained CI installer/preflight still supports Linux AMD64 only.
 
-Before native ARM64 qualification, record `uname -sm`, installed compatible Go/Node/Chromium/Compose versions, Docker daemon architecture, and the architecture/immutable IDs of every selected local image. Do not acquire an AMD64 tool closure and call it native ARM64 evidence. On a compatible native ARM64 host, start with the existing `make container-verify CONTAINER_PLATFORM=linux/arm64` using the inspected backend image. Run wider candidate-bound API/UI fixtures only when their tool, browser and external-image prerequisites are actually available. Record each unrun scope explicitly; an AMD64 host or emulated execution does not satisfy native ARM64 qualification. These local checks do not add a hosted platform matrix or change release policy.
+For a native ARM64 container test, record `uname -sm`, Docker daemon architecture, selected image IDs and the versions of tools used. On that host, `make container-verify CONTAINER_PLATFORM=linux/arm64` builds, inspects and executes the backend image. Run the candidate-bound API and UI journeys when compatible tools, browser and fixture images are available. Record which journeys ran.
 
-The release workflow requires all source/security/client/chart/image/runtime jobs and complete same-source receipts. AMD64 executes the packaged journeys. ARM64 receives packaging inspection and scans only. Its image archive is still retained for delivery.
+The release workflow inspects and scans both backend and UI images for Linux AMD64 and ARM64. It runs the packaged API and browser journeys against the retained Linux AMD64 images. A separate job executes the standalone downloads on native Linux AMD64, Linux ARM64, macOS Intel and macOS Apple Silicon. Release assembly requires all four native results alongside the source, security, client, chart, image and packaged runtime checks.
 
-The maintainer must enable protected `github-pages` and `release` environments, restrict deployment refs and verify hosted events and permissions. Signed tags and the matching GitHub release remain maintainer inputs. No local test dispatches hosted jobs, uploads artifacts, logs into a registry or publishes anything.
+Release delivery uses the protected `release` environment. Configure its tag restriction and reviewer before dispatch. The maintainer supplies the signed tag and matching GitHub release draft. Pages deployment uses the separate `github-pages` environment. No local test dispatches hosted jobs, uploads artifacts, logs into a registry or publishes anything.
 
 ## Release package handoffs
 
-`release_packages.py cli` extracts `catalogctl` and notices from a retained backend image. It reuses static image inspection and never recompiles. Every archive is unpacked into a fresh temporary directory outside the checkout, with exact member inventory, regular-file types, modes, sizes and SHA-256 payload equality against the inspected image extraction. AMD64 runs version/help from that unpacked artifact and requires the expected version, commit and source state; ARM64 receives content inspection only. Keep the CLI output outside the sealed candidate directory. Failed packaging removes its owned output, and temporary consumers are always removed.
+The release workflow runs `release_packages.py cli --standalone` against each sealed backend candidate. It extracts the Linux server and CLI, cross-builds the additional CLI and coordinator downloads, checks linked Go modules against the image notices, and packages the five portable Skill files. Each native runner exercises the retained programs on its own OS and architecture. Assembly checks the Linux executables against image inspection, every archived notice against the image inventory, the Skill against its source and every native result against the archive digest. To repeat the native check on a matching host, run `python3 -B test/ci/release_standalone.py --directory <program-handoff> --platform <os>/<arch> --output <new-result-file>`.
 
 ```sh
-python3 -B test/ci/release_packages.py cli --candidate output/release/backend-amd64/candidate.json --platform linux/amd64 --output output/release/cli-amd64
+python3 -B test/ci/release_packages.py cli --standalone --candidate output/release/backend-amd64/candidate.json --platform linux/amd64 --output output/release/cli-amd64
 ```
 
 `release_packages.py editor --output output/artifacts/qualified-editor/<run>` runs `make test-vscode`, then stages only the tested VSIX and `editor.json`. Its receipt binds the source, SDK, artifact and successful cleanup. Do not run another package command after testing. The command requires the existing full editor test tools and Linux prerequisites. Raw reports remain private.
 
-Release assembly requires both CLI platforms, the editor receipt, all four SDK receipts, both charts and the existing runtime/image evidence. `SHA256SUMS` lists only flat public downloads. Internal image archive hashes remain in `release.json`. The evidence archive excludes image archives and package downloads.
+Release assembly requires every native program result, the Skill, the editor receipt, all four SDK receipts, both charts and the existing runtime/image evidence. `SHA256SUMS` lists only flat public downloads. Internal image archive hashes remain in `release.json`. The evidence archive excludes image archives and package downloads.
 
 Unit tests intercept every delivery command. Functional fixtures create tags only inside disposable repositories. Ordinary image/chart workflows can run through act with uploads disabled. The release policy deliberately refuses act. Run SDK and installed-editor gates through their native Make targets.
 
-The [maintainer procedure](../../documentation/src/content/docs/contributing/build-and-release.md#configure-and-approve-delivery) owns activation, approvals, prepared drafts and failed-job reruns. Tag events use effective handoff inputs from the policy job. A manual `publish=false` disables delivery even when the repository switch is enabled. No local verification changes GitHub settings or sends project data externally.
+The [maintainer procedure](../../documentation/src/content/docs/contributing/build-and-release.md#configure-and-approve-delivery) owns activation, approvals, prepared drafts and failed-job reruns. The release workflow accepts manual dispatch on the exact version tag. Admission verifies the SSH signature with the repository variable `RELEASE_ALLOWED_SIGNERS` and checks protected-main ancestry. Qualification selects the exact input names for the same run and attempt. A delivery retry downloads the successful bundle by artifact ID. A manual `publish=false` disables delivery even when the repository switch is enabled. No local verification changes GitHub settings or sends project data externally.
 
 ## Hosted package retention
 
 Ordinary image, chart, SDK and editor checks build packages to verify them. Their optional `upload_artifacts` input uploads reports only. Package files remain on the temporary runner.
 
-The release workflow passes `retain_packages=true` to the reusable client workflow. This input is absent from manual dispatch. SDK and VSIX uploads also require a version-tag ref and the release handoff upload input. Manual `release_checks=true` selects installed-editor tests without enabling package uploads. Release chart and image archives keep their existing same-run handoff. Pages delivery remains separately enabled. Local act keeps its selected inspection evidence under ignored output and performs no hosted uploads.
+The release workflow passes `retain_packages=true` to the reusable client workflow. Manual dispatch of the client workflow does not expose this input. SDK and VSIX uploads also require a version-tag ref and the release handoff upload input. Manual `release_checks=true` selects installed-editor tests without enabling package uploads. Release chart and image archives keep their existing same-run handoff. Pages delivery remains separately enabled. Local act keeps its selected inspection evidence under ignored output and performs no hosted uploads.

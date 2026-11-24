@@ -24,6 +24,9 @@ function inspect(base) {
   const generated = new Set([...downloads,'content-inventory.json','dependency-inventory.json','browser-inventory.json','third-party-notices.txt','favicon.svg'].map(f=>'generated/'+f));
   for (const filename of files) {
     const name = path.relative(dist,filename);
+    assert(!name.endsWith('.map') && !name.split(path.sep).some(part =>
+      ['implementation-status.md', 'todo', 'todo.md', 'done.md', 'deferred.md', 'continue.md', 'AGENTS.md', 'output', 'coverage', 'architecture.html'].includes(part)),
+    `Excluded artifact or source map shipped: ${name}`);
     assert(name === manifestName || name.endsWith('.html') || generated.has(name) || /^(?:_astro|pagefind)\//.test(name),`Unlisted artifact: ${name}`);
     assert(!/\.(?:node|so|dll|dylib|exe)$/.test(name),`Build-only binary shipped: ${name}`);
   }
@@ -110,7 +113,7 @@ function inspect(base) {
     ['guides/concepts', ['guides/search-cookbook/#restrict-the-same-query-to-one-namespace', 'guides/search-cookbook/#save-this-group-as-a-private-named-search', 'guides/catalog-ui/#save-resources-and-searches', 'guides/resource-authoring/#describe-listing-relationships', 'guides/agent-plugins/', 'operations/federation/#adopt-one-observation-as-a-local-draft', 'guides/draft-transfer/', 'guides/contextforge/#discover-and-use-a-published-virtual-server'], ['Organize and reuse resources', 'Canonical Resource identifiers are unique across the tenant.', 'Shared collections organize existing local Listings across namespaces within a tenant.', 'Curated subsets for individual discovery hosts remain unavailable.', 'Curate a shared collection']],
     ['guides/search-cookbook', ['guides/catalog-ui/#save-resources-and-searches', 'guides/concepts/#organize-and-reuse-resources'], ['Save this group as a private named search', 'library.own', 'personal.write', 'Sharing a page URL transfers neither the saved search nor access to its targets.']],
     ['guides/vscode', ['guides/two-catalog-federation/', 'operations/oidc-keycloak/#connect-the-desktop-client', 'contributing/build-and-release/#optional-vs-code-package', '#first-use-and-command-index', '#manage-my-tools', '#agent-outcomes', '#browse-the-catalog', '#sign-in-and-sign-out', '#trust-proxies-and-limits', '#add-a-connection', '#combine-filters', '#personal-ratings-and-private-feedback', '#private-package-credentials', '#platform-and-remote-setup', '#remember-an-mcp-reference'], ['Catalog: Help (Offline)', 'Walk through four resource kinds', 'Catalog: Recover Opinion Command', 'Catalog: Manage Package Source Credentials']],
-    ['sdk/overview', ['sdk/go/', 'sdk/python/', 'sdk/typescript/', 'sdk/rust/', 'sdk/rust/#export-a-reusable-draft'], ['Choose a language', 'no SDK package has been published', 'CATALOG_SDK_ORIGIN', 'Rust supports typed reusable-draft export through Client::export_version_revision_draft']],
+    ['sdk/overview', ['contributing/build-and-release/#download-release-packages', 'sdk/go/', 'sdk/python/', 'sdk/typescript/', 'sdk/rust/', 'sdk/rust/#export-a-reusable-draft'], ['Choose a language', 'does not publish SDKs to language registries', 'CATALOG_SDK_ORIGIN', 'Rust supports typed reusable-draft export through Client::export_version_revision_draft']],
     ['sdk/go', ['sdk/overview/', 'guides/integrating/#search-one-page-with-go'], ['go mod edit -replace=', 'ResponseBytes', 'go run .', 'Catalog API connection succeeded']],
     ['sdk/python', ['sdk/overview/', 'guides/integrating/#search-one-page-with-python'], ['python -m pip install ./sdk/python', 'CatalogSearchResult', 'python catalog_example.py', 'Find an operation']],
     ['sdk/typescript', ['sdk/overview/', 'guides/integrating/#search-one-page-with-javascript-or-typescript'], ['npm install /absolute/path/', 'createCatalogClient', 'node catalog-example.mjs', 'Catalog API connection succeeded']],
@@ -455,7 +458,6 @@ function inspect(base) {
     assert(apiPages.some(f=>path.dirname(f).split('/').at(-1).toLowerCase() === slug),`Unrendered API operation: ${operation.operationId}`);
   }
   assert(files.some(f=>f.endsWith('/pagefind/pagefind.js')),'Local Pagefind bundle missing');
-  assert(!files.some(f=>f.endsWith('.map') || /\/(implementation-status\.md|todo|todo\.md|done\.md|deferred\.md|continue\.md|AGENTS\.md|output|coverage|architecture\.html)(\/|$)/.test(f)),'Excluded artifact or source map shipped');
   const allowed = new Set(entries.map(e=>path.join(dist,e.route,'index.html')));
   for (const page of pages.keys()) assert(allowed.has(page) || page.includes('/dist/api/') || page === path.join(dist,'404.html'),`Unexpected page: ${page}`);
   console.log(`Checked ${pages.size} HTML pages, ${operations.length} operations, exact downloads, assets and anchors at ${base}`);

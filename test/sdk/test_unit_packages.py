@@ -104,8 +104,7 @@ class PackageUnits(unittest.TestCase):
         for module, failed_build in ((runner, 1), (python_runner, 1), (python_runner, 2), (typescript_runner, 1)):
             with self.subTest(module=module.__name__, failed_build=failed_build), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                for name in ("VERSION",):
-                    (root / name).write_text("0.1.0\n")
+                (root / "VERSION").write_bytes((runner.ROOT / "VERSION").read_bytes())
                 (root / "go.mod").write_text("module fixture\ngo 1.27.0\n")
                 selected = {"node": "/qualified/node", "npm": "/qualified/npm"} if module is typescript_runner else {} if module is python_runner else Path("/qualified/go")
                 failure = subprocess.CalledProcessError(1, ["owned-build"])

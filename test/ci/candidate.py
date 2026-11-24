@@ -144,7 +144,7 @@ def admit(filename, product, *, load=False, platform=None):
 
 
 def release_results(source, results):
-    expected = {"source", "security", "clients", "charts", "candidates", "runtime"}
+    expected = {"source", "security", "clients", "charts", "candidates", "runtime", "native"}
     if set(results) != expected or any(result != "success" for result in results.values()):
         raise ValueError("Incomplete release qualification")
     return {"schemaVersion": 1, "source": source, "checks": results, "result": "success"}

@@ -101,6 +101,8 @@ Open `http://127.0.0.1:4180`. The [UI guide](documentation/src/content/docs/guid
 
 ## Containers and Kubernetes
 
+For a published version, the [release download guide](documentation/src/content/docs/contributing/build-and-release.md#download-release-packages) lists the Linux and macOS commands, SDKs, VS Code extension, Helm charts and container image references. It also explains how to verify a download.
+
 Container images support Linux AMD64 and ARM64 and can be built locally:
 
 ```sh

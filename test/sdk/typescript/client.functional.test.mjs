@@ -8,6 +8,7 @@ const execute = promisify(execFile);
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { listenFixture } from "../../vscode/listen.mjs";
 import { once } from "node:events";
 import { gzipSync } from "node:zlib";
 import { pathToFileURL } from "node:url";
@@ -16,8 +17,7 @@ const { createCatalogClient } = await import(
 );
 async function serve(t, handler) {
   const server = httpServer(handler);
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
+  await listenFixture(server);
   t.after(() => {
     server.closeAllConnections();
     return new Promise((r) => server.close(r));
@@ -534,8 +534,7 @@ test("real TLS trusts only the selected CA and verifies hostnames", async (t) =>
     },
     (_, res) => res.end('{"tls":true}'),
   );
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
+  await listenFixture(server);
   t.after(() => {
     server.closeAllConnections();
     return new Promise((r) => server.close(r));

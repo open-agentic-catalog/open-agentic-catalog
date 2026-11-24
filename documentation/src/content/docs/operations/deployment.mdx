@@ -4,6 +4,8 @@ title: "Deployment guide"
 
 import Deployment from "../../../components/architecture/Deployment.astro";
 
+For a published version, start with the [release downloads and checksums](../contributing/build-and-release.md#download-release-packages). Download the application chart and the deployment coordinator for your machine. Set the backend and optional UI image repositories and index digests from that release when preparing your Helm values.
+
 Add optional monitoring through the [Compose overlay](../guides/performance-and-monitoring.md) or a [separately installed Helm companion chart](helm-monitoring.mdx). The companion defaults to `enabled: false`; use `--set enabled=true` or `make monitoring-install` to deploy it. Neither is an application dependency or readiness gate. The product chart remains independent and installs no collectors.
 
 Monitoring data and credentials stay separate from Catalog PostgreSQL, and worker metrics stay off the product Service and ingress. Operators can use either option or their existing monitoring. They own production discovery, network access, infrastructure collectors, retention and alerting.

@@ -16,6 +16,41 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class TrivyProcessTests(unittest.TestCase):
+    @unittest.skipUnless(os.environ.get("CATALOG_TEST_TRIVY"), "select pinned CATALOG_TEST_TRIVY for source policy checks")
+    def test_source_policy_matches_only_reviewed_advisory_path_and_version(self):
+        tool = os.environ["CATALOG_TEST_TRIVY"]
+        env = trivy.environment()
+        trivy.qualify([tool], env=env)
+        policy = ROOT / "test/packaging/trivy-source-ignore.yaml"
+        lock = "test/mcp-scanner/requirements.txt"
+        advisories = ["CVE-2026-114612", "GHSA-g5ff-637f-6q2m"]
+        # Reapply the real scanner's policy to controlled reports, even after an advisory database changes.
+        cases = [
+            (lock, "1.93.2", advisories, advisories),
+            (lock, "1.93.2", [*advisories, "CVE-2099-12345"], advisories),
+            ("other/requirements.txt", "1.93.2", advisories, []),
+            (lock, "1.93.3", advisories, []),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "report.json"
+            for target, version, ids, accepted in cases:
+                with self.subTest(target=target, version=version, ids=ids):
+                    findings = [{"VulnerabilityID": advisory, "Severity": "HIGH", "PkgName": "litellm",
+                                 "InstalledVersion": version, "PkgIdentifier": {"PURL": "pkg:pypi/litellm@" + version}}
+                                for advisory in ids]
+                    report = {"Target": target, "Class": "lang-pkgs", "Type": "pip", "Vulnerabilities": findings}
+                    fixture.write_text(json.dumps({"SchemaVersion": 2, "ArtifactName": "fixture",
+                                                   "ArtifactType": "filesystem", "Results": [report]}))
+                    run = subprocess.run([tool, "convert", "--ignorefile", str(policy), "--show-suppressed",
+                                          "--exit-code", "9", "--format", "json", str(fixture)],
+                                         cwd=directory, env=env, capture_output=True, check=False, timeout=30)
+                    remaining = set(ids) - set(accepted)
+                    self.assertEqual(run.returncode, 9 if remaining else 0, run.stderr)
+                    result, = json.loads(run.stdout)["Results"]
+                    self.assertCountEqual([v["VulnerabilityID"] for v in result.get("Vulnerabilities", [])], remaining)
+                    self.assertCountEqual([v["Finding"]["VulnerabilityID"] for v in result.get("ExperimentalModifiedFindings", [])
+                                           if v["Status"] == "ignored" and v["Statement"]], accepted)
+
     @unittest.skipUnless(os.environ.get("CATALOG_TEST_IMAGE_SECRETS") and os.environ.get("CATALOG_TEST_TRIVY"),
                          "select a local backend image and pinned scanner for metadata-secret qualification")
     def test_actual_image_metadata_secret_and_clean_control(self):

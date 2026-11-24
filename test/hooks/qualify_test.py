@@ -44,12 +44,18 @@ class ScannerQualification(unittest.TestCase):
 
     def test_reviewed_secret_exceptions_match_current_files(self):
         fixture = self.fixture()
+        repository = Path(__file__).resolve().parents[2]
+        plugin_inventory = "test/interoperability/plugins/provenance.json"
+        inventory = (repository / plugin_inventory).read_text()
+        # Reproduce an update to one upstream digest in an already tracked inventory.
+        digest = json.loads(inventory)["files"]["openhands-sdk/openhands/sdk/conversation/secret_registry.py"]
+        self.assertEqual(inventory.count(digest), 1)
+        fixture.write(plugin_inventory, inventory.replace(digest, "0" * 64))
         fixture.git("-c", "core.hooksPath=/dev/null", "commit", "-qm", "reviewed exceptions baseline")
         exceptions = [line for line in (fixture.root / runner.POLICIES[1]).read_text().splitlines()
                       if line and not line.startswith("#")]
-        repository = Path(__file__).resolve().parents[2]
         for name in ("documentation/src/content/docs/operations/docker.mdx", "documentation/src/content/docs/guides/mcp-server.mdx",
-                     "test/interoperability/adk/provenance.json"):
+                     "test/interoperability/adk/provenance.json", plugin_inventory):
             destination = fixture.root / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(repository / name, destination)

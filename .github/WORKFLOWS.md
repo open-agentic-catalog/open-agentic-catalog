@@ -1,6 +1,6 @@
 # GitHub Actions
 
-The workflows call maintained Make targets. Contribution checks run on pull requests and pushes to `main`. Pages prepares the current manual on `main`; delivery needs explicit maintainer activation. Release qualification runs on `v*` tag pushes or manual selection and requires the exact clean version tag. Pushes to `main` also build AMD64 images and both charts without publishing.
+The workflows call maintained Make targets. Contribution checks run on pull requests and pushes to `main`. Pages prepares the current manual on `main`; delivery needs explicit maintainer activation. Release qualification requires manual dispatch at the exact clean version tag, signed by an allowed maintainer on a commit reachable from main. Pushes to `main` also build AMD64 images and both charts without publishing.
 
 Agents do not dispatch hosted jobs, upload project data or publish artifacts. The maintainer owns repository settings and all external execution. Ordinary verification has read-only permissions and does not persist checkout credentials.
 
@@ -10,7 +10,7 @@ Agents do not dispatch hosted jobs, upload project data or publish artifacts. Th
 | --- | --- | --- |
 | [contributions.yml](workflows/contributions.yml) | Always run source lint and isolated units; select UI, docs and clients by changed inputs. | Require `Contribution checks complete` in branch protection. Selected failures and cancellations fail that check. |
 | [pages.yml](workflows/pages.yml) | Prepare the complete HTML manual and matching PDF. | Only the separate `github-pages` deployment job has Pages permissions. |
-| [release.yml](workflows/release.yml) | Build once, transfer and qualify exact images and client/chart packages. | Publishing requires `RELEASE_PUBLISH_ENABLED=true` and approval through the configured `release` environment. ARM64 inspection is not native execution. |
+| [release.yml](workflows/release.yml) | Build once, transfer and qualify exact images and client/chart packages. | Publishing requires `RELEASE_PUBLISH_ENABLED=true` and approval through the configured `release` environment. Native download checks run on Linux and macOS on both AMD64 and ARM64. |
 | [quality.yml](workflows/quality.yml) | Isolated Go/Python units, source/local regression, UI and the manual. | Separate jobs preserve the test layers and toolchains. The UI job includes browser tests. |
 | [clients.yml](workflows/clients.yml) | Go, Python, TypeScript and Rust SDK checks, the Go webhook receiver, and selected editor and raw Go-generator checks. | Local HTTP/TLS fixtures and installed consumers are functional tests. The TypeScript harness owns its runtime matrix. |
 | [images.yml](workflows/images.yml) | AMD64 backend/UI images on `main`; both architectures on manual runs, plus both Helm packages. | ARM64 is cross-built and inspected. It is not executed. Optional image scans use the same job's images. |
@@ -47,7 +47,7 @@ Manual report workflows default to `upload_artifacts=false`. The automatic contr
 
 ## Prerequisites and tool ownership
 
-Jobs target fresh `ubuntu-24.04` AMD64 GitHub-hosted VMs. Each job installs only its selected profile through [the CI helper](../test/ci/tools.py), then calls the existing Make installers and checks. Existing Go, Node/npm, Python/uv, Java, Rust and scanner manifests remain authoritative. The helper supplies missing command-line tools and exports their paths for later steps. It does not install application dependencies or start services.
+Most jobs run on fresh `ubuntu-24.04` AMD64 GitHub-hosted VMs. The native release-download checks use matching Linux and macOS hosts for each target architecture. Jobs that need a CI tool profile install it through [the CI helper](../test/ci/tools.py), then call the existing Make installers and checks. Existing Go, Node/npm, Python/uv, Java, Rust and scanner manifests remain authoritative. The helper supplies missing command-line tools and exports their paths for later steps. It does not install application dependencies or start services.
 
 Acquisition requires access to the selected language registries, release archives, advisory databases and container registries. SDK/editor acquisition receives a step-scoped read-only `GH_TOKEN`; later checks do not receive it. Test traffic uses owned local fixtures. Hosted discovery services, resource endpoints and external identity providers are not test targets.
 
@@ -72,7 +72,7 @@ make docs-check CATALOG_ENV_FILE=/dev/null
 
 Jobs preserve failing exit codes and write step summaries. Ordinary report uploads are disabled by default. When selected, they use explicit paths and seven-day retention for reports, coverage and SPDX inventories. They exclude raw fixtures, credentials, dependency trees and the complete `output/` tree. SDK/editor and chart checks do not upload package archives, even with `upload_artifacts=true`.
 
-Release qualification uploads exact images and packages between jobs. Tag events enable this handoff; manual release checks require `upload_artifacts=true`. Only the protected delivery job publishes to GitHub Releases and GHCR. Every upload is disabled under act. Exporters refuse existing destinations.
+The manual release workflow requires `upload_artifacts=true` to transfer exact images and packages between jobs. Only the protected delivery job writes to GHCR and attaches assets to the prepared GitHub Release draft. Every upload is disabled under act. Exporters refuse existing destinations.
 
 A missing report, cancelled job or unselected check is not a pass. Summaries label the status before artifact upload; the upload can still fail the final job. An older report is not evidence for a failed invocation. Coverage percentages from different profiles must not be added or averaged. `coverage-full` creates and reconciles its own fresh profiles.
 
@@ -113,7 +113,7 @@ The fixed `Contribution checks complete` job runs even when another job fails. I
 
 See [the candidate procedure](../test/ci/README.md#exact-candidate-qualification) for local commands, receipts and refusal paths. SDK checks record current source and run identity beside the actual qualified packages. `stage-sdk` refuses stale receipts or changed packages. Go prepares its tested source archive and manifest locally. The TypeScript editor checks require the qualified tarball to match the extension lock.
 
-Tag-triggered release checks enable internal artifact handoff. Only the reusable release call sets `retain_packages=true`; client package uploads also require a version-tag ref. Manual client dispatch cannot set this input. Manual runs require `upload_artifacts=true`. The workflow builds each backend/UI platform once and scans those exact images. Existing API, Compose UI and OIDC UI journeys consume the AMD64 candidates. Their cleanup preserves borrowed images. The final gate also requires source, security, client and chart results from the same source.
+The release workflow calls the reusable client workflow with `retain_packages=true` on the signed version tag. Only this call can retain the tested SDK packages and VSIX. The workflow builds each backend/UI platform once and scans those exact images. Existing API, Compose UI and OIDC UI journeys consume the AMD64 candidates. Their cleanup preserves borrowed images. Assembly also requires source, security, client, chart and native download checks from the same qualification attempt.
 
 Follow the [delivery setup procedure](../documentation/src/content/docs/contributing/build-and-release.md#configure-and-approve-delivery) before enabling `RELEASE_PUBLISH_ENABLED`. Prepare a matching draft release and approve delivery only after checks pass. Manual `publish=false` always prevents delivery. No workflow creates a release, signs artifacts or deploys production.
 
@@ -121,6 +121,6 @@ A failed delivery reports completed operations. Rerun only the failed delivery j
 
 ## Release downloads and container delivery
 
-The [release procedure](../documentation/src/content/docs/contributing/build-and-release.md#run-checks-for-a-release-candidate) owns setup, file names, installation and retries. GitHub Releases receive the tested SDKs, Linux CLI archives, VSIX, charts and checksums. GHCR receives the retained backend/UI images. No ecosystem registry or Marketplace publishing is configured.
+The [release procedure](../documentation/src/content/docs/contributing/build-and-release.md#run-checks-for-a-release-candidate) owns setup, file names, installation and retries. GitHub Releases receive the tested SDKs, Linux server, Linux/macOS CLI and coordinator archives, the discovery Skill, VSIX, charts and checksums. GHCR receives the retained backend/UI images. No ecosystem registry or Marketplace publishing is configured.
 
-Publishing stays off by default. Tag checks transfer artifacts within the same Actions run even when delivery is disabled. Manual `publish=false` always blocks delivery. Configure required reviewers before enabling `RELEASE_PUBLISH_ENABLED`. Maintainers prepare and finally publish the draft release. Local act never delivers releases.
+Both dispatch inputs default to false. Select `upload_artifacts=true` for every release run and leave `publish=false` for a qualification-only run. Configure required reviewers before enabling `RELEASE_PUBLISH_ENABLED`. Maintainers prepare and finally publish the draft release. Local act never delivers releases.

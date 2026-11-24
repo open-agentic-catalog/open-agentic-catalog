@@ -1,8 +1,6 @@
 name: Qualified release candidates
 
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
     inputs:
       upload_artifacts:
@@ -41,17 +39,12 @@ jobs:
       key: ${{ steps.identity.outputs.key }}
       upload: ${{ steps.intent.outputs.upload }}
       publish: ${{ steps.intent.outputs.publish }}
+      tag_object: ${{ steps.tag.outputs.tag_object }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Install the policy toolchain
-        run: python3.12 -B test/ci/tools.py install --profile unit
-      - name: Admit the exact tagged source
-        run: |
-          make version-check
-          make release-check
       - name: Resolve tag and manual release intent
         id: intent
         env:
@@ -60,6 +53,16 @@ jobs:
           RELEASE_PUBLISH_ENABLED: ${{ vars.RELEASE_PUBLISH_ENABLED }}
         run: |
           python3.12 -B test/ci/admission.py release-policy >> "$GITHUB_OUTPUT"
+      - name: Verify the release signer and protected-main ancestry
+        id: tag
+        env:
+          ALLOWED_SIGNERS: ${{ vars.RELEASE_ALLOWED_SIGNERS }}
+        run: |
+          make version-check
+          make release-check
+          test -n "$ALLOWED_SIGNERS"
+          printf '%s\n' "$ALLOWED_SIGNERS" > "$RUNNER_TEMP/release-signers"
+          python3.12 -B test/ci/admission.py release-tag --commit "$GITHUB_SHA" --allowed-signers "$RUNNER_TEMP/release-signers" >> "$GITHUB_OUTPUT"
       - id: identity
         env:
           KEY: ${{ github.run_id }}-${{ github.run_attempt }}
@@ -143,7 +146,7 @@ jobs:
       - name: Package the retained backend CLI without recompilation
         if: matrix.product == 'backend'
         run: >-
-          python3.12 -B test/ci/release_packages.py cli
+          python3.12 -B test/ci/release_packages.py cli --standalone
           --candidate "$ARTIFACT_OUTPUT/candidate.json" --platform "$CONTAINER_PLATFORM"
           --output "output/release/cli-${{ matrix.arch }}"
       - name: Transfer the retained CLI package
@@ -162,6 +165,39 @@ jobs:
           retention-days: 7
           if-no-files-found: error
           path: ${{ env.ARTIFACT_OUTPUT }}/
+  native:
+    needs: [policy, candidates]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, system: linux, arch: amd64}
+          - {runner: ubuntu-24.04-arm, system: linux, arch: arm64}
+          - {runner: macos-15-intel, system: darwin, arch: amd64}
+          - {runner: macos-15, system: darwin, arch: arm64}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    env:
+      TARGET: ${{ matrix.system }}/${{ matrix.arch }}
+      RECEIPT: output/release/native-${{ matrix.system }}-${{ matrix.arch }}.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: release-cli-${{ needs.policy.outputs.key }}-${{ matrix.arch }}
+          path: output/release/programs
+      - name: Exercise retained downloads on their target host
+        run: python3 -B test/ci/release_standalone.py --directory output/release/programs --platform "$TARGET" --output "$RECEIPT"
+      - name: Transfer the native archive results
+        if: ${{ success() && needs.policy.outputs.upload == 'true' && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: release-native-${{ needs.policy.outputs.key }}-${{ matrix.system }}-${{ matrix.arch }}
+          retention-days: 7
+          if-no-files-found: error
+          path: ${{ env.RECEIPT }}
   charts:
     needs: policy
     runs-on: ubuntu-24.04
@@ -246,29 +282,44 @@ jobs:
           if-no-files-found: error
           path: output/release/runtime-${{ matrix.suite }}.json
   qualify:
-    needs: [policy, source, security, clients, candidates, charts, runtime]
+    needs: [policy, source, security, clients, candidates, charts, runtime, native]
     if: ${{ always() && needs.policy.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      bundle_id: ${{ steps.bundle.outputs.artifact-id }}
     env:
       RESULTS: >-
         {"source":"${{ needs.source.result }}","security":"${{ needs.security.result }}","clients":"${{ needs.clients.result }}",
-        "candidates":"${{ needs.candidates.result }}","charts":"${{ needs.charts.result }}","runtime":"${{ needs.runtime.result }}"}
+        "candidates":"${{ needs.candidates.result }}","charts":"${{ needs.charts.result }}","runtime":"${{ needs.runtime.result }}","native":"${{ needs.native.result }}"}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
       - name: Require all selected jobs
-        run: python3.12 -B test/ci/candidate.py results --results "$RESULTS" --output output/release/results.json
+        id: required
+        env:
+          PRODUCER_KEY: ${{ needs.policy.outputs.key }}
+        run: |
+          if [[ "$PRODUCER_KEY" != "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" ]]; then
+            echo 'Re-run all jobs to qualify a complete new set of packages.' >&2
+            exit 1
+          fi
+          python3.12 -B test/ci/candidate.py results --results "$RESULTS" --output output/release/results.json
+          python3.12 -B test/ci/admission.py release-inputs --key "$PRODUCER_KEY" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
           path: output/release/inputs
-          # Current run only; no token or other run identifier is accepted.
-          pattern: '*'
+          pattern: ${{ steps.required.outputs.pattern }}
       - name: Assemble exact source, package and runtime evidence
-        run: python3.12 -B test/ci/release_delivery.py assemble --directory output/release/inputs --results "$RESULTS" --output output/release/qualified
+        env:
+          PRODUCER_KEY: ${{ needs.policy.outputs.key }}
+        run: |
+          python3.12 -B test/ci/admission.py release-inputs --key "$PRODUCER_KEY" --directory output/release/inputs
+          python3.12 -B test/ci/release_delivery.py assemble --directory output/release/inputs --results "$RESULTS" --output output/release/qualified
       - name: Transfer the completed release set
+        id: bundle
         if: ${{ success() && needs.policy.outputs.upload == 'true' && !env.ACT }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
@@ -289,9 +340,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
+      - name: Require the retained qualification artifact
+        env:
+          BUNDLE_ID: ${{ needs.qualify.outputs.bundle_id }}
+          PRODUCER_KEY: ${{ needs.policy.outputs.key }}
+        run: |
+          [[ "$BUNDLE_ID" =~ ^[1-9][0-9]*$ ]]
+          printf 'Qualified artifact %s from run and attempt %s\n' "$BUNDLE_ID" "$PRODUCER_KEY" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
-          name: qualified-release-${{ needs.policy.outputs.key }}
+          artifact-ids: ${{ needs.qualify.outputs.bundle_id }}
+          merge-multiple: true
           path: output/release/delivery
       - name: Authenticate the maintainer delivery job
         env:
@@ -302,6 +361,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_PUBLISH: 'true'
+          RELEASE_TAG_OBJECT: ${{ needs.policy.outputs.tag_object }}
           RELEASE_PUBLISH_ENABLED: ${{ vars.RELEASE_PUBLISH_ENABLED }}
           INPUT_UPLOAD: ${{ inputs.upload_artifacts }}
           INPUT_PUBLISH: ${{ inputs.publish }}

@@ -23,19 +23,48 @@ def release_intent(environment, version):
     if environment.get("GITHUB_REF") != "refs/tags/v" + version:
         raise ValueError("Select the exact v<VERSION> tag, not a branch")
     event = environment.get("GITHUB_EVENT_NAME")
-    if event == "push":
-        requested = True
-    elif event == "workflow_dispatch":
-        if environment.get("INPUT_UPLOAD") != "true":
-            raise ValueError("Release checks require upload_artifacts=true for job handoff")
-        if environment.get("INPUT_PUBLISH") not in ("true", "false"):
-            raise ValueError("Select an explicit boolean publish input")
-        requested = environment["INPUT_PUBLISH"] == "true"
-    else:
+    if event != "workflow_dispatch":
         raise ValueError("Unsupported release event")
+    if environment.get("INPUT_UPLOAD") != "true":
+        raise ValueError("Release checks require upload_artifacts=true for job handoff")
+    if environment.get("INPUT_PUBLISH") not in ("true", "false"):
+        raise ValueError("Select an explicit boolean publish input")
+    requested = environment["INPUT_PUBLISH"] == "true"
     enabled = environment.get("RELEASE_PUBLISH_ENABLED") == "true"
     expected_repository = environment.get("GITHUB_REPOSITORY") == REPOSITORY
     return {"upload": True, "publish": requested and enabled and expected_repository}
+
+
+def verified_release_tag(root, expected_commit, signers):
+    """Bind the selected commit to an independently trusted SSH-signed tag on main."""
+    if not SHA.fullmatch(expected_commit) or not signers.is_file() or not signers.stat().st_size:
+        raise ValueError("A release commit and trusted SSH signers file are required")
+    name = "v" + (root / "VERSION").read_text().strip()
+    git = ["git", "--no-replace-objects", "-C", str(root)]
+    ref = subprocess.check_output([*git, "rev-parse", "--verify", "refs/tags/" + name], text=True).strip()
+    if subprocess.check_output([*git, "rev-parse", "HEAD"], text=True).strip() != expected_commit:
+        raise ValueError("Release checkout differs from selected commit")
+    header = subprocess.check_output([*git, "cat-file", "tag", ref]).split(b"\n\n", 1)[0]
+    if header.splitlines()[:3] != [b"object " + expected_commit.encode(), b"type commit", b"tag " + name.encode()]:
+        raise ValueError("Annotated tag name or direct target differs from selection")
+    subprocess.run([*git, "-c", "gpg.ssh.allowedSignersFile=" + str(signers.resolve()),
+                    "-c", "gpg.program=/bin/false", "-c", "gpg.x509.program=/bin/false", "verify-tag", ref], check=True)
+    subprocess.run([*git, "merge-base", "--is-ancestor", expected_commit, "refs/remotes/origin/main"], check=True)
+    return ref
+
+
+def release_inputs(key):
+    """Artifact names from one complete qualification attempt."""
+    if not re.fullmatch(r"[1-9]\d*-[1-9]\d*", key, flags=re.ASCII):
+        raise ValueError("Invalid release run and attempt")
+    return sorted([
+        *(f"candidate-{key}-{product}-{arch}" for product in ("backend", "ui") for arch in ("amd64", "arm64")),
+        *(f"release-cli-{key}-{arch}" for arch in ("amd64", "arm64")),
+        *(f"release-native-{key}-{system}-{arch}" for system in ("linux", "darwin") for arch in ("amd64", "arm64")),
+        *(f"qualified-sdk-{key}-{language}" for language in LANGUAGES),
+        *(f"release-runtime-{key}-{suite}" for suite in ("api", "ui-compose", "ui-oidc")),
+        f"release-charts-{key}", f"release-editor-{key}",
+    ])
 
 
 def digest(path):
@@ -219,6 +248,12 @@ def main():
     sdk.add_argument("--run", required=True)
     sdk.add_argument("--output", type=Path, required=True)
     sub.add_parser("release-policy")
+    tag = sub.add_parser("release-tag")
+    tag.add_argument("--commit", required=True)
+    tag.add_argument("--allowed-signers", required=True, type=Path)
+    inputs = sub.add_parser("release-inputs")
+    inputs.add_argument("--key", required=True)
+    inputs.add_argument("--directory", type=Path)
     args = parser.parse_args()
     if args.command == "select":
         if not SHA.fullmatch(args.base):
@@ -233,6 +268,15 @@ def main():
         print(json.dumps(languages(args.value), separators=(",", ":")))
     elif args.command == "outcomes":
         print(json.dumps(outcomes(json.loads(args.plan or "null"), json.loads(args.results)), sort_keys=True))
+    elif args.command == "release-inputs":
+        names = release_inputs(args.key)
+        if args.directory is None:
+            print("pattern={" + ",".join(names) + "}")
+        elif (sorted(p.name for p in args.directory.iterdir()) != names
+              or any(p.is_symlink() or not p.is_dir() for p in args.directory.iterdir())):
+            raise ValueError("Missing or unexpected release artifact. Re-run all qualification jobs.")
+    elif args.command == "release-tag":
+        print("tag_object=" + verified_release_tag(ROOT, args.commit, args.allowed_signers))
     elif args.command == "release-policy":
         value = release_intent(os.environ, (ROOT / "VERSION").read_text().strip())
         for key, enabled in value.items():

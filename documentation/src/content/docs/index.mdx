@@ -33,7 +33,7 @@ Browse Agents, MCP Servers, Skills and Plugins. The screenshot shows the curated
 | --- | --- | --- | --- |
 | Try a disposable local Catalog | `make run` combines the API and worker in memory. | Development identities; state clears when the process exits. | [Local quickstart](guides/local-development.mdx#start-the-service) |
 | Develop with persistent local data | `make compose-up` starts PostgreSQL, migrations, API and worker. | Development identities; the PostgreSQL volume survives `make compose-down`. | [Persistent local setup](guides/local-development.mdx#start-the-service) |
-| Operate a production deployment | Separate `catalogd api` and `catalogd worker` processes use external PostgreSQL 18. | Operators supply the database, identity configuration, credentials and infrastructure. | [Installation](operations/maintenance.mdx#first-installation), [deployment](operations/deployment.mdx) and [security prerequisites](operations/security.md) |
+| Operate a production deployment | Separate `catalogd api` and `catalogd worker` processes use external PostgreSQL 18. | Operators supply the database, identity configuration, credentials and infrastructure. | [Release downloads](contributing/build-and-release.md#download-release-packages), [installation](operations/maintenance.mdx#first-installation), [deployment](operations/deployment.mdx) and [security prerequisites](operations/security.md) |
 
 ## Choose your starting point
 

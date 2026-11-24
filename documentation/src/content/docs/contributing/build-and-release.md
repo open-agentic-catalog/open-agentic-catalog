@@ -2,9 +2,9 @@
 title: Build, test and release artifacts
 ---
 
-Build and test local container images. Promote the tested images through your continuous integration and delivery (CI/CD) pipeline.
+To install a published version, start with [Download release packages](#download-release-packages). To cut a release, [prepare the candidate locally](#prepare-the-release-locally), then [configure and approve delivery](#configure-and-approve-delivery).
 
-The repository provides image builds, inspection, license files, software bills of materials (SBOMs) in [SPDX format](https://spdx.dev/use/specifications/) and versioned Helm packages. These commands do not publish artifacts, create a registry or export image archives. They require no particular pipeline.
+The local build targets produce binaries, container images, license files, [SPDX](https://spdx.dev/use/specifications/) software bills of materials (SBOMs) and Helm packages. Maintainers use a separate GitHub Actions workflow to deliver tested files to a release draft and images to GitHub Container Registry (GHCR).
 
 ## GitHub Actions
 
@@ -22,32 +22,52 @@ All builds run `version-check`. Make derives the version, full commit and source
 
 The backend AMD64 build executes both version commands and packages its extracted CLI. Other image jobs inspect binaries without executing them. ARM64 inspection does not establish native runtime behavior. Every UI image build also renders the bundled manual.
 
+### Prepare the release locally
+
+Read the root `VERSION` file and run `make version-check`. If it already contains the intended version, keep it. For a different version, follow [Application version and release checks](#application-version-and-release-checks) before building the candidate.
+
+Use the [testing guide](testing.md#start-here) for tool prerequisites. Run each Make command below separately from the repository root.
+
+| What to verify | Local checks |
+| --- | --- |
+| Source, units and manual | Run `make check verify`, `make coverage-unit`, `make test-tooling-unit`, `make test-ui` and `make docs-site-check`. |
+| Database and packaged application | Run `make test-integration` and `make test-functional`. Run `make test-ui-compose` and `make test-ui-oidc` one at a time. |
+| Downloads | Run `make sdk-check` for all four languages. Run `make vscode-check` and `make test-vscode` for the extension. Run `make deploy-check` and `make helm-package` for both charts, with a fresh `ARTIFACT_OUTPUT` directory for packaging. |
+| Security and standalone programs | Run `make security`. Build, inspect and scan each target image. Use the [candidate procedure in the repository](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#exact-candidate-qualification) to seal the image and exercise the programs extracted or built from it. |
+
+Fix failures and repeat the affected checks before merging the preparation changes. A local rehearsal can use a modified checkout. Record which programs ran on matching hardware. The hosted workflow repeats qualification on the selected signed tag and uses its own tested files for delivery.
+
 ### Run checks for a release candidate
 
-The **Qualified release candidates** workflow (`release.yml`) runs for pushed `v*` tags and manual selections. It requires the exact `v<VERSION>` ref and clean source. Root `VERSION` remains `0.1.0` until the maintainer deliberately changes it. `release-check` checks the tag and source, not the tag signature.
+The **Qualified release candidates** workflow (`release.yml`) runs only on manual dispatch at the exact `v<VERSION>` tag. Admission checks the clean checkout, the SSH signature on the annotated tag, its direct commit target, and the commit's ancestry on protected `main`.
 
 | Event or selection | Checks and internal handoff | External delivery |
 | --- | --- | --- |
 | Push to `main` or a pull request | Selected contribution checks; `main` also builds images and charts. | None. |
-| Push the exact `v<VERSION>` tag | Complete source, client, chart, image and runtime checks. Internal artifact uploads are required. | Disabled unless `RELEASE_PUBLISH_ENABLED` equals `true` and the protected job is approved. |
-| Manual at the exact tag, `upload_artifacts=true`, `publish=false` | The same complete checks and internal handoff. | None, even when the repository switch is enabled. |
+| Push the exact `v<VERSION>` tag | The tag becomes available for manual selection. | None. |
+| Manual at the exact tag, `upload_artifacts=false` (default) | Refused. The jobs require an artifact handoff. | None. |
+| Manual at the exact tag, `upload_artifacts=true`, `publish=false` | All release checks and the internal handoff. | None, even when the repository switch is enabled. |
 | Manual at the exact tag, both inputs `true` | The same complete checks and internal handoff. | Requires the repository switch and protected job approval. |
 | A branch, wrong tag or local act release invocation | Refused by release policy. | None. |
 
-Tag events have no manual input defaults. The policy job supplies effective upload and publish values to dependent jobs. Uploads between release jobs are Actions artifacts, not public release downloads. Ordinary verification tokens have read-only repository permissions.
+Both dispatch inputs default to `false`. Choose `upload_artifacts=true` for every hosted release run. Choose `publish=false` for a rehearsal. To deliver after a rehearsal, start a new full run. To qualify and deliver once, request both in a single dispatch and review the results before approving delivery. The jobs exchange files through Actions artifacts retained for seven days. Public release downloads appear only after a maintainer publishes the draft.
 
-The workflow builds backend/UI candidates once for AMD64 and ARM64. Each candidate retains its image archive, inspection, SPDX inventory, notices and bounded scan summary. Raw scan output stays private. Later jobs run existing AMD64 API, Compose UI and OIDC UI journeys against those images. They do not rebuild application images.
+The workflow builds backend/UI candidates once for AMD64 and ARM64. Each candidate retains its image archive, inspection, SPDX inventory, notices and bounded scan summary. Raw scan output stays private. Later jobs run existing AMD64 API, Compose UI and OIDC UI journeys against those images. A separate job runs the standalone downloads on native Linux AMD64, Linux ARM64, Intel macOS and Apple Silicon macOS. Assembly requires all four results, both charts and passing source, security, client and packaged runtime checks.
 
-Ordinary client checks build and test SDK packages and the VSIX without uploading those files. Even `upload_artifacts=true` uploads only selected reports. Release qualification enables the internal package handoff at the exact version tag. It also runs `test-vscode` on Linux and retains the exact VSIX after successful cleanup. The editor receipt binds the source and tested TypeScript SDK. Raw editor reports, SSH fixtures and tool paths stay private. No Windows or macOS execution is claimed.
+Image builds can proceed while the source scan runs. A reviewed exception applies only to its specified advisory, package version and lockfile in the source scan. Release images are scanned separately.
+
+Ordinary client checks build and test SDK packages and the VSIX without uploading those files. Even `upload_artifacts=true` uploads only selected reports. Release qualification enables the internal package handoff at the exact version tag. It also runs `test-vscode` on Linux and retains the exact VSIX after successful cleanup. The editor receipt binds the source and tested TypeScript SDK. Raw editor reports, SSH fixtures and tool paths stay private.
 
 ### Download release packages
 
-Files become available only after a maintainer publishes a completed GitHub Release. Use its exact tag's assets, not development build directories. No packages are published to npm, PyPI, crates.io, the Go proxy or the VS Code Marketplace.
+Choose the matching tag on the [GitHub Releases page](https://github.com/open-agentic-catalog/open-agentic-catalog/releases). The table lists the files attached by the release workflow. GitHub also provides source archives for the tag. Install SDKs and the VS Code extension from the attached files.
 
 | Download | Contents or use |
 | --- | --- |
-| `catalogctl-<version>-linux-amd64.tar.gz` | Static Linux AMD64 CLI and existing backend license notices. |
-| `catalogctl-<version>-linux-arm64.tar.gz` | Static Linux ARM64 CLI and notices; cross-built and inspected. |
+| `catalogctl-<version>-<os>-<arch>.tar.gz` | CLI for Linux or macOS (`linux` or `darwin`), on `amd64` or `arm64`. Includes notices. |
+| `catalogd-<version>-linux-<arch>.tar.gz` | Linux API and worker executable from the matching backend image, with its notices. |
+| `catalog-deploy-<version>-<os>-<arch>.tar.gz` | Helm deployment coordinator for the same four CLI platforms. Supply Helm, kubectl, the application chart and access to the target namespace. |
+| `catalog-discovery-skill-<version>.tar.gz` | Portable `catalog-discovery/` Skill, its references and license. |
 | `open-agentic-catalog-go-<version>.tar.gz` | Go SDK source module. Extract it and use a local module replacement. |
 | `open_agentic_catalog-<python-version>-py3-none-any.whl` | Install with `python -m pip install /path/to/file.whl`. |
 | `open_agentic_catalog-<python-version>.tar.gz` | Python source distribution. RC versions use PEP 440, for example `0.2.0rc1`. |
@@ -55,12 +75,26 @@ Files become available only after a maintainer publishes a completed GitHub Rele
 | `open-agentic-catalog-<version>.crate` | Extract it and set the Rust dependency's `path` to that directory. |
 | `open-agentic-catalog-<version>.vsix` | Use **Extensions: Install from VSIX** in VS Code. |
 | `open-agentic-catalog-<chart-version>.tgz` | Application Helm chart. Its version is independent of the application version. |
-| `open-agentic-catalog-monitoring-<chart-version>.tgz` | Optional monitoring chart, with its own version. |
+| `open-agentic-catalog-monitoring-<chart-version>.tgz` | Optional monitoring chart. The release packages both charts with the same chart version. |
 | `release.json`, `release-evidence.tar.gz`, `SHA256SUMS` | Source identity, bounded test/package evidence and public download checksums. |
 
-Download all listed assets into one directory. Run `sha256sum -c SHA256SUMS` there before installation. Each entry uses the download's basename. Internal image archives stay in the Actions handoff and are excluded from this public checksum list. `release.json` retains their hashes separately. Checksums detect changed bytes; they are not signatures.
+To verify one download, save it and `SHA256SUMS` from the same release into an empty directory. Set `asset` to the filename you downloaded. For example, on Linux AMD64 run:
 
-Extract the CLI archive for your architecture. Run `./catalogctl version` and `./catalogctl --help` from the extracted directory. Keep its notices with the binary. The release checks execute these commands on AMD64 and inspect ARM64 without executing it.
+```sh
+asset=catalogctl-0.1.0-linux-amd64.tar.gz
+awk -v name="$asset" '$2 == name {print}' SHA256SUMS > selected.sha256
+sha256sum -c selected.sha256
+```
+
+Continue only if the checker prints the selected filename and `OK`. On macOS use the `darwin` archive for your processor and run `shasum -a 256 -c selected.sha256`. To verify the entire download set, use `SHA256SUMS` directly with either checksum command. The public `release.json` records the backend and UI image index digests, platform manifest digests and image IDs. The maintainer signs the Git tag identifying the source commit. `SHA256SUMS` checks the downloaded bytes against the published list. The workflow supplies no separate signature for that list or the individual downloads.
+
+Extract the CLI archive for your architecture. Run `./catalogctl version` and `./catalogctl --help` from the extracted directory. Keep its notices with the binary. The native release jobs test an anonymous discovery read and private credential-file handling on each selected OS and CPU. The packaging workflow does not sign with an Apple Developer ID or submit the archives for notarization. See the release notes for macOS distribution details.
+
+For direct Linux deployment, extract `catalogd` and `catalogctl` for the same architecture. Supply separate database credentials for the schema owner, API and worker. Follow the [PostgreSQL role setup](../operations/database-roles.mdx) before running `catalogctl migrate plan` and `catalogctl migrate apply` as the schema owner. Start `catalogd api` and `catalogd worker` with their respective runtime settings.
+
+For Helm, extract the coordinator and run `./catalog-deploy --help`. Pass the application chart archive to `--chart`, your selected cluster to `--context`, and explicit `--namespace`, `--release` and `--values` arguments. The [deployment guide](../operations/deployment.mdx) describes credentials, first installation and coordinated upgrades. Set `image.repository` to `ghcr.io/open-agentic-catalog/open-agentic-catalog` and `image.digest` to the verified backend index digest. For the optional UI use `ui.image.repository=ghcr.io/open-agentic-catalog/catalog-ui` and the corresponding `ui.image.digest`.
+
+To install the portable Skill, extract its archive into your client's Skill directory. Keep the `catalog-discovery/` directory intact so the relative references resolve. The [assistant discovery guide](../guides/assistant-discovery.md#set-up-the-client) covers client configuration and discovery using the CLI.
 
 Use the [Go](../../../../../sdk/go/README.md#install-the-sdk), [Python](../../../../../sdk/python/README.md#install-the-sdk), [TypeScript](../../../../../sdk/typescript/README.md#install-the-sdk) and [Rust](../../../../../sdk/rust/README.md#install-from-local-source) instructions for SDK setup. Each SDK still supports source installation. Consumers can download runtime dependencies during installation.
 
@@ -75,26 +109,125 @@ Both indexes contain `linux/amd64` and `linux/arm64` members. No floating `lates
 
 ### Configure and approve delivery
 
-The maintainer configures these GitHub settings. Agents never configure them or perform publication during local verification.
+#### Set up the repository
 
-1. Create the `release` environment with required reviewers and release-tag restrictions.
-2. Enable `RELEASE_PUBLISH_ENABLED=true` only after approval protection is configured.
-3. Prepare the reviewed commit and signed `v<VERSION>` tag, then push the tag yourself.
-4. Create a matching draft GitHub Release with release notes before approving delivery.
-5. Review all required workflow results, then approve the protected delivery job.
-6. Verify the completed draft's assets and GHCR images before publishing the draft yourself.
+- Protect `main` and merge the reviewed release workflow. Limit creation of `v*` tags to release maintainers. Protect these tags from updates and deletion. Enable [immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases) before creating the draft.
+- Under **Settings > Environments**, configure the `release` environment with a required reviewer and a deployment **tag** rule for `v*`. Choose who may bypass protection. A sole reviewer must be allowed to approve their own runs. For independent review, appoint another eligible reviewer and enable **Prevent self-review**.
+- Under **Settings > Secrets and variables > Actions > Variables**, set the **repository** variable `RELEASE_PUBLISH_ENABLED=false` during setup. Register the maintainer's SSH public key with GitHub as a **Signing key**. Set the repository variable `RELEASE_ALLOWED_SIGNERS` to a trusted OpenSSH allowed-signers entry, such as `release-maintainer namespaces="git" ssh-ed25519 <base64-public-key>`. Verify the key fingerprint independently. Keep the private key on the signing machine.
+- Allow the repository workflow to write the backend and UI GHCR packages. Only the protected `deliver` job requests `contents: write` and `packages: write`. It uses the built-in `GITHUB_TOKEN`. See [GHCR permissions and visibility](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
-Open **Settings > Environments** to configure `release`. Add required reviewers and allow only the `v*` tag pattern. For a sole maintainer, leave **Prevent self-review** unchecked so you can approve your own run. Add `RELEASE_PUBLISH_ENABLED` under **Settings > Secrets and variables > Actions > Variables**, as a repository variable. The policy job does not use variables from the `release` environment.
+#### Sign and verify the tag
 
-The `environment: release` declaration does not create required-reviewer protection. Only the delivery job requests `contents: write` and `packages: write`. It authenticates with the built-in `GITHUB_TOKEN`; no ecosystem registry credentials are needed. Existing GHCR packages must allow this repository's workflow to write them. See [GHCR permissions and visibility](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+Use a clean checkout of the reviewed commit on `main`. The examples use one shell at the repository root with `origin` pointing to the official repository. Set `RELEASE_SHA` to the approved full commit SHA, `SIGNING_PUB` to the SSH public key whose private key is available to your SSH agent, and `ALLOWED_SIGNERS` to the trusted local signers file. Use the same allowed signing key as the workflow.
 
-New GHCR packages are private by default. After the first successful delivery, set both packages to **Public** in their package settings. Verify anonymous pulls before publishing the draft release. A successful image push does not establish public visibility.
+```sh
+set -eu
+repo=open-agentic-catalog/open-agentic-catalog
+: "${RELEASE_SHA:?set the approved commit}" "${SIGNING_PUB:?select the public signing key}" "${ALLOWED_SIGNERS:?select the trusted signers file}"
+git fetch origin refs/heads/main:refs/remotes/origin/main
+test -z "$(git status --porcelain)"
+test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+test "$(git rev-parse refs/remotes/origin/main)" = "$RELEASE_SHA"
+version=$(cat VERSION)
+tag="v$version"
+make version-check
+git -c gpg.format=ssh -c user.signingkey="$SIGNING_PUB" tag -s -m "Open Agentic Catalog $version" "$tag" "$RELEASE_SHA"
+make release-check
+tag_object=$(git rev-parse --verify "refs/tags/$tag")
+verified=$(python3 -B test/ci/admission.py release-tag --commit "$RELEASE_SHA" --allowed-signers "$ALLOWED_SIGNERS")
+test "$verified" = "tag_object=$tag_object"
+```
 
-Delivery checks the remote tag's commit, existing release assets and versioned image tags before its first write. A differing asset or image stops delivery. Identical files are skipped; missing files are uploaded without deleting existing assets. Delivery never creates a release or edits release notes. A published release is accepted only when all expected files and images already match; it receives no writes.
+`make release-check` checks the clean checkout and exact version tag. The admission helper verifies the SSH signature, the annotated tag's name, its direct commit target and ancestry on `origin/main`. Keep the verified `tag_object` for the push below. If a check fails, stop before pushing.
 
-GHCR images can be public before the draft release is published. Registry and release uploads cannot commit atomically. The job records completed operations and partial failures. Rerun the failed delivery job with its original seven-day artifact handoff. Do not rerun successful build jobs after partial delivery. If those artifacts expire, stop for maintainer review or choose a new version. Never rebuild the same version silently or delete partial uploads automatically.
+#### Prepare the draft and dispatch
 
-After publishing, verify public asset checksums and anonymous pulls of both versioned images. Check both platform entries in each index. Actual hosted events, approval protection, token permissions and public visibility require a maintainer-run check. Local tests use intercepted publisher calls and never upload files or images.
+Review the release notes and set `RELEASE_NOTES` to their file path. Include supported platforms and the macOS signing and notarization status. For a stable release, push the verified tag and create a draft for that existing tag:
+
+```sh
+: "${RELEASE_NOTES:?select the reviewed notes file}"
+test -r "$RELEASE_NOTES"
+git push --no-follow-tags origin "$tag_object:refs/tags/$tag"
+test "$(gh api "repos/$repo/git/ref/tags/$tag" --jq '.object.sha')" = "$tag_object"
+gh release create "$tag" --repo "$repo" --verify-tag --draft --title "Open Agentic Catalog $version" --notes-file "$RELEASE_NOTES"
+```
+
+For an RC, add `--prerelease` when creating the draft. If the draft already exists, verify its tag, notes and prerelease setting before continuing. Pushing a tag reserves that version. If its source needs a correction, select a new version.
+
+When the draft and reviewer are ready, enable delivery and dispatch once:
+
+```sh
+gh variable set RELEASE_PUBLISH_ENABLED --repo "$repo" --body true
+gh workflow run release.yml --repo "$repo" --ref "$tag" -f upload_artifacts=true -f publish=true
+```
+
+Open **Actions > Qualified release candidates**. If dispatch returned an uncertain result, look for an existing run on the tag before trying again. Check the tag and commit, confirm that `qualify` succeeded, then approve the waiting `deliver` job. A green workflow with `deliver` skipped has only qualified the packages. The job pushes both GHCR image indexes and attaches files to the prepared draft. The maintainer publishes the draft separately.
+
+#### Verify and publish the draft
+
+1. Confirm that `deliver` succeeded. Record its two index digests and four platform manifest digests from the job summary. Compare the draft asset names with the [download inventory](#download-release-packages). Count only attached assets. GitHub also generates source archives for the tag.
+2. Download the attached files to an empty directory. The following commands verify their checksums and confirm the manifest identifies the approved clean source. They use `jq` and GNU `sha256sum`. On macOS use `shasum -a 256 -c SHA256SUMS` in place of `sha256sum -c SHA256SUMS`.
+
+   ```sh
+   downloads=$(mktemp -d)
+   gh release download "$tag" --repo "$repo" --dir "$downloads"
+   (cd "$downloads" && sha256sum -c SHA256SUMS)
+   jq -e --arg sha "$RELEASE_SHA" --arg v "$version" '
+     .result == "success" and .source.commit == $sha and .build.commit == $sha
+     and .build.version == $v and .build.sourceState == "clean"
+   ' "$downloads/release.json"
+   ```
+
+3. Open the Actions artifact named `qualified-release-<run-id>-<qualification-attempt>` from the approved run. After a delivery retry, use the qualification attempt recorded in the delivery job summary. Set `qualified` to the extracted directory containing `SHA256SUMS` and `release.json`. Compare both manifests and checksum lists:
+
+   ```sh
+   : "${qualified:?select the extracted qualification bundle}"
+   jq -e --slurpfile original "$qualified/release.json" \
+     'del(.indexDigests, .platformDigests) == $original[0]' "$downloads/release.json"
+   comparison=$(mktemp -d)
+   awk '$2 != "release.json"' "$qualified/SHA256SUMS" > "$comparison/qualified"
+   awk '$2 != "release.json"' "$downloads/SHA256SUMS" > "$comparison/draft"
+   cmp "$comparison/qualified" "$comparison/draft"
+   ```
+
+   Both comparisons must succeed. Delivery adds the two registry digest maps to the public manifest. Check their values against the delivery job summary.
+4. On first delivery, make both GHCR packages public in their package settings. Use a signed-out Docker client with Buildx. For each product, compare the displayed index and its two Linux platform digests with the corresponding entries in `release.json`. Pull each platform by the recorded index digest to verify anonymous access.
+
+   ```sh
+   for product in backend ui; do
+     case "$product" in
+       backend) image=ghcr.io/open-agentic-catalog/open-agentic-catalog ;;
+       ui) image=ghcr.io/open-agentic-catalog/catalog-ui ;;
+     esac
+     index=$(jq -er --arg p "$product" '.indexDigests[$p]' "$downloads/release.json")
+     docker buildx imagetools inspect "$image:$version"
+     docker pull --platform linux/amd64 "$image@$index"
+     docker pull --platform linux/arm64 "$image@$index"
+   done
+   ```
+
+5. Confirm the draft still has the intended tag, assets and notes. Run the following commands only after approving publication:
+
+   ```sh
+   gh release edit "$tag" --repo "$repo" --draft=false
+   gh variable set RELEASE_PUBLISH_ENABLED --repo "$repo" --body false
+   ```
+
+6. Open the published release signed out. Verify that its downloads and both images are publicly accessible. Repeat the checksum check against the public downloads. If you abandon delivery, turn the variable off.
+
+The first supported release establishes the compatibility baseline. For subsequent API changes, use the published tag's `api/openapi/control-v1.yaml` as the local `API_BASE` for [API compatibility checks](testing.md#api-validation). Select the next development version explicitly with the [version tools](#application-version-and-release-checks).
+
+#### Recover a failed release run
+
+| What happened | Maintainer action |
+| --- | --- |
+| Qualification failed before delivery | Fix the cause. For a runner or tool failure on unchanged source, choose **Re-run all jobs**. Assembly requires one complete qualification attempt. A source fix needs a new tag and version. |
+| Only delivery failed | Inspect the delivery job summary for completed operations. Rerun the failed job within the seven-day artifact retention period. It selects the original qualification bundle by artifact ID and verifies the tag object again. |
+| The destination already contains files or images | Matching bytes can be reused. A conflicting file or image stops delivery. Preserve the draft and investigate before retrying. |
+| The qualified artifact expired after partial delivery | Stop and review the existing draft and image tags. Choose a new version if a rebuild is needed. |
+| The release is already published | Delivery accepts it only when all expected files and images already match. It makes no writes to a published release. |
+
+GHCR and GitHub Releases are separate destinations. Public images can therefore be available while the release is still a draft. Keep the original tag and successful build jobs intact after a partial delivery.
 
 ## Prerequisites and identities
 
@@ -326,7 +459,7 @@ make container-build IMAGE=open-agentic-catalog:local-arm64 CONTAINER_PLATFORM=l
 
 Each command creates one image in the selected engine's local image store. The compiler runs on the build machine and produces static, stripped binaries with portable CPU defaults. The scratch runtime contains the executables and `/licenses/`, not a shell, compiler, credentials or deployment configuration. Both architectures use the maintained embedded public TLS roots.
 
-Separate tags work with ordinary single-platform image stores. No combined local multi-platform image or registry server is needed. A future pipeline can use standard Buildx multi-platform publishing, or publish each variant and assemble a registry index. That publishing setup, authentication and registry selection are outside these Make targets. Ad hoc image transfer can use standard `docker save` or an appropriate image-copy tool independently.
+Separate local tags work with ordinary single-platform image stores. For a release, the [protected delivery job](#configure-and-approve-delivery) pushes the retained platform images and creates a versioned index for each product. Use `docker save` and `docker load` to transfer an image between local engines.
 
 ## Inspect and test
 
@@ -500,7 +633,7 @@ Each scan writes a unique private `scan-*` directory under `ARTIFACT_OUTPUT` (de
 
 Reports can contain sensitive findings; keep them private and out of commits or support bundles.
 
-The scanner uses empty configuration and ignore files. It removes inherited Trivy policy settings to prevent hidden exclusions, remote scanning or suppression. Only cache and Podman socket Trivy environment settings are retained.
+The image scanner uses empty configuration and ignore files. It removes inherited Trivy policy settings to prevent hidden exclusions, remote scanning or suppression. Only cache and Podman socket Trivy environment settings are retained. See the [source scanning policy](testing.md#linting-and-source-checks) for exceptions that apply to the repository filesystem scan.
 
 Maintained Trivy scans pass `--disable-telemetry` and `--skip-version-check` explicitly. Together these flags disable the optional request for [usage telemetry and update notices](https://github.com/aquasecurity/trivy/blob/e713f67f7d54decdcd9b3132c9751833dcced698/docs/guide/advanced/air-gap.md#check-updates-service). Use both flags for manual scans. Advisory database and check-bundle acquisition use separate settings.
 
@@ -508,7 +641,7 @@ Every High/Critical vulnerability or secret fails the scan. Reports retain lower
 
 The helper distinguishes passed (0), findings (1) and operational/integrity failure (2); Make reports any recipe failure as nonzero. Terminal output shows only outcome and evidence location, never raw secret matches or scanner stderr. Inspect `run.json`'s phase when diagnosing failures.
 
-No current exception list is applied, and no clean result claims absence of unknown vulnerabilities, complete secret detection, legal approval or release acceptance.
+A passing scan covers the selected image, detectors and advisory database. Release approval and license review are separate steps.
 
 The packaging qualification procedure in `test/packaging/README.md` includes an opt-in synthetic-secret control. It compares a clean image with a derived image that adds a synthetic secret only in ENV metadata, retaining identical filesystem layers. It proves the selected native detector and failure policy, not detection of every credential or secrets in previously deleted files. Trivy's built-in path/content exclusions and binary/size limits remain in effect. Previously deleted-layer detection has not been qualified by this control; build review and preventing secret inclusion remain necessary.
 
@@ -645,7 +778,7 @@ The packager copies a fixed runtime/media/guide/license inventory into staging a
 
 The final VSIX and `manifest.json` live under `output/artifacts/vscode/`. The packager writes the validated artifact, then its manifest as a completion marker. Those two writes are not one atomic transaction: verify matching digests and current inputs with `make -C extensions/vscode verify`. Failures before publication preserve the previous complete pair. An interrupted final write leaves missing or mismatched evidence that verification refuses. `output/vscode/package-attempt.json` records the latest package attempt; an older successful manifest is historical evidence, not proof that a failed command passed.
 
-The [consumer guide](../../../../../extensions/vscode/README.md#verify-and-replace-a-local-build) owns local install, replacement and rollback steps. The package includes a PNG installer icon, keywords and offline changelog. This checkout supplies no verified public repository/support URL; the package does not invent one. Obtain source and support from the maintainer who supplies the VSIX. No target publishes to Marketplace/Open VSX, creates tags or configures CI/CD.
+The [consumer guide](../../../../../extensions/vscode/README.md#verify-and-replace-a-local-build) covers local installation, replacement and rollback. The VSIX includes an installer icon and an offline changelog. Its manifest omits repository and support URLs. For an official build, use the [release downloads](#download-release-packages) and the source tag for that version. Marketplace and Open VSX publication are outside the release workflow.
 
 Offline Help resolves only the two maintained layouts: source `README.md` and VSCE's packaged `readme.md`. Both render the same guide, internal section links and two images in real editor checks. Do not add a second editable guide or an arbitrary file fallback.
 

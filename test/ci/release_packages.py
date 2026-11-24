@@ -32,11 +32,12 @@ def fresh_output(directory):
     directory.mkdir()
 
 
-def archive_cli(extracted, output, version, platform):
+def archive_cli(extracted, output, version, platform, program="catalogctl"):
     """Write a regular-file-only archive with the existing image notices."""
-    if platform not in candidate.PLATFORMS or not version or any(c not in "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ._+-" for c in version):
+    platforms = candidate.PLATFORMS if program == "catalogd" else (*candidate.PLATFORMS, "darwin/amd64", "darwin/arm64")
+    if program not in ("catalogctl", "catalogd", "catalog-deploy") or platform not in platforms or not version or any(c not in "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ._+-" for c in version):
         raise ValueError("Invalid CLI archive identity")
-    files = [extracted / "catalogctl", extracted / "licenses", *sorted((extracted / "licenses").rglob("*"))]
+    files = [extracted / program, extracted / "licenses", *sorted((extracted / "licenses").rglob("*"))]
     if not (extracted / "licenses/project/LICENSE").is_file():
         raise ValueError("Missing CLI project license")
     if any(p.is_symlink() or not (p.is_dir() or p.is_file()) for p in files):
@@ -44,21 +45,23 @@ def archive_cli(extracted, output, version, platform):
     files = [p for p in files if p.is_file()]
     if len(files) > 20000 or sum(p.stat().st_size for p in files) > 512 << 20:
         raise ValueError("CLI archive exceeds bounds")
-    path = output / ("catalogctl-" + version + "-" + platform.replace("/", "-") + ".tar.gz")
+    path = output / (program + "-" + version + "-" + platform.replace("/", "-") + ".tar.gz")
     with path.open("xb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0, filename="") as compressed, tarfile.open(fileobj=compressed, mode="w|") as archive:
         for file in files:
             item = tarfile.TarInfo(file.relative_to(extracted).as_posix())
-            item.size, item.mode = file.stat().st_size, 0o555 if item.name == "catalogctl" else 0o644
+            item.size, item.mode = file.stat().st_size, 0o555 if item.name == program else 0o644
             with file.open("rb") as source:
                 archive.addfile(item, source)
     return path
 
 
-def unpack_cli(artifact, extracted, directory):
+def unpack_cli(artifact, extracted, directory, program="catalogctl"):
     """Check every archive payload against inspected input before native use."""
-    expected = {"catalogctl": extracted / "catalogctl"}
+    if program not in ("catalogctl", "catalogd", "catalog-deploy"):
+        raise ValueError("Invalid archive program")
+    expected = {program: extracted / program}
     expected.update({p.relative_to(extracted).as_posix(): p for p in (extracted / "licenses").rglob("*") if p.is_file()})
-    if (not expected["catalogctl"].is_file() or "licenses/project/LICENSE" not in expected
+    if (not expected[program].is_file() or "licenses/project/LICENSE" not in expected
             or any(p.is_symlink() for p in expected.values())):
         raise ValueError("Invalid inspected CLI input")
     directory.mkdir()
@@ -68,7 +71,7 @@ def unpack_cli(artifact, extracted, directory):
             raise ValueError("CLI archive members mismatch")
         for member in members:
             source = expected[member.name]
-            mode = 0o555 if member.name == "catalogctl" else 0o644
+            mode = 0o555 if member.name == program else 0o644
             if not member.isreg() or member.mode != mode or member.size != source.stat().st_size:
                 raise ValueError("CLI archive type, mode or size mismatch")
             # Only independently enumerated inspected paths can be written;
@@ -83,7 +86,7 @@ def unpack_cli(artifact, extracted, directory):
             if digest.hexdigest() != candidate.digest(source):
                 raise ValueError("CLI archive payload mismatch: " + member.name)
             target.chmod(mode)
-    return directory / "catalogctl"
+    return directory / program
 
 
 def smoke_cli(executable, build):
@@ -93,10 +96,12 @@ def smoke_cli(executable, build):
     subprocess.run([str(executable), "--help"], check=True, capture_output=True, timeout=30)
 
 
-def cli_package(directory, platform, *, image=None, descriptor=None):
+def cli_package(directory, platform, *, image=None, descriptor=None, include_standalone=False):
     source = admission.source_identity(ROOT)
     if platform not in candidate.PLATFORMS or bool(image) == bool(descriptor):
         raise ValueError("Select one local image or retained backend candidate")
+    if include_standalone and not descriptor:
+        raise ValueError("Standalone releases require a sealed candidate")
     if descriptor:
         value = candidate.read_candidate(descriptor, identity=source, product="backend", platform=platform)
         candidate.run(["docker", "image", "load", "--input", str(descriptor.parent / "image.tar")])
@@ -120,6 +125,10 @@ def cli_package(directory, platform, *, image=None, descriptor=None):
             executable = unpack_cli(archive, extracted, extracted / "unpacked")
             if platform == "linux/amd64":
                 smoke_cli(executable, build)
+            if include_standalone:
+                import release_standalone
+
+                release_standalone.extra_archives(extracted, directory, build, source, inspected["imageId"], platform.split("/")[1])
         receipt = {"kind": "cli", "source": source, "build": build, "platform": platform,
                    "imageId": inspected["imageId"], "artifact": archive.name, "sha256": candidate.digest(archive),
                    "releaseCandidate": descriptor is not None, "result": "success"}
@@ -185,6 +194,7 @@ def main():
     selected = cli.add_mutually_exclusive_group(required=True)
     selected.add_argument("--image")
     selected.add_argument("--candidate", type=Path)
+    cli.add_argument("--standalone", action="store_true", help="also build server, coordinator, macOS CLI and Skill downloads")
     cli.add_argument("--output", type=Path, required=True)
     editor = sub.add_parser("editor")
     editor.add_argument("--output", type=Path, required=True)
@@ -192,7 +202,7 @@ def main():
     if args.command == "editor":
         check_editor(args.output.absolute())
     else:
-        cli_package(args.output.absolute(), args.platform, image=args.image, descriptor=args.candidate)
+        cli_package(args.output.absolute(), args.platform, image=args.image, descriptor=args.candidate, include_standalone=args.standalone)
 
 
 if __name__ == "__main__":

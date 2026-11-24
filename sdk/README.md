@@ -1,6 +1,6 @@
 # SDK overview
 
-Use a Catalog SDK to read discovery metadata, search resources and call authorized control operations from your application. Choose Go, Python, JavaScript/TypeScript or Rust. Packages are available from this repository; no SDK package has been published to a registry.
+Use a Catalog SDK to read discovery metadata, search resources and call authorized control operations from your application. Choose Go, Python, JavaScript/TypeScript or Rust. Use the [SDK downloads and checksums](../documentation/src/content/docs/contributing/build-and-release.md#download-release-packages) for a published version, or build from the checkout. The release workflow does not publish SDKs to language registries.
 
 The SDKs derive their operations from the [Control OpenAPI contract](../api/openapi/control-v1.yaml), including host-bound ARD discovery. Rust supports typed reusable-draft export through `Client::export_version_revision_draft`; follow [Export a reusable draft](rust/README.md#export-a-reusable-draft) for permissions and response limits. SDKs do not install, invoke or deploy discovered resources. The service and CLI build independently of these packages.
 

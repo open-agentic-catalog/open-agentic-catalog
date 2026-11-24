@@ -2,6 +2,7 @@
 
 import copy
 import json
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
@@ -10,6 +11,8 @@ from unittest.mock import patch
 import admission as a
 import candidate as c
 import release_delivery as r
+import release_packages
+import release_standalone
 
 SOURCE = {"commit": "a" * 40, "sourceSha256": "b" * 64}
 
@@ -140,7 +143,7 @@ class AdmissionTests(unittest.TestCase):
                         a.qualify_sdk(root, "typescript", "run-1", SOURCE)
 
     def test_same_source_and_all_results_are_required_for_release(self):
-        results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime"), "success")
+        results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime", "native"), "success")
         self.assertEqual(c.release_results(SOURCE, results)["source"], SOURCE)
         for key in results:
             for bad in (None, "failure", "cancelled", "skipped"):
@@ -220,6 +223,12 @@ class AdmissionTests(unittest.TestCase):
                 (target / "image.tar").write_bytes(b"archive")
                 (target / "inventory.spdx.json").write_text("{}")
                 (target / "scan-summary.json").write_text(json.dumps({"outcome": "passed", "imageId": image_id, "platform": "linux/" + arch}))
+                if product == "backend":
+                    notice = target / "licenses/fixture/project/LICENSE"
+                    notice.parent.mkdir(parents=True)
+                    notice.write_bytes(b"license")
+                    binaries = {binary: {"sha256": hashlib.sha256(binary.encode()).hexdigest()} for binary in ("catalogd", "catalogctl")}
+                    (target / "inspection.json").write_text(json.dumps({"imageId": image_id, "platform": "linux/" + arch, "binaries": binaries}))
                 value = {"schemaVersion": 1, "product": product, "platform": "linux/" + arch, "imageId": image_id,
                          "build": build, "source": SOURCE, "checks": dict.fromkeys(("inspection", "sbom", "scan"), "success"),
                          "files": c.inventory(target)}
@@ -227,7 +236,10 @@ class AdmissionTests(unittest.TestCase):
         for language in a.LANGUAGES:
             target = directory / language
             target.mkdir()
-            names = {"go": ["client-go.tar.gz"], "python": ["client.whl", "client.tar.gz"], "typescript": ["client.tgz"], "rust": ["client.crate"]}[language]
+            python_base = base.replace("-rc.", "rc")
+            names = {"go": [f"open-agentic-catalog-go-{base}.tar.gz"],
+                     "python": [f"open_agentic_catalog-{python_base}-py3-none-any.whl", f"open_agentic_catalog-{python_base}.tar.gz"],
+                     "typescript": [f"open-agentic-catalog-client-{base}.tgz"], "rust": [f"open-agentic-catalog-{base}.crate"]}[language]
             artifacts = {}
             for name in names:
                 (target / name).write_bytes(language.encode())
@@ -254,17 +266,37 @@ class AdmissionTests(unittest.TestCase):
         for arch in ("amd64", "arm64"):
             target = directory / ("cli-" + arch)
             target.mkdir()
-            name = "catalogctl-" + base + "-linux-" + arch + ".tar.gz"
-            (target / name).write_bytes(b"cli")
-            (target / "cli.json").write_text(json.dumps({"kind": "cli", "source": SOURCE, "build": build,
-                "platform": "linux/" + arch, "imageId": images["backend-" + arch], "artifact": name,
-                "sha256": c.digest(target / name), "releaseCandidate": True, "result": "success"}))
+            extras = {}
+            with tempfile.TemporaryDirectory() as temporary:
+                inspected = Path(temporary)
+                (inspected / "licenses/project").mkdir(parents=True)
+                (inspected / "licenses/project/LICENSE").write_bytes(b"license")
+                for system in ("linux", "darwin"):
+                    platform = system + "/" + arch
+                    native = {}
+                    for program in (("catalogctl", "catalog-deploy", "catalogd") if system == "linux" else ("catalogctl", "catalog-deploy")):
+                        binary = inspected / program
+                        binary.write_bytes(program.encode())
+                        archive = release_packages.archive_cli(inspected, target, base, platform, program)
+                        checksum = c.digest(archive)
+                        native[archive.name] = checksum
+                        if program == "catalogctl" and system == "linux":
+                            (target / "cli.json").write_text(json.dumps({"kind": "cli", "source": SOURCE, "build": build,
+                                "platform": platform, "imageId": images["backend-" + arch], "artifact": archive.name,
+                                "sha256": checksum, "releaseCandidate": True, "result": "success"}))
+                        else:
+                            extras[archive.name] = {"sha256": checksum, "binarySha256": c.digest(binary)}
+                    (directory / f"native-{system}-{arch}.json").write_text(json.dumps({"source": SOURCE, "platform": platform, "files": native}))
+            if arch == "amd64":
+                skill = release_standalone.skill_archive(target, base)
+                extras[skill.name] = {"sha256": c.digest(skill)}
+            (target / "standalone.json").write_text(json.dumps({"source": SOURCE, "build": build, "imageId": images["backend-" + arch], "arch": arch, "files": extras}))
         target = directory / "editor"
         target.mkdir()
         name = "open-agentic-catalog-" + base + ".vsix"
         (target / name).write_bytes(b"vsix")
         (target / "editor.json").write_text(json.dumps({"kind": "editor", "source": SOURCE, "releaseBase": base,
-            "artifact": name, "sha256": c.digest(target / name), "sdkSha256": c.digest(directory / "typescript/client.tgz"),
+            "artifact": name, "sha256": c.digest(target / name), "sdkSha256": c.digest(directory / "typescript" / f"open-agentic-catalog-client-{base}.tgz"),
             "result": "success", "cleanup": "passed"}))
         return images
 
@@ -273,14 +305,14 @@ class AdmissionTests(unittest.TestCase):
             directory = Path(temporary) / "inputs"
             directory.mkdir()
             images = self.release_fixture(directory)
-            results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime"), "success")
+            results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime", "native"), "success")
             output = Path(temporary) / "complete"
             result = r.assemble(directory, results, output)
             self.assertEqual(result["images"], images)
             self.assertEqual(set(result["runtime"]), set(r.SUITES))
             self.assertTrue((output / "release-evidence.tar.gz").is_file())
             self.assertIn("charts/open-agentic-catalog-0.1.0.tgz", result["files"])
-            self.assertIn("sdk/rust/client.crate", result["files"])
+            self.assertIn(f"sdk/rust/open-agentic-catalog-{result['build']['version']}.crate", result["files"])
             (directory / "runtime-ui-oidc.json").unlink()
             with self.assertRaisesRegex(ValueError, "Missing runtime"):
                 r.assemble(directory, results, Path(temporary) / "missing")
@@ -335,11 +367,17 @@ class AdmissionTests(unittest.TestCase):
             (directory / "release-evidence.tar.gz").write_bytes(b"evidence")
             checksums = r.public_checksums(directory, value)
             (directory / "SHA256SUMS").write_text(checksums)
-            environment = {"GITHUB_EVENT_NAME": "push", "GITHUB_REPOSITORY": a.REPOSITORY, "RELEASE_PUBLISH_ENABLED": "true", "GITHUB_ACTIONS": "true", "RELEASE_PUBLISH": "true", "GITHUB_REF": "refs/tags/v0.1.0", "GITHUB_SHA": SOURCE["commit"]}
+            environment = {"GITHUB_EVENT_NAME": "workflow_dispatch", "INPUT_UPLOAD": "true", "INPUT_PUBLISH": "true",
+                           "GITHUB_REPOSITORY": a.REPOSITORY, "RELEASE_PUBLISH_ENABLED": "true", "GITHUB_ACTIONS": "true", "RELEASE_PUBLISH": "true", "GITHUB_REF": "refs/tags/v0.1.0", "GITHUB_SHA": SOURCE["commit"]}
             self.assertEqual(r.delivery_plan(directory, environment), value)
             for key, wrong in (("GITHUB_REF", "refs/heads/main"), ("GITHUB_SHA", "d" * 40), ("ACT", "true")):
                 with self.assertRaises(ValueError):
                     r.delivery_plan(directory, {**environment, key: wrong})
+            modified = {**value, "build": {**value["build"], "sourceState": "modified"}}
+            (directory / "release.json").write_text(json.dumps(modified))
+            with self.assertRaisesRegex(ValueError, "Delivery tag/source mismatch"):
+                r.delivery_plan(directory, environment)
+            (directory / "release.json").write_text(json.dumps(value))
             (directory / "SHA256SUMS").write_text("substituted checksums")
             with self.assertRaisesRegex(ValueError, "checksums changed"):
                 r.delivery_plan(directory, environment)

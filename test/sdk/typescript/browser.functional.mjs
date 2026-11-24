@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { once } from "node:events";
+import { listenFixture } from "../../vscode/listen.mjs";
 import { pathToFileURL } from "node:url";
 import { chromium } from "../../../sdk/typescript/node_modules/playwright/index.mjs";
 async function qualifyBrowserControl(consumer) {
@@ -43,8 +43,7 @@ async function qualifyBrowserControl(consumer) {
   });
   let browser;
   try {
-    server.listen(0, "127.0.0.1");
-    await once(server, "listening");
+    await listenFixture(server);
     browser = await chromium.launch({ headless: true, timeout: 10000 });
     const context = await browser.newContext();
     const ownedOrigin = `http://127.0.0.1:${server.address().port}`;
@@ -196,8 +195,7 @@ async function qualifyBrowserLimits(consumer) {
   });
   let browser;
   try {
-    server.listen(0, "127.0.0.1");
-    await once(server, "listening");
+    await listenFixture(server);
     const origin = `http://127.0.0.1:${server.address().port}`;
     browser = await chromium.launch({ headless: true, timeout: 10000 });
     const context = await browser.newContext();
@@ -410,8 +408,7 @@ export async function qualifyCatalogBrowser(consumer, apiOrigin, releaseIDs) {
   });
   let browser;
   try {
-    server.listen(0, "127.0.0.1");
-    await once(server, "listening");
+    await listenFixture(server);
     const ownedOrigin = `http://127.0.0.1:${server.address().port}`;
     browser = await chromium.launch({ headless: true, timeout: 10000 });
     const context = await browser.newContext();

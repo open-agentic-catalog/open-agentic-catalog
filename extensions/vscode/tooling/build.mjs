@@ -75,11 +75,12 @@ const options = {
 if (mode === "watch") {
   const watcher = await context(options);
   await watcher.watch();
-  await new Promise((done) => {
-    for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, done);
+  const exitCode = await new Promise((resolve) => {
+    process.once("SIGINT", () => resolve(130));
+    process.once("SIGTERM", () => resolve(143));
   });
   await watcher.dispose();
-  process.exit(0);
+  process.exit(exitCode);
 }
 const bundle = await build(options);
 const packages = new Set();

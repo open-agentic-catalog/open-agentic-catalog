@@ -13,6 +13,7 @@ import admission as a
 import candidate as c
 import release_delivery as r
 import release_packages as p
+import release_standalone as standalone
 import test_unit_admission as fixtures
 
 SOURCE = fixtures.SOURCE
@@ -26,7 +27,8 @@ class ReleaseTests(unittest.TestCase):
             self.addCleanup(guard.stop)
 
     def test_event_table_requires_exact_ref_and_explicit_activation(self):
-        base = {"GITHUB_REPOSITORY": a.REPOSITORY, "GITHUB_REF": "refs/tags/v0.1.0", "GITHUB_EVENT_NAME": "push"}
+        base = {"GITHUB_REPOSITORY": a.REPOSITORY, "GITHUB_REF": "refs/tags/v0.1.0",
+                "GITHUB_EVENT_NAME": "workflow_dispatch", "INPUT_UPLOAD": "true", "INPUT_PUBLISH": "true"}
         self.assertEqual(a.release_intent(base, "0.1.0"), {"upload": True, "publish": False})
         enabled = {**base, "RELEASE_PUBLISH_ENABLED": "true"}
         self.assertTrue(a.release_intent(enabled, "0.1.0")["publish"])
@@ -34,7 +36,7 @@ class ReleaseTests(unittest.TestCase):
                             "GITHUB_REPOSITORY": ("fork/catalog", "")}.items():
             for value in values:
                 self.assertFalse(a.release_intent({**enabled, key: value}, "0.1.0")["publish"])
-        for event in ("pull_request", "pull_request_target", "release", ""):
+        for event in ("push", "pull_request", "pull_request_target", "release", ""):
             with self.assertRaises(ValueError):
                 a.release_intent({**enabled, "GITHUB_EVENT_NAME": event}, "0.1.0")
         for ref in ("refs/heads/main", "refs/tags/v0.2.0", "refs/tags/0.1.0", "refs/tags/v0.1.0/extra"):
@@ -56,7 +58,7 @@ class ReleaseTests(unittest.TestCase):
         inputs = root / "inputs"
         inputs.mkdir()
         fixtures.AdmissionTests().release_fixture(inputs)
-        results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime"), "success")
+        results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime", "native"), "success")
         with patch.object(a, "source_identity", return_value=SOURCE):
             value = r.assemble(inputs, results, root / "release")
         return inputs, root / "release", value
@@ -65,8 +67,10 @@ class ReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             _, directory, value = self.fixture(Path(tmp))
             assets = r.public_assets(directory, value)
-            self.assertEqual(len(assets), 12)
-            self.assertTrue({"client-go.tar.gz", "catalogctl-0.1.0-linux-arm64.tar.gz", "open-agentic-catalog-0.1.0.vsix"} <= assets.keys())
+            self.assertEqual(len(assets), 21)
+            version = (r.ROOT / "VERSION").read_text().strip()
+            self.assertTrue({f"open-agentic-catalog-go-{version}.tar.gz", f"catalogctl-{version}-linux-arm64.tar.gz",
+                             f"open-agentic-catalog-{version}.vsix"} <= assets.keys())
             lines = (directory / "SHA256SUMS").read_text().splitlines()
             self.assertEqual({line.split("  ")[1] for line in lines}, set(assets))
             for line in lines:
@@ -77,7 +81,7 @@ class ReleaseTests(unittest.TestCase):
                 self.assertFalse(any(n.endswith(("image.tar", ".vsix", ".crate", ".whl", ".tgz")) for n in archive.getnames()))
             self.assertIn("images/backend-amd64/image.tar", value["files"])
             changed = copy.deepcopy(value)
-            changed["files"]["sdk/python/client.tgz"] = "hash"
+            changed["files"][f"sdk/python/open-agentic-catalog-client-{version}.tgz"] = "hash"
             with self.assertRaisesRegex(ValueError, "collision"):
                 r.public_assets(directory, changed)
 
@@ -98,7 +102,7 @@ class ReleaseTests(unittest.TestCase):
                     key = {"editor-sdk": "sdkSha256", "editor-cleanup": "cleanup", "editor-version": "releaseBase", "cli-platform": "platform", "cli-image": "imageId"}[field]
                     value[key] = "changed"
                     receipt.write_text(json.dumps(value))
-                results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime"), "success")
+                results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime", "native"), "success")
                 with self.assertRaises(ValueError):
                     r.assemble(inputs, results, root / "output")
                 self.assertFalse((root / "output").exists())
@@ -168,6 +172,86 @@ class ReleaseTests(unittest.TestCase):
                         archive.addfile(member, io.BytesIO(b"secret"))
                 with self.assertRaisesRegex(ValueError, "CLI archive (payload|type|members)"):
                     p.unpack_cli(artifact, extracted, root / "unpacked")
+
+    def test_chart_handoff_rejects_an_unplanned_chart_even_if_its_digest_matches(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(a, "source_identity", return_value=SOURCE):
+            root = Path(tmp)
+            inputs, _, _ = self.fixture(root)
+            receipt = inputs / "charts/qualification.json"
+            state = json.loads(receipt.read_text())
+            old = next(name for name in state["files"] if "monitoring" in name)
+            new = "open-agentic-catalog-unplanned-0.1.0.tgz"
+            state["files"][new] = state["files"].pop(old)
+            receipt.with_name(old).rename(receipt.with_name(new))
+            receipt.write_text(json.dumps(state))
+            with self.assertRaisesRegex(ValueError, "chart packages"):
+                r.chart_result(receipt.parent)
+            results = dict.fromkeys(("clients", "security", "source", "runtime", "candidates", "native", "charts"), "success")
+            with self.assertRaisesRegex(ValueError, "chart qualification"):
+                r.assemble(inputs, results, root / "other")
+
+    def test_new_downloads_require_exact_native_results_image_bytes_and_skill(self):
+        for fault in ("missing-host", "stale-run", "foreign-archive", "changed-image-bytes", "extra-skill", "missing-arch"):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp, patch.object(a, "source_identity", return_value=SOURCE):
+                root = Path(tmp)
+                inputs = root / "inputs"
+                inputs.mkdir()
+                fixtures.AdmissionTests().release_fixture(inputs)
+                receipt = inputs / "native-darwin-arm64.json"
+                if fault == "missing-host":
+                    receipt.unlink()
+                elif fault == "missing-arch":
+                    (inputs / "cli-arm64/standalone.json").unlink()
+                elif fault in ("stale-run", "foreign-archive"):
+                    native = json.loads(receipt.read_text())
+                    if fault == "stale-run":
+                        native["source"]["commit"] = "1" * 40
+                    else:
+                        native["files"][next(iter(native["files"]))] = "a" * 64
+                    receipt.write_text(json.dumps(native))
+                elif fault == "changed-image-bytes":
+                    receipt = inputs / "backend-amd64/candidate.json"
+                    inspection = receipt.with_name("inspection.json")
+                    metadata = json.loads(inspection.read_text())
+                    metadata["binaries"]["catalogd"]["sha256"] = "b" * 64
+                    inspection.write_text(json.dumps(metadata))
+                    descriptor = json.loads(receipt.read_text())
+                    descriptor["files"]["inspection.json"] = c.digest(inspection)
+                    receipt.write_text(json.dumps(descriptor))
+                else:
+                    skill = next((inputs / "cli-amd64").glob("catalog-discovery-skill-*.tar.gz"))
+                    with tarfile.open(skill, "w:gz") as archive:
+                        archive.addfile(tarfile.TarInfo("unexpected.txt"))
+                results = dict.fromkeys(("clients", "security", "source", "runtime", "candidates", "native", "charts"), "success")
+                with self.assertRaises((ValueError, FileNotFoundError)):
+                    r.assemble(inputs, results, root / "assembled")
+                self.assertFalse((root / "assembled").exists())
+
+    def test_native_package_check_refuses_emulation_and_mislabeled_headers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.object(standalone.platform, "system", return_value="Linux"), patch.object(standalone.platform, "machine", return_value="x86_64"):
+                with self.assertRaisesRegex(ValueError, "matching native host"):
+                    standalone.check_native(root, "darwin/amd64", root / "receipt")
+            binary = root / "program"
+            binary.write_bytes(bytes.fromhex("cffaedfe07000001") + bytes(12))
+            standalone.verify_architecture(binary, "darwin/amd64")
+            for target in ("darwin/arm64", "linux/amd64"):
+                with self.assertRaisesRegex(ValueError, "architecture"):
+                    standalone.verify_architecture(binary, target)
+
+    def test_packaged_server_must_report_the_candidate_build_state(self):
+        server = Path("/owned/unpacked/catalogd")
+        build = {"version": "0.1.0", "commit": "a" * 40}
+        for state in ("clean", "modified"):
+            stamp = f"open-agentic-catalog 0.1.0 ({build['commit']}) [{state}]\n"
+            with self.subTest(state=state), patch.object(standalone.subprocess, "check_output", return_value=stamp) as run:
+                exact = {**build, "sourceState": state}
+                standalone.smoke_server_version(server, exact)
+                run.assert_called_once_with([server, "version"], text=True, timeout=30)
+                for change in ({"sourceState": "modified" if state == "clean" else "clean"}, {"commit": "b" * 40}, {"version": "0.2.0"}):
+                    with self.subTest(change=change), self.assertRaisesRegex(ValueError, "Wrong packaged server build"):
+                        standalone.smoke_server_version(server, {**exact, **change})
 
     def test_unpacked_cli_smoke_requires_exact_build_and_help_success(self):
         build = {"version": "0.1.0", "commit": "a" * 40, "sourceState": "modified"}
@@ -277,9 +361,11 @@ class ReleaseTests(unittest.TestCase):
     def test_remote_tag_peels_annotations_and_rejects_noncommits(self):
         values = [{"object": {"type": "tag", "sha": "c" * 40}}, {"object": {"type": "commit", "sha": SOURCE["commit"]}}]
         with patch.object(r.subprocess, "check_output", side_effect=[json.dumps(v) for v in values]):
-            self.assertEqual(r.destination_commit("0.1.0"), SOURCE["commit"])
+            self.assertEqual(r.destination_commit("0.1.0", "c" * 40), SOURCE["commit"])
         with patch.object(r.subprocess, "check_output", return_value=json.dumps({"object": {"type": "tree", "sha": "d" * 40}})), self.assertRaises(ValueError):
-            r.destination_commit("0.1.0")
+            r.destination_commit("0.1.0", "c" * 40)
+        with patch.object(r.subprocess, "check_output", return_value=json.dumps(values[0])), self.assertRaisesRegex(ValueError, "differs"):
+            r.destination_commit("0.1.0", "a" * 40)
 
     def test_rc_packages_keep_their_base_while_chart_versions_remain_independent(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -314,6 +400,16 @@ class ReleaseTests(unittest.TestCase):
             with patch.object(r.subprocess, "check_output", return_value=json.dumps(record)), patch.object(r.subprocess, "run", side_effect=changed), self.assertRaisesRegex(ValueError, "different asset"):
                 r.existing_assets("0.1.0", [package])
 
+    def test_unexpected_duplicate_or_premature_assets_refuse_delivery(self):
+        for names in (["qualified.tgz", "extra.bin"], ["qualified.tgz", "qualified.tgz"], ["release.json"]):
+            with self.subTest(names=names), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                paths = [root / "qualified.tgz", root / "release.json"]
+                paths[0].write_bytes(b"qualified")
+                state = {"tagName": "v0.1.0", "isDraft": True, "assets": [{"name": name} for name in names]}
+                with patch.object(r.subprocess, "check_output", return_value=json.dumps(state)), self.assertRaises(ValueError):
+                    r.existing_assets("0.1.0", paths)
+
     def test_editor_command_discards_stale_report_before_running_tests_and_refuses_failure(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(p, "ROOT", Path(tmp)), patch.object(a, "source_identity", return_value=SOURCE):
             root = Path(tmp)
@@ -333,7 +429,9 @@ class ReleaseTests(unittest.TestCase):
             with self.subTest(interrupted=interrupted), tempfile.TemporaryDirectory() as tmp:
                 _, directory, value = self.fixture(Path(tmp))
                 manifests, digests, tags, calls = {}, {}, {}, []
-                uploads = [True]
+                uploaded = {}
+                originals = {p.name: c.digest(p) for p in (directory / "SHA256SUMS", directory / "release.json")}
+                asset_attempts = []
                 fail = [interrupted]
                 reads = []
                 def inspect(reference):
@@ -359,11 +457,19 @@ class ReleaseTests(unittest.TestCase):
                         digests[target] = "sha256:" + hashlib.sha256(target.encode()).hexdigest()
                     elif args[:3] == ["gh", "release", "upload"]:
                         self.assertNotIn("--clobber", args)
-                        uploads[0] = False
+                        paths = [Path(p) for p in args[args.index("--repo") + 2:]]
+                        asset_attempts.append([p.name for p in paths])
+                        for p in paths:
+                            uploaded[p.name] = p.read_bytes()
+                            if interrupted and p.name == "release.json" and len(asset_attempts) == 1:
+                                raise OSError("fixture interrupted asset upload")
                     else:
                         self.fail("Unexpected delivery operation: " + str(args[:3]))
-                def assets(*args):
-                    return {"draft": True, "missing": [*r.public_assets(directory, value).values(), directory / "SHA256SUMS"] if uploads[0] else []}
+                def assets(version, paths):
+                    for p in paths:
+                        if p.name in uploaded:
+                            self.assertEqual(uploaded[p.name], p.read_bytes())
+                    return {"draft": True, "missing": [p for p in paths if p.name not in uploaded]}
                 with patch.object(r, "delivery_plan", return_value=value), patch.object(r, "destination_commit", return_value=SOURCE["commit"]), \
                         patch.object(r, "existing_assets", side_effect=assets), patch.object(r, "registry_manifest", side_effect=inspect), \
                         patch.object(r, "registry_digest", side_effect=lambda target: digests[target]), patch.object(r.subprocess, "run", side_effect=execute):
@@ -374,9 +480,21 @@ class ReleaseTests(unittest.TestCase):
                         self.assertEqual(record["result"], "incomplete")
                         self.assertIn("index-backend", record["completed"])
                         calls.clear()
+                        with self.assertRaisesRegex(OSError, "interrupted asset upload"):
+                            r.publish(directory)
                     r.publish(directory)
                     if interrupted:
                         self.assertFalse(any("push" in args and "/open-agentic-catalog:" in args[-1] for args in calls))
+                    public_manifest = json.loads(uploaded["release.json"])
+                    self.assertEqual({key: public_manifest.pop(key) for key in ("indexDigests", "platformDigests")},
+                                     {"indexDigests": {p: digests[r.image_target(p, value["build"]["version"])] for p in c.PRODUCTS},
+                                      "platformDigests": {key: digests[r.image_target(key.split("-")[0], value["build"]["version"], key.split("-")[1])] for key in value["images"]}})
+                    self.assertEqual(public_manifest, value)
+                    self.assertEqual(originals, {name: c.digest(directory / name) for name in originals})
+                    self.assertEqual(uploaded["SHA256SUMS"].decode().splitlines(), [
+                        hashlib.sha256(uploaded[name]).hexdigest() + "  " + name for name in sorted(uploaded) if name != "SHA256SUMS"])
+                    if interrupted:
+                        self.assertNotIn("release.json", asset_attempts[1])
                     self.assertEqual(json.loads((directory / "delivery-result.json").read_text())["result"], "success")
                     calls.clear()
                     r.publish(directory)

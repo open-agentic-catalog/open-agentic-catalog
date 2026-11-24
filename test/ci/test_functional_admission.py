@@ -168,6 +168,73 @@ class AdmissionFunctionalTests(unittest.TestCase):
 
 
 class ReleaseTagFunctionalTests(unittest.TestCase):
+    def test_release_ssh_signer_tag_target_and_main_ancestry(self):
+        with tempfile.TemporaryDirectory(prefix="catalog-release-signing-") as temporary:
+            base = Path(temporary)
+            root = base / "repository"
+            root.mkdir()
+            def git(*args):
+                return subprocess.check_output(["git", "-C", root, *args], timeout=20, text=True).strip()
+            git("init", "-q", "-b", "main")
+            git("config", "user.name", "Release fixture")
+            git("config", "user.email", "fixture@example.invalid")
+            git("config", "commit.gpgsign", "false")
+            git("config", "gpg.format", "ssh")
+            git("config", "tag.gpgsign", "false")
+            (root / "VERSION").write_text("0.1.0\n")
+            git("add", "VERSION")
+            git("commit", "-qm", "Initial version")
+            commit = git("rev-parse", "HEAD")
+            git("update-ref", "refs/remotes/origin/main", commit)
+            for name in ("trusted", "other"):
+                subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", base / name], check=True, timeout=20)
+            signers = base / "allowed"
+            signers.write_text('fixture namespaces="git" ' + (base / "trusted.pub").read_text())
+            tag = "v0.1.0"
+            def sign(key, name=tag):
+                git("-c", "user.signingkey=" + str(base / key), "tag", "-fs", name, "-m", "Fixture release")
+            sign("trusted")
+            self.assertEqual(a.verified_release_tag(root, commit, signers), git("rev-parse", tag))
+            with self.assertRaises(ValueError):
+                a.verified_release_tag(root, "0" * 40, signers)
+            for kind in ("lightweight", "unsigned", "unknown signer", "renamed", "off main"):
+                with self.subTest(kind=kind):
+                    if kind == "lightweight":
+                        git("tag", "-f", tag)
+                    elif kind == "unsigned":
+                        git("tag", "-fa", tag, "-m", "Unsigned fixture")
+                    elif kind == "unknown signer":
+                        sign("other")
+                    elif kind == "renamed":
+                        sign("trusted", "other-name")
+                        git("update-ref", "refs/tags/" + tag, git("rev-parse", "other-name"))
+                    else:
+                        git("commit", "--allow-empty", "-qm", "Outside protected main")
+                        commit = git("rev-parse", "HEAD")
+                        sign("trusted")
+                    with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+                        a.verified_release_tag(root, commit, signers)
+
+    def test_qualification_selects_one_complete_attempt(self):
+        script = a.ROOT / "test/ci/admission.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for attempt in ("100-1", "100-2"):
+                selected = directory / attempt
+                selected.mkdir()
+                cmd = [sys.executable, "-B", script, "release-inputs", "--key", attempt]
+                pattern = subprocess.check_output(cmd, text=True).strip()
+                self.assertTrue(pattern.startswith("pattern={") and pattern.endswith("}"))
+                names = pattern[len("pattern={"):-1].split(",")
+                self.assertEqual(len(set(names)), 19)
+                for name in names:
+                    self.assertIn("-" + attempt, name)
+                    (selected / name).mkdir()
+                check = [*cmd, "--directory", selected]
+                subprocess.run(check, check=True)
+                (selected / names[0]).rename(selected / "candidate-100-9-backend-amd64")
+                self.assertNotEqual(subprocess.run(check, capture_output=True).returncode, 0)
+
     def test_annotated_fixture_tag_resolves_commit_and_dirty_source_still_refuses(self):
         import importlib.util
         spec = importlib.util.spec_from_file_location("release_fixture_versioning", a.ROOT / "test/packaging/versioning.py")
@@ -204,7 +271,7 @@ class ReleaseTagFunctionalTests(unittest.TestCase):
             inputs = root / "inputs"
             inputs.mkdir()
             fixtures.AdmissionTests().release_fixture(inputs)
-            results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime"), "success")
+            results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime", "native"), "success")
             assembled = root / "assembled"
             value = delivery.assemble(inputs, results, assembled)
             downloads = root / "downloads"
@@ -214,7 +281,12 @@ class ReleaseTagFunctionalTests(unittest.TestCase):
             shutil.copyfile(assembled / "SHA256SUMS", downloads / "SHA256SUMS")
             result = subprocess.run(["sha256sum", "-c", "SHA256SUMS"], cwd=downloads, capture_output=True, timeout=20)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(len(result.stdout.splitlines()), 12)
-            (downloads / "open-agentic-catalog-0.1.0.vsix").write_bytes(b"changed")
-            failed = subprocess.run(["sha256sum", "-c", "SHA256SUMS"], cwd=downloads, capture_output=True, timeout=20)
+            self.assertEqual(len(result.stdout.splitlines()), 21)
+            version = (delivery.ROOT / "VERSION").read_text().strip()
+            editor = downloads / f"open-agentic-catalog-{version}.vsix"
+            self.assertTrue(editor.is_file())
+            editor.write_bytes(b"changed")
+            failed = subprocess.run(["sha256sum", "-c", "SHA256SUMS"], cwd=downloads, capture_output=True,
+                                    env={**os.environ, "LC_ALL": "C"}, timeout=20)
             self.assertNotEqual(failed.returncode, 0)
+            self.assertIn(f"{editor.name}: FAILED", failed.stdout.decode())
