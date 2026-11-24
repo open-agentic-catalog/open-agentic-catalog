@@ -1,7 +1,26 @@
 // Observe categories only: application messages, arguments, stacks and URLs remain private.
-export function browserErrors() {
+function ownsLocation(origins, value) {
+  try {
+    return (
+      typeof value === "string" &&
+      value.length <= 8192 &&
+      origins.has(new URL(value).origin)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function browserErrors(onFirst) {
   const counts = { console: 0, page: 0 };
-  const record = (kind) => {
+  const record = (kind, url, ownedOrigin) => {
+    if (onFirst && !counts.console && !counts.page) {
+      onFirst({
+        category: kind,
+        route: browserFailureLocation(url).route,
+        ownedOrigin,
+      });
+    }
     counts[kind] = Math.min(counts[kind] + 1, 1000);
   };
   return {
@@ -12,33 +31,26 @@ export function browserErrors() {
       const pages = new Map();
       const observe = (page) => {
         if (pages.has(page)) return;
-        const error = () => record("page");
+        const error = () => {
+          const url = page.url?.();
+          record("page", url, ownsLocation(ledgerOrigins, url));
+        };
         const consoleError = (message) => {
           if (message.type() !== "error") return;
           // Chromium reports failed HTTP/transport requests separately. Their
           // exact outcomes remain mandatory in the network ledger, including
           // deliberate failures. Arbitrary application console errors still fail.
-          const ledgerOwnsLocation = () => {
-            try {
-              const url = message.location().url;
-              return (
-                typeof url === "string" &&
-                url.length <= 8192 &&
-                ledgerOrigins.has(new URL(url).origin)
-              );
-            } catch {
-              return false;
-            }
-          };
+          const url = message.location().url;
+          const ownedOrigin = ownsLocation(ledgerOrigins, url);
           if (
             message.args().length === 0 &&
             /^Failed to load resource: (?:the server responded with a status of [45]\d{2} \([^\r\n)]{0,64}\)|net::ERR_[A-Z_]{1,64})$/.test(
               message.text(),
             ) &&
-            ledgerOwnsLocation()
+            ownedOrigin
           )
             return;
-          record("console");
+          record("console", url, ownedOrigin);
         };
         const close = () => {
           page.off("pageerror", error);
@@ -104,6 +116,7 @@ export function browserFailureLocation(value) {
     "troubleshooting",
     "auth",
     "docs",
+    "manual",
   ];
   return {
     protocol: ["http:", "https:", "about:", "chrome-error:"].includes(

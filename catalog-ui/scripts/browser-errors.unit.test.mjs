@@ -142,3 +142,25 @@ test("diagnostic storage is bounded and page/context shutdown detaches every lis
   f.page().emit("console", consoleEvent("private"));
   assert.deepEqual(observer.results(), [{ category: "console", count: 1000 }]);
 });
+
+test("first unexpected event reports only its route family and origin ownership", () => {
+  const events = [];
+  const observed = browserErrors((event) => events.push(event));
+  const f = fixture();
+  observed.observe(f.context, ["https://manual.invalid"]);
+  const page = f.page();
+  const url = "https://manual.invalid/manual/private-id?private-token";
+  const notice =
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable)";
+  page.emit("console", consoleEvent(notice, "error", true, url));
+  assert.deepEqual(events, []);
+  page.emit("console", consoleEvent(notice, "error", false, url));
+  page.emit("pageerror", new Error("private exception"));
+  assert.deepEqual(events, [
+    { category: "console", route: "manual", ownedOrigin: true },
+  ]);
+  assert.deepEqual(observed.results(), [
+    { category: "console", count: 1 },
+    { category: "page", count: 1 },
+  ]);
+});
