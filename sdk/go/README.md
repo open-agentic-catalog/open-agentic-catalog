@@ -11,13 +11,13 @@ For a complete consumer application, use the [Go webhook publication report](../
 Extract `open-agentic-catalog-go-<version>.tar.gz` from a published release, or use this checkout. Add a local replacement in your consumer module:
 
 ```sh
-go mod edit -require=github.com/open-agentic-catalog/open-agentic-catalog/sdk/go@v0.1.0
+go mod edit -require=github.com/open-agentic-catalog/open-agentic-catalog/sdk/go@v0.1.1
 go mod edit -replace=github.com/open-agentic-catalog/open-agentic-catalog/sdk/go=/absolute/path/to/open-agentic-catalog/sdk/go
 ```
 
 Add the SDK import from the example below before running `go mod tidy`. Otherwise, Go removes the unused requirement. Run these commands in your consumer module, not in the Catalog repository root. Normal module resolution can download runtime dependencies.
 
-Consumer builds need the declared runtime modules, not the generator, application module or test harness. The SDK uses the [Apache License 2.0](../../LICENSE). Its release base and OpenAPI `info.version` follow root `VERSION`, currently `0.1.0`. The `/api/v1` route prefix identifies the API family independently of the application release version. See [application versioning](../../documentation/src/content/docs/contributing/build-and-release.md#application-version-and-release-checks). For a release archive, point the replacement at its extracted `open-agentic-catalog-go-<version>` directory. No Go submodule tag is required.
+Consumer builds need the declared runtime modules, not the generator, application module or test harness. The SDK uses the [Apache License 2.0](../../LICENSE). Its release base and OpenAPI `info.version` follow root `VERSION`. The `/api/v1` route prefix identifies the API family independently of the application release version. See [application versioning](../../documentation/src/content/docs/contributing/build-and-release.md#application-version-and-release-checks). For a release archive, point the replacement at its extracted `open-agentic-catalog-go-<version>` directory. No Go submodule tag is required.
 
 ## Make your first request
 

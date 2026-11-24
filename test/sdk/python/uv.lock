@@ -450,7 +450,7 @@ wheels = [
 
 [[package]]
 name = "open-agentic-catalog"
-version = "0.1.0"
+version = "0.1.1"
 source = { directory = "../../../sdk/python" }
 dependencies = [
     { name = "httpx2" },

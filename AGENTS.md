@@ -327,7 +327,7 @@ Use the matching repository skill when a task needs its workflow. Keep routine l
 | Interpret or change a pinned format and qualify conformance | [Standards conformance](.agents/skills/standards-conformance/SKILL.md) |
 | Qualify independent local clients, resource consumers or Catalog peers | [Interoperability qualification](.agents/skills/interoperability-qualification/SKILL.md) |
 | Change a browser interaction or UI-host session/forwarding behavior | [UI development](.agents/skills/ui-development/SKILL.md) |
-| Change builds/configuration/Compose or start the local API/UI/docs environment | [Build and deployment](.agents/skills/build-and-deployment/SKILL.md) |
+| Change builds, configuration or Compose, start the local API/UI/docs environment, or rehearse a software release | [Build and deployment](.agents/skills/build-and-deployment/SKILL.md) |
 | Change runtime settings, capability activation, secret delivery or credential rotation | [Configuration and credentials](.agents/skills/configuration-and-credentials/SKILL.md) |
 | Review/update Helm charts or qualify installation, upgrades and Minikube behavior | [Helm and Minikube](.agents/skills/helm-and-minikube/SKILL.md) |
 | Review or update a dependency, toolchain or tool/image pin | [Dependency maintenance](.agents/skills/dependency-maintenance/SKILL.md) |

@@ -6,6 +6,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -22,6 +23,43 @@ IDENTIFIER = "sha256:" + "a" * 64
 
 
 class ChartPackagingTests(unittest.TestCase):
+    def test_release_qualification_checks_the_app_version_inside_each_archive(self):
+        app_version = (ROOT / "VERSION").read_text().strip()
+        command = [sys.executable, "-B", str(ROOT / "test/ci/release_delivery.py"), "charts", "--directory"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            correct = charts.package(root / "correct", None, app_version, HELM)
+            stale = charts.package(root / "stale", None, app_version + "-other", HELM)
+            for obsolete in stale:
+                with self.subTest(chart=obsolete.name), tempfile.TemporaryDirectory(dir=root) as selection:
+                    for current in correct:
+                        shutil.copyfile(obsolete if current.name == obsolete.name else current, Path(selection) / current.name)
+                    result = subprocess.run(command + [selection], capture_output=True, text=True, timeout=30)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(f"Packaged chart {obsolete.name}", result.stderr)
+                    self.assertFalse((Path(selection) / "qualification.json").exists())
+            subprocess.run(command + [str(root / "correct")], check=True, capture_output=True, timeout=30)
+            self.assertTrue((root / "correct/qualification.json").is_file())
+
+    def test_default_packages_keep_each_chart_version_and_use_the_supplied_app_version(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chart_dir = root / "deployments/helm"
+            versions = {"open-agentic-catalog": "1.2.3", "open-agentic-catalog-monitoring": "2.0.0-rc.1"}
+            for name, version in versions.items():
+                shutil.copytree(ROOT / "deployments/helm" / name, chart_dir / name)
+                metadata = chart_dir / name / "Chart.yaml"
+                metadata.write_text(re.sub(r"^version: .+$", "version: " + version, metadata.read_text(), flags=re.M))
+            shutil.copyfile(ROOT / "LICENSE", root / "LICENSE")
+            with patch.object(charts, "ROOT", root), patch.object(charts.monitoring, "SOURCE", chart_dir / charts.monitoring.CHART_NAME):
+                archives = charts.package(root / "packages", None, "3.0.0", HELM)
+            self.assertEqual({path.name for path in archives}, {f"{name}-{version}.tgz" for name, version in versions.items()})
+            for name, version in versions.items():
+                archive = root / "packages" / f"{name}-{version}.tgz"
+                metadata = subprocess.check_output(HELM + ["show", "chart", str(archive)], text=True, timeout=30).splitlines()
+                self.assertIn(f"version: {version}", metadata)
+                self.assertIn("appVersion: 3.0.0", metadata)
+
     def test_ignored_project_license_is_not_replaced_by_a_nested_license(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "source"

@@ -27,6 +27,10 @@ Use bounded repetition of an affected intermittent functional or browser case th
 
 Distinguish application failures from failures in test observation. A browser tool failing to retrieve a response body does not by itself establish an incorrect response or blank page. Inspect the actual exchange, rendered state, console errors and failed requests before classifying the problem.
 
+For a deliberate outage, declare the expected request before triggering it. Check its method, path, outcome and count, then verify what the reader sees after recovery. Keep a control that fails on an unrelated console or network error. [Browser outage tests](../../../catalog-ui/tests/README.md#navigation-authority-and-outage-recovery)
+
+For an editor link that fails after text wraps, test the installed extension at both widths. Click a visible part of the link and verify which document or image opens. [Installed VS Code Help tests](../../../test/vscode/README.md#build-package-and-developer-qualification)
+
 Repairs to response capture or synchronization must preserve the real application exchange and original behavioral assertions. Do not substitute synthetic success responses or remove negative controls to stabilize a test.
 
 ## Run the owning gate

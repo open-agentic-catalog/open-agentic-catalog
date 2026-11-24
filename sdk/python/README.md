@@ -16,7 +16,7 @@ python -m pip install ./sdk/python
 
 Use Python 3.12-3.14 for the virtual environment. On Windows, activate it with `.venv\Scripts\Activate.ps1` in PowerShell. An existing application environment can use the same install command.
 
-Alternatively, install a wheel built by a maintainer with `python -m pip install /absolute/path/to/open_agentic_catalog-0.1.0-py3-none-any.whl`. Replace the path and version with the actual artifact. Maintainers use `make sdk-tools-install SDK_LANGUAGE=python` before `make sdk-package SDK_LANGUAGE=python`; see [tool prerequisites](../../documentation/src/content/docs/contributing/testing.md#python-sdk-verification). Consumer installation does not run the generator or require Go, Java, a database or the UI.
+Alternatively, install a wheel built by a maintainer with `python -m pip install /absolute/path/to/open_agentic_catalog-0.1.1-py3-none-any.whl`. Replace the path and version with the actual artifact. Maintainers use `make sdk-tools-install SDK_LANGUAGE=python` before `make sdk-package SDK_LANGUAGE=python`; see [tool prerequisites](../../documentation/src/content/docs/contributing/testing.md#python-sdk-verification). Consumer installation does not run the generator or require Go, Java, a database or the UI.
 
 Run the source-install command from the repository root, or pass an absolute source path from your own Python environment. Normal pip installation can download build and runtime dependencies. Use the Catalog API origin; the optional UI host and its login cookie are not SDK credentials.
 

@@ -121,9 +121,18 @@ exports.images = async () => {
     "open-agentic-catalog.open-agentic-catalog",
   );
   assert.ok(extension);
-  for (const [name, label] of [
+  for (const [name, label, layout] of [
     ["catalog-preview.png", "Open the Catalog screenshot at full size"],
-    ["agent-conversation.png", "Open the Agent screenshot at full size"],
+    [
+      "agent-conversation.png",
+      "Open the Agent screenshot at full size",
+      "wrapped",
+    ],
+    [
+      "agent-conversation.png",
+      "Open the Agent screenshot at full size",
+      "single",
+    ],
     [
       "mcp-selection-preview.png",
       "Open the MCP selection screenshot at full size",
@@ -135,6 +144,31 @@ exports.images = async () => {
     const imageGuide = await require("./webview.cjs").webview("guide");
     try {
       const link = `[...document.querySelectorAll('a')].find(a=>a.textContent===${JSON.stringify(label)})`;
+      if (layout === "wrapped") {
+        // Exercise a real gap between line fragments using the installed
+        // guide's own text and font. Keep the physical click under test.
+        const misses = await imageGuide.evaluate(`(() => {
+          const a = ${link};
+          for (let width = 20; width <= 60; width++) {
+            a.parentElement.style.width = width + "ch";
+            a.scrollIntoView({block: "center"});
+            const r = a.getBoundingClientRect();
+            const hit = document.elementFromPoint(r.x + r.width/2, r.y + r.height/2);
+            if (a.getClientRects().length > 1 && !a.contains(hit)) return true;
+          }
+          return false;
+        })()`);
+        assert.ok(
+          misses,
+          "Wrapped Help link has a gap at its bounding-box midpoint",
+        );
+      } else if (layout === "single") {
+        await imageGuide.evaluate(`${link}.style.whiteSpace = "nowrap"`);
+        assert.equal(
+          await imageGuide.evaluate(`${link}.getClientRects().length`),
+          1,
+        );
+      }
       await imageGuide.evaluate(`${link}.scrollIntoView({block:'center'})`);
       await imageGuide.click(link);
       const workbench = await require("./webview.cjs").webview(true);

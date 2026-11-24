@@ -254,7 +254,7 @@ class AdmissionTests(unittest.TestCase):
         target = directory / "charts"
         target.mkdir()
         charts = {}
-        for name in ("open-agentic-catalog-0.1.0.tgz", "open-agentic-catalog-monitoring-0.1.0.tgz"):
+        for name in r.release_charts():
             (target / name).write_bytes(b"chart")
             charts[name] = c.digest(target / name)
         (target / "qualification.json").write_text(json.dumps({"source": SOURCE, "result": "success", "files": charts}))
@@ -311,7 +311,8 @@ class AdmissionTests(unittest.TestCase):
             self.assertEqual(result["images"], images)
             self.assertEqual(set(result["runtime"]), set(r.SUITES))
             self.assertTrue((output / "release-evidence.tar.gz").is_file())
-            self.assertIn("charts/open-agentic-catalog-0.1.0.tgz", result["files"])
+            self.assertEqual({name for name in result["files"] if name.startswith("charts/") and name.endswith(".tgz")},
+                             {"charts/" + name for name in r.release_charts()})
             self.assertIn(f"sdk/rust/open-agentic-catalog-{result['build']['version']}.crate", result["files"])
             (directory / "runtime-ui-oidc.json").unlink()
             with self.assertRaisesRegex(ValueError, "Missing runtime"):

@@ -1,6 +1,6 @@
 ---
 name: build-and-deployment
-description: Maintain Open Agentic Catalog builds, configuration delivery, images and Compose, or start and manage the local API/UI/docs environment. Use for build/deployment changes and local startup; chart qualification uses helm-and-minikube, and dependency selection uses dependency maintenance.
+description: Maintain Open Agentic Catalog builds, configuration delivery, images and Compose. Use for local startup, software release rehearsals and failed release jobs. Chart deployment uses helm-and-minikube and dependency selection uses dependency-maintenance.
 ---
 
 # Build and deployment
@@ -40,6 +40,12 @@ For images, use the canonical Containerfile and keep its compatibility copy and 
 The optional UI image packages the static manual in a separate build stage at `/app/assets/docs/`, served at the fixed `/docs/` route. Keep React/manual hashes and browser-supplier evidence separate. Preserve the restricted context, network-disabled render and docs-only CSP. Ordinary source tests need no manual build; backend images remain independent. Use the existing UI image inspection/SBOM/scan gates rather than another inventory system.
 
 Record source revision plus relevant working-tree changes, platform, explicit build metadata and the exact local image ID. Reuse artifact inspection (`documentation/src/content/docs/contributing/build-and-release.md#inspect-and-test`): `make container-inspect` examines an existing image without execution; `make container-verify` rebuilds, inspects and executes it. Use inspection for a cross-built image the local engine cannot run. A local image ID is not a published manifest/index digest, and a commit label does not prove a clean checkout. Select matching UI inspection, license/SBOM and chart packaging procedures only for affected artifacts.
+
+## Rehearse a release or reproduce a failed job
+
+Follow the [local release procedure](../../../documentation/src/content/docs/contributing/build-and-release.md#prepare-the-release-locally). Match the job's tool versions and use `CATALOG_ENV_FILE=/dev/null` with build and chart version overrides unset. Build and seal both images for the [packaged API and browser jobs](../../../test/ci/README.md#exact-candidate-qualification). For client and chart jobs, qualify the installed VSIX with its tested SDK and inspect the packaged chart metadata. [Release package handoffs](../../../test/ci/README.md#release-package-handoffs)
+
+For a failed job, start with its first failing step and the artifacts from that attempt. Record the commit, image ID or package hash and relevant platform. Identify a source-matched rebuild explicitly when the original artifact is unavailable. After a fix, run the failing case and the full owning job on the corrected inputs, including cleanup. [Failed release recovery](../../../documentation/src/content/docs/contributing/build-and-release.md#recover-a-failed-release-run)
 
 ## Qualify and hand off
 

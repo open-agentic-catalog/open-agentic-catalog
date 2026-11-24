@@ -379,12 +379,19 @@ exports.webview = async (
         await writeFile(path, Buffer.from(result.data, "base64"));
       },
       click: async (expression, button = "left") => {
-        await until(
-          `(()=>{const e=${expression};if(!e)return false;const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&r.x+r.width/2>=0&&r.x+r.width/2<innerWidth&&r.y+r.height/2>=0&&r.y+r.height/2<innerHeight;})()`,
-        );
-        const point = await evaluate(
-          `(()=>{const element=${expression};if(!element)throw new Error('Missing click target');const r=element.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`,
-        );
+        // A wrapped inline link can have whitespace at the center of its
+        // bounding box. Hit-test the visible part of each painted fragment.
+        const point = await until(`(() => {
+          const element = ${expression};
+          if (!element) return;
+          for (const rect of element.getClientRects()) {
+            const left = Math.max(0, rect.left), right = Math.min(innerWidth, rect.right);
+            const top = Math.max(0, rect.top), bottom = Math.min(innerHeight, rect.bottom);
+            if (left >= right || top >= bottom) continue;
+            const x = (left + right) / 2, y = (top + bottom) / 2;
+            if (element.contains(element.getRootNode().elementFromPoint(x, y))) return {x, y};
+          }
+        })()`);
         await rpc(
           "Input.dispatchMouseEvent",
           { type: "mouseMoved", ...point, button: "none", buttons: 0 },

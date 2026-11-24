@@ -56,6 +56,10 @@ func TestConfiguredPoliciesUseSharedConfigMapAndRollout(t *testing.T) {
 }
 
 func TestDefaultRenderContract(t *testing.T) {
+	version, err := os.ReadFile(filepath.Join("..", "..", "VERSION"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	objects := renderChart(t)
 	if len(objects) != 12 {
 		t.Fatalf("default render contains %d objects, want 12", len(objects))
@@ -87,7 +91,7 @@ func TestDefaultRenderContract(t *testing.T) {
 			"app.kubernetes.io/managed-by": "Helm",
 			"app.kubernetes.io/name":       "open-agentic-catalog",
 			"app.kubernetes.io/part-of":    "open-agentic-catalog",
-			"app.kubernetes.io/version":    "0.1.0",
+			"app.kubernetes.io/version":    strings.TrimSpace(string(version)),
 		} {
 			if got := stringValue(t, labels[key]); got != want {
 				t.Errorf("%s %s label %s = %q, want %q", stringAt(t, resource, "kind"), name, key, got, want)
@@ -236,7 +240,7 @@ func TestSharedAndOptionalProfiles(t *testing.T) {
 		}
 		api := oneObject(t, objects, "Deployment", "api")
 		container := namedMap(t, sliceAt(t, api, "spec", "template", "spec", "containers"), "catalog-api")
-		if got := stringAt(t, container, "image"); !strings.Contains(got, "@sha256:") || strings.Contains(got, ":0.1.0") {
+		if got := stringAt(t, container, "image"); got != "open-agentic-catalog@sha256:"+strings.Repeat("0", 64) {
 			t.Errorf("digest-selected image = %q", got)
 		}
 		data := mapAt(t, oneObject(t, objects, "ConfigMap", "configuration"), "data")

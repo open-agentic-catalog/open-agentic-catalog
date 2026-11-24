@@ -430,7 +430,11 @@ let outcomes;
 let lastPage;
 let browserObservationCalibrated = false;
 let readinessEvidenceCalibrated = false;
-const jsErrors = browserErrors();
+const jsErrors = browserErrors((first) => {
+  console.error(
+    `First unexpected browser error: ${JSON.stringify({ phase, ...first })}`,
+  );
+});
 try {
   await createFixtureStateDirectory(join(directory, "seed-state"));
   let apiPort, uiPort, ratingsSubject, ratingsFilename;
@@ -1442,6 +1446,10 @@ try {
       );
     let context, page, collector, providerFormAction;
     const ledger = networkObserver(origin, basePath);
+    const manualLedger =
+      mode === "compose" && basePath
+        ? networkObserver(documentationOrigin)
+        : undefined;
     const providerLedger = issuer
       ? networkObserver(new URL(issuer).origin)
       : undefined;
@@ -1449,6 +1457,7 @@ try {
       results: () => [
         ...ledger.results(),
         ...(providerLedger?.results() || []),
+        ...(manualLedger?.results() || []),
       ],
     };
     // Docker veth changes notify the host browser and can cancel an in-flight
@@ -1482,6 +1491,7 @@ try {
       jsErrors.observe(context, [
         origin,
         ...(issuer ? [new URL(issuer).origin] : []),
+        ...(manualLedger ? [documentationOrigin] : []),
       ]);
       collector = await collectBrowserCoverage(context, coverageOutput);
       coverageContexts++;
@@ -1493,6 +1503,7 @@ try {
       context.on("response", (r) => {
         ledger.observe(r.request().method(), r.url(), r.status());
         providerLedger?.observe(r.request().method(), r.url(), r.status());
+        manualLedger?.observe(r.request().method(), r.url(), r.status());
       });
       context.on("response", async (r) => {
         if (
@@ -1510,6 +1521,7 @@ try {
       });
       context.on("requestfailed", (r) => {
         ledger.failure(r.method(), r.url(), r.failure()?.errorText);
+        manualLedger?.failure(r.method(), r.url(), r.failure()?.errorText);
         const category = r.failure()?.errorText;
         // WebKit reports a successful cross-origin POST redirect as an
         // interrupted frame load. Match only this one submitted issuer form.
@@ -3983,10 +3995,18 @@ try {
         { exactPath: true, authorization: false, referrer: false },
       ]);
       documentationAvailable = false;
-      const [unavailableTab] = await Promise.all([
+      manualLedger.expectFailure("GET", "/manual/", 503);
+      const [unavailableTab, unavailableResponse] = await Promise.all([
         context.waitForEvent("page"),
+        context.waitForEvent("response", {
+          predicate: (response) =>
+            response.url() === documentationOrigin + "/manual/" &&
+            response.request().isNavigationRequest(),
+        }),
         externalLink.click(),
       ]);
+      expect(unavailableResponse.status()).toBe(503);
+      await expect(unavailableTab).toHaveURL(documentationOrigin + "/manual/");
       await expect(
         unavailableTab.getByRole("heading", {
           name: "Documentation unavailable",

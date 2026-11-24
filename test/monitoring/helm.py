@@ -23,10 +23,10 @@ SEMVER = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:
 def package(destination, chart_version=None, app_version=None):
     """Create a deterministic self-contained archive without generated source copies."""
     destination = Path(destination)
-    version = re.search(r"^version: ([0-9]+\.[0-9]+\.[0-9]+)$", (SOURCE / "Chart.yaml").read_text(), re.M)
-    if not version:
+    versions = re.findall(r"^version: (.+)$", (SOURCE / "Chart.yaml").read_text(), re.M)
+    if len(versions) != 1 or not SEMVER.fullmatch(versions[0]):
         raise ValueError("invalid monitoring chart version")
-    selected = chart_version if chart_version is not None else version[1]
+    selected = versions[0] if chart_version is None else chart_version
     if len(selected) > 128 or not SEMVER.fullmatch(selected):
         raise ValueError("invalid chart SemVer")
     if app_version is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}", app_version):

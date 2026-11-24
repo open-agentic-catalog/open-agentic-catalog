@@ -265,10 +265,10 @@ Alternatively supply permitted nonzero IDs. Clearing them requires an admission 
 Build the archive locally. Packaging does not publish it or fetch upstream charts:
 
 ```sh
-make monitoring-package
+monitoring_chart=$(make -s monitoring-package)
 ```
 
-The output is `output/helm-monitoring/open-agentic-catalog-monitoring-0.1.0.tgz`. It includes the templates, project license, shared digest-pinned image references, dashboard and Grafana provisioning assets. Install this archive rather than the incomplete source directory. Images are pulled separately by Kubernetes; they are not bundled in the archive. The default Prometheus and Grafana pins come from `deployments/monitoring/images.json`, also used by Compose.
+The command saves the path to the packaged chart in `monitoring_chart`. It includes the templates, project license, shared digest-pinned image references, dashboard and Grafana provisioning assets. Install this archive rather than the incomplete source directory. Images are pulled separately by Kubernetes; they are not bundled in the archive. The default Prometheus and Grafana pins come from `deployments/monitoring/images.json`, also used by Compose.
 
 Create a values file with non-secret inputs, such as `monitoring-values.yaml`:
 
@@ -288,7 +288,7 @@ Install or upgrade the independent monitoring release with Helm:
 
 ```sh
 helm upgrade --install catalog-monitoring \
-  output/helm-monitoring/open-agentic-catalog-monitoring-0.1.0.tgz \
+  "$monitoring_chart" \
   --kube-context my-context --namespace monitoring \
   --values monitoring-values.yaml --set enabled=true --wait --timeout 5m
 ```
@@ -351,7 +351,7 @@ Turn monitoring off while retaining the Helm release and its selected values:
 
 ```sh
 helm upgrade catalog-monitoring \
-  output/helm-monitoring/open-agentic-catalog-monitoring-0.1.0.tgz \
+  "$monitoring_chart" \
   --kube-context my-context --namespace monitoring \
   --reuse-values --set enabled=false --wait --timeout 5m
 ```
