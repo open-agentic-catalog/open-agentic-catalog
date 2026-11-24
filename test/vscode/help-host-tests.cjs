@@ -139,7 +139,8 @@ exports.images = async () => {
     ],
     ["my-tools-installed.png", "Open the My tools screenshot at full size"],
   ]) {
-    progress("opening full-size " + name);
+    const scenario = `${name} (${layout ?? "default"})`;
+    progress("opening full-size " + scenario);
     const expected = vscode.Uri.joinPath(extension.extensionUri, "media", name);
     const imageGuide = await require("./webview.cjs").webview("guide");
     try {
@@ -162,6 +163,11 @@ exports.images = async () => {
           misses,
           "Wrapped Help link has a gap at its bounding-box midpoint",
         );
+        // Start the link outside the viewport. A moving fragment can pass
+        // hit-testing and still miss when the physical mouse button goes down.
+        await imageGuide.evaluate(
+          "window.scrollBy({top:-innerHeight,behavior:'instant'})",
+        );
       } else if (layout === "single") {
         await imageGuide.evaluate(`${link}.style.whiteSpace = "nowrap"`);
         assert.equal(
@@ -169,20 +175,53 @@ exports.images = async () => {
           1,
         );
       }
-      await imageGuide.evaluate(`${link}.scrollIntoView({block:'center'})`);
+      const behavior = layout === "wrapped" ? "smooth" : "instant";
+      const viewport = await imageGuide.evaluate(`(() => {
+        const anchor = ${link};
+        document.documentElement.dataset.helpClick = "no click";
+        window.addEventListener("click", event => {
+          document.documentElement.dataset.helpClick = anchor.contains(event.target) && event.isTrusted
+            ? "intended link" : "other target";
+        }, {capture: true, once: true});
+        anchor.scrollIntoView({block:"center",behavior:${JSON.stringify(behavior)}});
+        return [innerWidth, innerHeight].join("x");
+      })()`);
+      // A hit-test can succeed while the link is still passing through the
+      // viewport. Wait for the requested alignment, including either page edge.
+      await imageGuide.until(`(() => {
+        const rect = (${link})?.getBoundingClientRect();
+        if (!rect?.height) return false;
+        const page = document.scrollingElement;
+        const center = page.scrollTop + rect.top + (rect.height - page.clientHeight) / 2;
+        const destination = Math.max(0, Math.min(page.scrollHeight - page.clientHeight, center));
+        return Math.abs(page.scrollTop - destination) <= 1;
+      })()`);
       await imageGuide.click(link);
       const workbench = await require("./webview.cjs").webview(true);
+      const size =
+        "document.querySelector('[id$=\"status.imagePreview.size\"]')?.textContent.trim()";
       try {
-        await workbench.until(
-          "document.querySelector('[id$=\"status.imagePreview.size\"]')?.textContent.trim()==='1440x1150'",
-        );
+        await workbench.until(`${size}==='1440x1150'`);
       } catch (error) {
+        const dimensions = await workbench
+          .evaluate(size)
+          .catch(() => undefined);
+        const click = await imageGuide
+          .evaluate("document.documentElement.dataset.helpClick")
+          .catch(() => "guide closed");
+        const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+        const active =
+          input instanceof vscode.TabInputCustom
+            ? input.viewType +
+              (input.uri.with({ fragment: "" }).toString() ===
+              expected.toString()
+                ? " (expected file)"
+                : " (different file)")
+            : input instanceof vscode.TabInputWebview
+              ? "webview"
+              : "other editor";
         throw new Error(
-          error.message +
-            " image=" +
-            name +
-            " workbench=" +
-            (await workbench.evaluate("document.body.innerText.slice(-4000)")),
+          `Expected ${scenario} to open the native 1440x1150 preview (viewport=${viewport}, click=${click ?? "unobserved"}, active=${active}, size=${dimensions || "unavailable"})`,
           { cause: error },
         );
       } finally {
