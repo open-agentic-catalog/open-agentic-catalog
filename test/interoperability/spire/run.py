@@ -1,4 +1,5 @@
 """Run the SPIRE workload-read qualification on an owned Compose project."""
+import argparse
 import hashlib
 import json
 import secrets
@@ -36,7 +37,14 @@ def check_cleanup(project, image, run):
 
 
 def main():
-    root = ROOT / "output/interoperability/spire"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source-renewal", action="store_true")
+    args = parser.parse_args()
+    fixture_type, workflow, phases = Fixture, exercise, PHASES
+    if args.source_renewal:
+        from source_renewal import SourceFixture, exercise_sources, SOURCE_PHASES
+        fixture_type, workflow, phases = SourceFixture, exercise_sources, SOURCE_PHASES
+    root = ROOT / "output/interoperability" / ("spire-renewal" if args.source_renewal else "spire")
     root.mkdir(parents=True, exist_ok=True)
     run = Path(tempfile.mkdtemp(prefix="run-", dir=root))
     project = "oac-spire-" + secrets.token_hex(6)
@@ -54,7 +62,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix="private-", dir=run) as private:
             path = Path(private)
             result["identities"] = {name: DOMAIN + name for name in UIDS}
-            fixture = Fixture(path, project, inputs(path, image, arch))
+            fixture = fixture_type(path, project, inputs(path, image, arch))
             with (path / "bin/reader").open("rb") as stream:
                 result["goSdkReaderSha256"] = hashlib.file_digest(stream, "sha256").hexdigest()
             result["stage"] = "build"
@@ -74,8 +82,8 @@ def main():
                     result["catalogBuild"] = build
                     result["completed"].append("startup")
                     result["stage"] = "workload-reads"
-                    exercise(fixture, result)
-                    if result["completed"] != list(PHASES):
+                    workflow(fixture, result)
+                    if result["completed"] != list(phases):
                         raise ValueError("SPIRE qualification did not complete all required phases")
                 finally:
                     fixture.stop()
@@ -98,7 +106,7 @@ def main():
         (run / "report.json").write_text(json.dumps(result, indent=2) + "\n")
     if result["cleanup"] != "passed":
         raise RuntimeError("SPIRE qualification cleanup incomplete")
-    print("Passed workload reads, policy refusals, renewal and recovery; owned fixtures removed.")
+    print("Passed all selected SPIRE phases; owned fixtures removed.")
 
 
 if __name__ == "__main__":

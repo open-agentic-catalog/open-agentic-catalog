@@ -2,6 +2,7 @@
 import argparse
 import json
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -13,14 +14,24 @@ from tutorial_oidc import activate_publication, claims, publish_reviewed_release
 
 def build(args):
     args.work.mkdir(mode=0o700)
-    # The image build context contains binaries only. Generate private keys afterwards.
+    # Only public fixture code enters the image. Generate private keys afterwards.
     directory = args.work / "bin"
     directory.mkdir()
     build_binaries(directory, "amd64")
+    base = f"FROM {args.base}\n"
+    hosts = [("identity", "identity.test"), ("catalog-a", "catalog-a.test")]
+    if args.renewal:
+        # Only the selected test image includes the interpreter and Secret writer.
+        base = (f"FROM {args.base} AS catalog\nFROM python:3.13.18-bookworm@sha256:"
+                "cc55e4ded9c95f6ce2133b3d096db43f214d280c2a8af65d83e246c8fa7d168c\n"
+                "COPY --from=catalog /usr/local/bin/catalogctl /usr/local/bin/catalogctl\n")
+        for name in ("renew.py", "kubernetes_writer.py"):
+            shutil.copyfile(HERE / name, directory / name)
+        hosts.append(("catalog-b", "catalog-b.test"))
     subprocess.run([args.docker, "build", "--network=none", "--pull=false", "-t", args.image, "-f", "-", directory],
-                   input=f"FROM {args.base}\nCOPY . /opt/\n".encode(), check=True, timeout=300)
+                   input=(base + "COPY . /opt/\n").encode(), check=True, timeout=300)
     (args.work / "trust").mkdir(mode=0o700)
-    certificates(args.work, (("identity", "identity.test"), ("catalog-a", "catalog-a.test")))
+    certificates(args.work, hosts)
 
 
 class Kubernetes:
@@ -60,10 +71,13 @@ class Kubernetes:
                      *["--from-file=" + str(HERE / f) for f in ("server.conf", "agent.conf", "provider.conf")])
         for namespace in ("test", args.namespace):
             self.kubectl("create", "configmap", "spire-issuer-ca", "--from-file=" + str(trust / "ca.pem"), namespace=namespace)
-        for secret, filename in (("issuer-tls", "identity"), ("frontend-tls", "catalog-a")):
+        for secret, filenames in (("issuer-tls", ["identity"]), ("frontend-tls", ["catalog-a", "catalog-b"] if args.renewal else ["catalog-a"])):
             self.kubectl("create", "secret", "generic", secret,
-                         *["--from-file=" + str(trust / (filename + suffix)) for suffix in (".pem", "-key.pem")])
+                         *["--from-file=" + str(trust / (filename + suffix)) for filename in filenames for suffix in (".pem", "-key.pem")])
         manifest = (HERE / "kubernetes.yaml").read_text()
+        if args.renewal:
+            from kubernetes_renewal import renewal_manifest
+            manifest = renewal_manifest(self, manifest)
         self.kubectl("create", "-f", "-", data=manifest.replace("SPIRE_FIXTURE_IMAGE", args.image)
                      .replace("CATALOG_NAMESPACE", args.namespace).encode())
         until(lambda: self.server("healthcheck"))
@@ -129,11 +143,13 @@ class Kubernetes:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase", choices=("build", "start", "unselected", "reads", "resume"))
+    parser.add_argument("phase", choices=("build", "start", "unselected", "reads", "resume", "source-setup", "source-renewal", "source-disabled"))
     parser.add_argument("--work", type=Path, required=True)
     for option in ("image", "base", "docker", "kubectl", "kubeconfig", "context", "namespace"):
         parser.add_argument("--" + option, required=True)
     parser.add_argument("--port", type=int)
+    parser.add_argument("--peer-port", type=int)
+    parser.add_argument("--renewal", action="store_true")
     args = parser.parse_args()
     if (not re.fullmatch(r"open-agentic-catalog-spire-[0-9a-f]{12}", args.context)
             or args.namespace != "open-agentic-catalog-e2e"
@@ -143,6 +159,10 @@ def main():
         build(args)
     else:
         fixture = Kubernetes(args)
+        if args.phase.startswith("source-") and args.renewal:
+            from kubernetes_renewal import qualify, setup, disabled
+            {"source-setup": setup, "source-renewal": qualify, "source-disabled": disabled}[args.phase](fixture)
+            return
         {"unselected": fixture.unselected, "reads": fixture.reads, "start": fixture.start, "resume": fixture.resume}[args.phase]()
 
 

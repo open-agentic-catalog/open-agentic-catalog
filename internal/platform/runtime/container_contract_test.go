@@ -276,6 +276,7 @@ func TestContainerIgnoreContract(t *testing.T) {
 		"!test/interoperability/spire/",
 		"test/interoperability/spire/*",
 		"!test/interoperability/spire/reader.go",
+		"!test/interoperability/spire/renew.py",
 		"!test/minikube/",
 		"!test/minikube/fixtures/",
 		"!test/minikube/fixtures/vault/",

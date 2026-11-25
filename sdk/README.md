@@ -28,6 +28,12 @@ Use these recipes after the language guide's client setup. Each example keeps ne
 
 A Search result ID is not a local release UUID. The local-detail recipes use `local.release.id`; indexed and live results retain their external provenance. Discovery does not authorize installation or execution.
 
+To verify a [federation source after its upstream bearer rotates](../documentation/src/content/docs/operations/federation.mdx#renew-a-source-bearer-with-spire), connect your SDK to the **importing Catalog** with your operator credentials. All four SDKs expose the following Control operations (names follow the OpenAPI spelling):
+
+1. Read the Source with `getFederationSource`. Send `testFederationSource` with its ETag, an idempotency key and `{}`. Check for `status: succeeded` and the expected `credentialRevision`.
+2. Send `syncFederationSource` with the updated Source ETag, a different idempotency key and `{}`. Follow the returned `job.id` with `getJob` until it succeeds or reaches an unsuccessful terminal state.
+3. On success, use `result.snapshotId` with `getFederationSourceSnapshot`. Check that the snapshot is complete and records the expected credential revision. Read the Source again to see which snapshot is currently complete. A subsequent successful synchronization can advance `lastCompleteSnapshotId`.
+
 For [adopting a different upstream version into an existing Resource](../documentation/src/content/docs/operations/federation.mdx#adopt-a-different-upstream-version-into-an-existing-resource), use the generated `getVersionAdoptionTarget` and `adoptResourceVersion` operations. A deployment administrator must enable this default-off authoring feature. Bind the command to the selected occurrence and prior adopted revision, and retain its body and idempotency key for recovery. The resulting draft still requires ordinary Listing selection, review and publication before discovery changes.
 
 The Catalog UI highlights definition changes and [summarizes declared capabilities and connections](../documentation/src/content/docs/guides/resource-authoring.mdx#read-capability-and-connection-changes) for reviewers. SDK consumers can read selected immutable revisions and exact retained documents through existing operations and compare them locally. There is no server-generated document diff. Saved source synchronization comparison is a separate, summary-only API operation; it does not return native document bytes or infer upstream deletion.

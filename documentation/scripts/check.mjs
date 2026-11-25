@@ -132,6 +132,7 @@ function inspect(base) {
     ['guides/access-management', ['#development-identities-and-role-handoffs', 'reference/configuration/#manage-settings-in-the-ui'], []],
     ['guides/resource-authoring', ['guides/understand-results/#resource-artwork'], []],
     ['guides/catalog-ui', ['guides/publishing/#publish-an-agent-in-the-browser', 'operations/federation/#continue-from-the-two-catalog-tutorial'], []],
+    ['operations/federation', ['generated/test/interoperability/spire/renew.py'], ['make test-interoperability-spire-renewal']],
     ['guides/two-catalog-federation', ['operations/federation/#continue-from-the-two-catalog-tutorial'], []],
     ['guides/integrating', ['guides/understand-results/#copy-references-and-download-documents', 'guides/resource-authoring/#load-a-local-json-or-markdown-document', 'generated/test/interoperability/spire/reader.go', 'generated/deployments/helm/open-agentic-catalog/examples/spire-values.yaml'], ['make test-interoperability-spire', 'make test-minikube-spire']],
     ['operations/federation', ['#request-an-ans-assessment-in-the-ui', '#read-a-private-ans-assessment', 'guides/publishing/#review-the-browser-submission', 'guides/publishing/#release-and-publish-the-browser-agent', 'generated/documentation/assets/catalog-ui/source-confirmation.png'], ['Troubleshoot source tests, commands and retained evidence', 'It cannot recall a peer request already sent.']],

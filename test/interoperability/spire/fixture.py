@@ -101,8 +101,11 @@ class Fixture:
                  '    jwt_issuer = "' + issuer + '"' if issuer else "")
         (self.path / "server/server.conf").write_text(config)
 
+    def resolve(self):
+        return self.dc("config", "--format", "json").stdout
+
     def start(self):
-        resolved = self.dc("config", "--format", "json").stdout
+        resolved = self.resolve()
         self.compose_file = self.path.parent / "compose.json"
         self.compose_file.write_bytes(resolved)
         self.server_issuer(ISSUER)

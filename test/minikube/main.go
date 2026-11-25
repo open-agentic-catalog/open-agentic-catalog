@@ -21,6 +21,7 @@ func main() {
 
 // run validates scenario inputs and owns the signal-bounded harness lifecycle, including failure diagnostics, cleanup and successful evidence output.
 func run() int {
+	spireRenewal := flag.Bool("spire-renewal", false, "qualify projected source credentials between independent Helm releases")
 	spireLab := flag.Bool("spire-lab", false, "keep the verified SPIRE profile running until interrupted")
 	lab := flag.Bool("argocd-lab", false, "retain the owned Argo CD lab until signaled by its lifecycle command")
 	scenario := flag.String("scenario", "basic", "basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager, vault, spire, flux or argocd")
@@ -40,6 +41,10 @@ func run() int {
 	}
 	if *lab && *scenario != "argocd" {
 		fmt.Fprintln(os.Stderr, "--argocd-lab requires --scenario argocd")
+		return 2
+	}
+	if *spireRenewal && (*scenario != "spire" || *spireLab) {
+		fmt.Fprintln(os.Stderr, "--spire-renewal requires the disposable spire scenario")
 		return 2
 	}
 	if *spireLab && *scenario != "spire" {
@@ -75,6 +80,7 @@ func run() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
+	runner.spireRenewal = *spireRenewal
 	runner.spireLab = *spireLab
 	runner.argoLab = *lab
 	if *lab || *spireLab {

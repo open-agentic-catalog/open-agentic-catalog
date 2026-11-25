@@ -282,15 +282,15 @@ func newSigningKey() (*rsa.PrivateKey, []byte, error) {
 	return key, raw, err
 }
 
-// signToken issues a short-lived fixture access token with fixed issuer/audience.
+// signToken issues a short-lived fixture access token for one selected audience.
 // Catalog membership provisioning, not token claims alone, grants test roles.
-func signToken(key *rsa.PrivateKey, subject, organization string, now time.Time) (string, error) {
+func signToken(key *rsa.PrivateKey, subject, organization, audience string, now time.Time) (string, error) {
 	header, err := json.Marshal(map[string]any{"alg": "RS256", "kid": fixtureKeyID, "typ": "JWT"})
 	if err != nil {
 		return "", err
 	}
 	claims, err := json.Marshal(map[string]any{
-		"iss": oidcIssuer, "sub": subject, "aud": oidcAudience,
+		"iss": oidcIssuer, "sub": subject, "aud": audience,
 		"iat": now.Unix(), "nbf": now.Add(-time.Minute).Unix(), "exp": now.Add(45 * time.Minute).Unix(),
 		"organization_id": organization,
 	})

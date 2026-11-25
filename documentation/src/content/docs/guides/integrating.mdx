@@ -727,6 +727,8 @@ To exercise a Helm deployment, prepare the [Minikube prerequisites](../operation
 
 The Compose test reads both records, revokes the reporter's grant and suspends its membership. It also renews the short-lived token and rotates the signing authority. On exit, the runner removes its containers, volumes, temporary credentials and image. If the host stops during a run, use the printed run directory and the recovery instructions in `test/interoperability/spire/README.md` in your checkout.
 
+For an importing Catalog, see [renew a source bearer with SPIRE](../operations/federation.mdx#renew-a-source-bearer-with-spire). It uses a deployment writer to supply both the importing API and worker.
+
 ### Example: a client uses a discovered resource
 
 1. Search through an authorized Catalog interface and select a result. Preserve its exact identifier, optional version, release ID when local, source and representation; do not reinterpret a metadata-document URL as an endpoint.

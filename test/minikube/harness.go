@@ -48,6 +48,7 @@ type harness struct {
 	metricsImage       string
 	spireImage         string
 	spireLab           bool
+	spireRenewal       bool
 	certificateImages  map[string]string
 	gitopsImages       map[string]string
 	argoBuild          map[string]string

@@ -124,7 +124,7 @@ def assert_source_refusal(problem, records, source_id, revision, credential_revi
         raise ValueError("Source refusal audit did not bind the exact unchanged source revision")
     if credential_revision is None:
         if facts.get("outcome") != "transport_error" or any(k in facts for k in ("httpClass", "bodyDigest", "credentialRevision")):
-            raise ValueError("Wrong-origin credential was not refused before HTTP/credential disclosure")
+            raise ValueError("Local source refusal retained an unexpected outcome, HTTP response or credential revision")
     elif (facts.get("outcome") != "http_error" or facts.get("httpClass") != "4xx"
           or facts.get("credentialRevision") != credential_revision
           or not re.fullmatch(r"sha256:[0-9a-f]{64}", facts.get("bodyDigest", ""))):

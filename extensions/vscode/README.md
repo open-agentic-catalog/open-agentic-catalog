@@ -40,7 +40,7 @@ Use the API origin, such as `https://catalog.example.com`. Do not use the UI add
 
 Browsing needs no workspace. MCP use and A2A conversations require a trusted VS Code window and refuse virtual workspaces. Skill and Plugin installation require a writable filesystem workspace on Linux, Windows or macOS. Resource credentials and package tools are separate from Catalog authentication.
 
-For a complete password login and indexed discovery exercise across independent Catalogs, see **Deploy and operate > Two-Catalog federation tutorial** in the companion manual. It prepares the operator inputs and a reader connection before the editor steps.
+To find an entry imported from another Catalog, sign in to the importing Catalog with a **Control** connection. In **Catalog: Open Catalog**, open **Advanced filters**, choose **Indexed external metadata** and select **Search / refresh**. Open the result to check its version and source. Use your reader credentials even when the importing Catalog uses SPIRE to authenticate to its upstream. For a complete walkthrough, see **Deploy and operate > Two-Catalog federation tutorial** in the companion manual.
 
 <!-- manual-link: [Open the two-Catalog federation tutorial](../../documentation/src/content/docs/guides/two-catalog-federation.mdx) -->
 

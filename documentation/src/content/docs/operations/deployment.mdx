@@ -666,6 +666,8 @@ Run `make test-minikube-contract` for the cluster-free harness tests. Run `make 
 
 For [SPIRE workload authentication](../guides/integrating.mdx#read-a-private-resource-and-publication-with-spire), run `make spire-tools-install` once, then `make test-minikube-spire`. A registered workload reads a private Resource and an authenticated publication. The test restores the original issuer and checks that the SPIRE credential loses access. Use `make minikube-spire-lab` to keep a verified profile running for inspection. Press Ctrl+C in its terminal to clean it up.
 
+To test [source credential renewal between two Catalogs](federation.mdx#renew-a-source-bearer-with-spire), run `make test-minikube-spire-renewal`. The upstream Catalog accepts the writer's JWT-SVID. The importing Catalog keeps its own operator sign-in and reads the renewed bearer from a Kubernetes Secret.
+
 For a Flux-managed application release, follow the [standalone HelmRelease maintenance handoff](maintenance.mdx#hand-off-a-standalone-flux-helmrelease). To rehearse it locally, run `make flux-tools-install` and then `make test-minikube-flux`. See the [fixture prerequisites](../../../../../test/minikube/fixtures/flux/README.md).
 
 For a standalone Argo CD Application, run `make argocd-tools-install` and then `make test-minikube-argocd` to exercise installation, manual upgrades and recovery in a disposable profile. To keep a lab open for inspection, follow the [Argo CD lab instructions](argocd.mdx#reproduce-locally).

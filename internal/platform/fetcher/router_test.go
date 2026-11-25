@@ -219,8 +219,15 @@ func TestFileCredentialResolverRejectsUntrustedMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := CredentialRequest{TenantID: routerTestTenant, Binding: "partner", Origin: "https://catalog.example:443"}
+	const secret = "resolver-unit-fixture"
+	valid := writeCredentialFixture(t, directory, request.Binding, "1", request.Origin, "token", secret)
+	resolved, err := resolver.Resolve(t.Context(), request)
+	if err != nil || resolved.Origin != request.Origin || resolved.Revision != "1" || resolved.Headers["Authorization"] != "Bearer "+secret {
+		t.Fatal("valid fixture did not resolve the selected bearer credential")
+	}
+	metadataPath := filepath.Join(directory, request.Binding+".json")
 	cases := map[string]string{
-		"duplicate":   `{"schemaVersion":1,"schemaVersion":1}`,
+		"duplicate":   strings.Replace(valid, `"schemaVersion":1`, `"schemaVersion":1,"schemaVersion":1`, 1),
 		"case alias":  `{"SchemaVersion":1,"tenantId":"` + routerTestTenant + `","revision":"1","origin":"https://catalog.example:443","type":"bearer","secretFile":"token"}`,
 		"unknown":     `{"schemaVersion":1,"tenantId":"` + routerTestTenant + `","revision":"1","origin":"https://catalog.example:443","type":"bearer","secretFile":"token","extra":true}`,
 		"null":        `{"schemaVersion":1,"tenantId":"` + routerTestTenant + `","revision":"1","origin":"https://catalog.example:443","type":"bearer","secretFile":null}`,
@@ -231,15 +238,19 @@ func TestFileCredentialResolverRejectsUntrustedMetadata(t *testing.T) {
 		"revision":    `{"schemaVersion":1,"tenantId":"` + routerTestTenant + `","revision":" spaced ","origin":"https://catalog.example:443","type":"bearer","secretFile":"token"}`,
 		"expired":     `{"schemaVersion":1,"tenantId":"` + routerTestTenant + `","revision":"1","expiresAt":"2000-01-01T00:00:00Z","origin":"https://catalog.example:443","type":"bearer","secretFile":"token"}`,
 		"secret path": `{"schemaVersion":1,"tenantId":"` + routerTestTenant + `","revision":"1","origin":"https://catalog.example:443","type":"bearer","secretFile":"../token"}`,
-		"trailing":    `{"schemaVersion":1} {}`,
+		"trailing":    valid + " {}",
 	}
 	for name, raw := range cases {
 		t.Run(name, func(t *testing.T) {
-			if err := os.WriteFile(filepath.Join(directory, "partner.json"), []byte(raw), 0o600); err != nil {
+			if err := os.WriteFile(metadataPath, []byte(raw), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := resolver.Resolve(context.Background(), request); err == nil || strings.Contains(err.Error(), directory) {
-				t.Fatalf("untrusted credential metadata returned %v", err)
+			got, err := resolver.Resolve(t.Context(), request)
+			if err == nil || got.Revision != "" || len(got.Headers) != 0 || len(got.Certificates) != 0 {
+				t.Fatal("invalid binding must return an error without credential material")
+			}
+			if strings.Contains(err.Error(), directory) || strings.Contains(err.Error(), secret) {
+				t.Fatal("resolver diagnostic disclosed the fixture path or bearer")
 			}
 		})
 	}
@@ -407,7 +418,7 @@ func TestCredentialMetadataGenerationMustRemainStable(t *testing.T) {
 	}
 }
 
-func writeCredentialFixture(t *testing.T, directory, binding, revision, origin, secretFile, secret string) {
+func writeCredentialFixture(t *testing.T, directory, binding, revision, origin, secretFile, secret string) string {
 	t.Helper()
 	metadata := credentialMetadata{SchemaVersion: 1, TenantID: routerTestTenant, Revision: revision, Origin: origin, Type: "bearer", SecretFile: secretFile}
 	raw, err := json.Marshal(metadata)
@@ -420,4 +431,5 @@ func writeCredentialFixture(t *testing.T, directory, binding, revision, origin, 
 	if err := os.WriteFile(filepath.Join(directory, secretFile), []byte(secret+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	return string(raw)
 }

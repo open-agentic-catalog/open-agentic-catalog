@@ -103,6 +103,7 @@ export const downloads = [
   'test/minikube/fixtures/vault/runtime-policy.hcl',
   'test/minikube/fixtures/vault/owner-policy.hcl',
   'test/interoperability/spire/reader.go',
+  'test/interoperability/spire/renew.py',
   'deployments/helm/open-agentic-catalog/examples/spire-values.yaml',
   'extensions/vscode/media/catalog-preview.png',
   'extensions/vscode/media/agent-conversation.png',

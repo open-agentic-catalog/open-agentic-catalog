@@ -1,0 +1,64 @@
+# Overlay for the two-Catalog qualification. No ports are published by the writer or test peer.
+x-python: &python
+  image: python:3.13.18-bookworm@sha256:cc55e4ded9c95f6ce2133b3d096db43f214d280c2a8af65d83e246c8fa7d168c
+  pull_policy: never
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+services:
+  api-a:
+    networks:
+      tutorial: {aliases: !reset []}
+  frontend:
+    networks:
+      tutorial: {aliases: !override [catalog-b.test]}
+  postgres-b:
+    extends: {file: ../../../examples/tutorials/local-oidc/compose.yaml, service: postgres-b}
+    pull_policy: never
+  owner-b:
+    extends: {file: ../../../examples/tutorials/local-oidc/compose.yaml, service: owner-b}
+    volumes:
+      - ${FIXTURE}/egress:/egress:ro
+  api-b:
+    extends: {file: ../../../examples/tutorials/local-oidc/compose.yaml, service: api-b}
+    volumes:
+      - binding:/credentials:ro
+      - ${FIXTURE}/egress:/egress:ro
+  worker-b:
+    extends: {file: ../../../examples/tutorials/local-oidc/compose.yaml, service: worker-b}
+    volumes:
+      - binding:/credentials:ro
+      - ${FIXTURE}/egress:/egress:ro
+  volume-init:
+    <<: *python
+    network_mode: none
+    cap_add: [CHOWN, FOWNER]
+    command: [python, -Bc, "import os; os.chown('/credentials', 11007, 65532); os.chmod('/credentials', 0o2750)"]
+    volumes: [binding:/credentials]
+  writer:
+    <<: *python
+    network_mode: none
+    user: "11007:65532"
+    pid: service:agent
+    command: [python, -B, /opt/renew.py]
+    volumes:
+      - binding:/credentials
+      - workload:/workload:ro
+      - ./renew.py:/opt/renew.py:ro
+      - ${FIXTURE}/bin/spire-agent:/opt/spire-agent:ro
+  peer:
+    <<: *python
+    user: "${PEER_UID}:${PEER_GID}"
+    command: [python, -B, /opt/source_peer.py]
+    networks:
+      tutorial: {aliases: [catalog-a.test]}
+    volumes:
+      - ./source_peer.py:/opt/source_peer.py:ro
+      - ${FIXTURE}/controls:/controls
+      - ${FIXTURE}/trust/catalog-a.pem:/tls/current.pem:ro
+      - ${FIXTURE}/trust/catalog-a-key.pem:/tls/current-key.pem:ro
+      - ${FIXTURE}/alternate/trust/catalog-a.pem:/tls/next.pem:ro
+      - ${FIXTURE}/alternate/trust/catalog-a-key.pem:/tls/next-key.pem:ro
+volumes:
+  postgres-b:
+  binding:

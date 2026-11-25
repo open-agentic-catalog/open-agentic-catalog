@@ -700,6 +700,11 @@ func (h *harness) writeHelmValues(marker, apiRole string) (string, error) {
 			return "", err
 		}
 	}
+	if h.options.scenario == "spire" && h.catalogNamespace() == catalogPeerNamespace && (marker == "spire-import" || marker == "spire-import-off") {
+		if err := configureSPIREImportValues(values, marker == "spire-import"); err != nil {
+			return "", err
+		}
+	}
 	if h.options.scenario == "spire" && marker == "spire" {
 		if err := h.configureSPIREValues(values); err != nil {
 			return "", err
@@ -771,7 +776,7 @@ func (h *harness) issueTokens() error {
 		"reader":      {"oidc-reader", "tenant-one"},
 		"other":       {"oidc-other-admin", "tenant-two"},
 	} {
-		token, err := signToken(h.signingKey, identity.subject, identity.organization, time.Now().UTC())
+		token, err := signToken(h.signingKey, identity.subject, identity.organization, oidcAudience, time.Now().UTC())
 		if err != nil {
 			return err
 		}
