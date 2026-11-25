@@ -71,6 +71,29 @@ Admission policies must allow the documented non-root workloads, and selected Ne
 
 For offline chart rendering, pass `--kube-version 1.34.0` to `helm template` or `helm lint`; otherwise Helm uses its built-in default version. The Make chart checks and packaging target supply this explicitly. Real Helm installations use the selected cluster's version.
 
+### Install from release packages
+
+Start with the verified application chart, `release.json` and the extracted `catalog-deploy` binary from the [download guide](../contributing/build-and-release.md#download-release-packages). To select the published images, read their multi-platform index digests:
+
+```sh
+jq -er '.indexDigests.backend' release.json
+jq -er '.indexDigests.ui' release.json
+```
+
+In your target values file, set `image.repository` to `ghcr.io/open-agentic-catalog/open-agentic-catalog` and `image.digest` to the first result, including `sha256:`. This pins the migration Job, API and worker to the same image. To serve the optional UI, set `ui.enabled: true`, `ui.image.repository` to `ghcr.io/open-agentic-catalog/catalog-ui` and `ui.image.digest` to the second result. Configure the UI origin, issuer, client and session keys as described in the [optional Catalog UI setup](#optional-catalog-ui).
+
+Provision PostgreSQL 18 with `pgcrypto` and the [three database roles](database-roles.mdx). Create these Secrets in the application namespace. The table gives the chart defaults. If you use different names or keys, set the corresponding references in the same values file.
+
+| Chart value | Default Secret / key | What it supplies |
+| --- | --- | --- |
+| `secrets.migrationDatabase` | `open-agentic-catalog-migration-database` / `dsn` | Direct connection as the schema owner for the migration Job. |
+| `secrets.apiDatabase` | `open-agentic-catalog-api-database` / `dsn` | API login matching `databaseRoles.api` (default `catalog_api`). |
+| `secrets.workerDatabase` | `open-agentic-catalog-worker-database` / `dsn` | Worker login matching `databaseRoles.worker` (default `catalog_worker`). |
+| `secrets.cursorSigning` | `open-agentic-catalog-cursor-signing` / `key` | Shared cursor-signing key for API and worker. |
+| `ui.existingSecret` | Operator-selected name | For an enabled OIDC UI, supply `keys.json` and `client-secret`. |
+
+Keep credentials in the Secrets. Include their references, image pins, tenant, OIDC and host settings in one complete deployment values file. Run the [coordinator preflight and deployment](maintenance.mdx#coordinated-release-deployment) for the selected namespace and release.
+
 ## Supported process roles
 
 `catalogd api` serves HTTP. `catalogd worker` runs durable Jobs, automatic source maintenance, bounded housekeeping and outbox processing. It dispatches signed notifications when webhooks are enabled. Otherwise, it drains outbox records without network access.
@@ -572,7 +595,7 @@ The OIDC verifier accepts an optional bounded `auth.trustBundleFile` through its
 - A trusted signed-JWT issuer, HTTPS discovery and verification-key path, and Catalog audience. Login and token issuance remain in the owning platform or identity service. The deployment selects dedicated or shared tenancy, and an operator provisions every exact realm, tenant or external-organization mapping, active subject membership, and initial Catalog role before that token can authenticate. The issuer must chain to the embedded public roots or the configured OIDC-specific private bundle. A discovered HTTPS key endpoint may use another origin, but remains subject to the same isolated certificate and hostname verification.
 - The platform identity, deployment-injected secrets, optional credential resolution, and controlled egress required by enabled workflows. A source resolver is not required for public federation or credential-free external representations, and provider declarations alone do not install or validate integrations.
 
-PostgreSQL stores bounded textual representation documents, exact decoded validation bytes and retrieval evidence for credential-free HTTPS representations, plus Agent Skill inventory and handoff evidence and Plugin inspection documents, inventory and external archive identity transactionally. Core production validation does not require S3. An external representation keeps its external delivery URL and is not rehosted by the Catalog. Skill and Plugin archive bytes are transient and are not included in a Catalog database backup; keep external package storage available independently. [ADR-0017](../architecture/decisions/0017-first-release-baseline.md) removes the pre-release object bridge, its adapters and configuration. No object provider can be enabled for bounded Catalog documents; no supported predecessor or S3 bridge qualification is part of the first release.
+PostgreSQL stores bounded textual representation documents, exact decoded validation bytes and retrieval evidence for credential-free HTTPS representations, plus Agent Skill inventory and handoff evidence and Plugin inspection documents, inventory and external archive identity transactionally. Core production validation does not require S3. An external representation keeps its external delivery URL and is not rehosted by the Catalog. Skill and Plugin archive bytes are transient and are not included in a Catalog database backup; keep external package storage available independently. [ADR-0017](../architecture/decisions/0017-first-release-baseline.md) removes the pre-release object bridge, its adapters and configuration. The `v0.1.2` storage contract keeps bounded Catalog documents in PostgreSQL.
 
 Core search is the default and needs no model. Optional hybrid search requires explicitly installed pgvector, owner-applied semantic schema/grants and one configured embedding endpoint. Compose can start a verified offline model with `LOCAL_EMBEDDINGS=on`; this alone does not enable search. The application Helm chart accepts provider settings and scoped token/CA Secret references but does not deploy a model. See [hybrid-search setup](hybrid-search.mdx) and the [embedding boundary](../architecture/deployment.mdx#optional-embedding-service-boundary).
 

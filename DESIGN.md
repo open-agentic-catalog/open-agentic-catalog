@@ -39,4 +39,4 @@ Change the owning chapter and applicable contracts, code and tests together. Use
 
 ## Compatibility
 
-[ADR-0017](documentation/src/content/docs/architecture/decisions/0017-first-release-baseline.md) defines the current-format first-release baseline: there is no released predecessor. Reject incompatible development formats without inventing provenance or deleting retained data. Applied numbered migrations remain immutable; future supported upgrades must preserve their actual API and stored-data contracts.
+`v0.1.2` establishes the supported API and stored-data contracts. Preserve retained data on upgrade and keep applied migrations immutable. ADR-0017 explains why obsolete development formats were excluded from the first release. [First-release decision](documentation/src/content/docs/architecture/decisions/0017-first-release-baseline.md)

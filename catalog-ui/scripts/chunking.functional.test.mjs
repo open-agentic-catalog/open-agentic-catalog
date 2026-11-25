@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { build } from "vite";
 
-test("production startup excludes shared lazy-only screen helpers", async () => {
+test("startup and Catalog load only their shared screen dependencies", async () => {
   const directory = await mkdtemp(join(tmpdir(), "catalog-chunking-"));
   let chunks;
   try {
@@ -29,14 +29,18 @@ test("production startup excludes shared lazy-only screen helpers", async () => 
     });
     const entry = [...chunks.values()].filter((item) => item.isEntry);
     assert.equal(entry.length, 1);
-    const initial = new Set();
-    function visit(name) {
-      if (initial.has(name)) return;
-      initial.add(name);
-      assert.ok(chunks.has(name), "static dependency must exist");
-      for (const dependency of chunks.get(name).imports) visit(dependency);
+    function staticClosure(root) {
+      const files = new Set();
+      function visit(name) {
+        if (files.has(name)) return;
+        files.add(name);
+        assert.ok(chunks.has(name), "static dependency must exist");
+        for (const dependency of chunks.get(name).imports) visit(dependency);
+      }
+      visit(root.fileName);
+      return files;
     }
-    visit(entry[0].fileName);
+    const initial = staticClosure(entry[0]);
     const contains = (chunk, suffix) =>
       Object.keys(chunk.modules).some((id) =>
         id.replaceAll("\\", "/").endsWith(suffix),
@@ -64,6 +68,22 @@ test("production startup excludes shared lazy-only screen helpers", async () => 
       1,
       "all screens must share one React binding module",
     );
+    const discovery = [...chunks.values()].find((chunk) =>
+      chunk.facadeModuleId?.endsWith("/views/DiscoveryWorkspace.tsx"),
+    );
+    assert.ok(discovery, "the Catalog route must exist");
+    const catalogFiles = staticClosure(discovery);
+    for (const screen of ["AdoptVersion.tsx", "SourceSnapshotComparison.tsx"]) {
+      const owners = [...chunks.values()].filter((chunk) =>
+        contains(chunk, `/views/${screen}`),
+      );
+      assert.equal(owners.length, 1, `${screen} must still ship`);
+      assert.equal(
+        catalogFiles.has(owners[0].fileName),
+        false,
+        `Opening Catalog should not load ${screen}`,
+      );
+    }
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -194,7 +194,7 @@ After a writer change, Catalog opens new read/write connections and workers reco
 
 Fence the old writer and establish that the original request ended before repair. PostgreSQL advisory locks belong to one server and are not replicated. A missing reservation cannot prove an acknowledged write survived. See the [writer-recovery tests](../contributing/testing.md#test-boundaries).
 
-Only current command and retained-evidence formats are supported under [ADR-0017](../architecture/decisions/0017-first-release-baseline.md). There is no object bridge, document-link backfill or supported predecessor format. Incompatible development state is rejected without conversion or deletion. Preserve existing state unless its owner explicitly approves its exact disposition.
+Restore a `v0.1.2` recovery point with its matching runtime and configuration. Verify retained commands and evidence before a coordinated upgrade. The first release excluded the development object bridge and document-link backfill. Preserve incompatible development data unless its owner explicitly authorizes its disposition. [First-release decision](../architecture/decisions/0017-first-release-baseline.md)
 
 Restore exact Skill archive digests and sizes, normalized inventories and immutable handoff locators. Older readers and pre-release formats have no supported rollback contract. Follow ADR-0017 and preserve incompatible development state until its owner approves a disposition.
 

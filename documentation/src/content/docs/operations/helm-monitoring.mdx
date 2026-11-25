@@ -262,13 +262,20 @@ Alternatively supply permitted nonzero IDs. Clearing them requires an admission 
 
 ## Package and install
 
-Build the archive locally. Packaging does not publish it or fetch upstream charts:
+Use the monitoring archive attached to the [GitHub Release](../contributing/build-and-release.md#download-release-packages), or pull it from GHCR. For `v0.1.2`:
+
+```sh
+helm pull oci://ghcr.io/open-agentic-catalog/charts/open-agentic-catalog-monitoring --version 0.1.2
+monitoring_chart=./open-agentic-catalog-monitoring-0.1.2.tgz
+```
+
+Verify the archive against the release's `SHA256SUMS`. For a source build, package the chart locally instead:
 
 ```sh
 monitoring_chart=$(make -s monitoring-package)
 ```
 
-The command saves the path to the packaged chart in `monitoring_chart`. It includes the templates, project license, shared digest-pinned image references, dashboard and Grafana provisioning assets. Install this archive rather than the incomplete source directory. Images are pulled separately by Kubernetes; they are not bundled in the archive. The default Prometheus and Grafana pins come from `deployments/monitoring/images.json`, also used by Compose.
+The packaged chart includes the templates, project license, shared digest-pinned image references, dashboard and Grafana provisioning assets. Install this archive rather than the incomplete source directory. Images are pulled separately by Kubernetes; they are not bundled in the archive. The default Prometheus and Grafana pins come from `deployments/monitoring/images.json`, also used by Compose.
 
 Create a values file with non-secret inputs, such as `monitoring-values.yaml`:
 
@@ -276,11 +283,13 @@ Create a values file with non-secret inputs, such as `monitoring-values.yaml`:
 target:
   namespace: catalog-system
   release: catalog
-  deploymentLabel: cluster-a/catalog-system/catalog
+  deploymentLabel: cluster-a-catalog-system-catalog
 grafana:
   adminSecret:
     name: catalog-monitoring-admin
 ```
+
+The dashboard in monitoring chart `0.1.2` can show empty panels for deployment labels containing a slash or period. If you use that chart, choose a label such as `production-catalog-a`. Monitoring chart `0.1.3` matches the selected deployment label literally, including values such as `production/catalog.v1`. Changing a scrape label creates new Prometheus time series.
 
 `target.release` matches the application Helm release label, not a Pod or Service name. An empty `target.namespace` means the monitoring release namespace. Choose a stable, unique `deploymentLabel` to distinguish installations in dashboards. Each API and worker Pod retains its own Prometheus `instance`; scraping does not load-balance through the application Service or drop running but unready processes.
 

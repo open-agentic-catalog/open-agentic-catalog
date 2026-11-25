@@ -32,7 +32,8 @@ def package(output, version, app_version, helm, kube_version="1.34.0"):
         shutil.copyfile(ROOT / "LICENSE", source / "LICENSE")
         override = ["--version", version] if version is not None else []
         subprocess.run(helm + ["package", str(source), *override, "--app-version", app_version,
-                              "--destination", str(stage)], check=True, timeout=60, capture_output=True)
+                              "--destination", str(stage)], check=True, timeout=60, capture_output=True,
+                       env={**os.environ, "SOURCE_DATE_EPOCH": "0"})
         # Helm names the application archive from its own Chart.yaml or the override.
         application, = stage.glob("*.tgz")
         companion = monitoring.package(stage, version, app_version)

@@ -4,9 +4,9 @@ import re
 
 def expression(raw, deployment="local", role="api|worker"):
     """Replace only supported dashboard variables with fixed test scope values."""
-    if not re.fullmatch(r"[a-z0-9_-]{1,64}", deployment) or role not in {"api", "worker", "api|worker"}:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_./:-]{0,127}", deployment) or role not in {"api", "worker", "api|worker"}:
         raise ValueError("invalid-query-scope")
-    result = raw.replace("${deployment:regex}", deployment).replace("${role:regex}", role).replace("$__rate_interval", "1m")
+    result = raw.replace("${deployment}", deployment).replace("${role:regex}", role).replace("$__rate_interval", "1m")
     if "$" in result:
         raise ValueError("unknown-dashboard-variable")
     return result
@@ -21,12 +21,12 @@ def fixture(dashboard):
     panels = {panel["id"]: panel for panel in dashboard["panels"]}
     if len(panels) != len(dashboard["panels"]) or set(panels) != set(range(1, 33)):
         raise ValueError("dashboard-panel-inventory")
-    def query(identifier, expected, role="api|worker"):
+    def query(identifier, expected, role="api|worker", deployment="local"):
         """Bind one panel's actual expression to its expected samples at two minutes."""
         targets = panels[identifier]["targets"]
         if len(targets) != 1 or targets[0]["refId"] != "A":
             raise ValueError("dashboard-query-inventory")
-        return {"expr": expression(targets[0]["expr"], role=role), "eval_time": "2m", "exp_samples": expected}
+        return {"expr": expression(targets[0]["expr"], deployment=deployment, role=role), "eval_time": "2m", "exp_samples": expected}
     def series(name, values):
         """Describe synthetic samples using promtool's input-series notation."""
         return {"series": name, "values": values}
@@ -44,6 +44,12 @@ def fixture(dashboard):
     scoped = '{catalog_deployment="local",catalog_role="api"}'
     tests = [{"name": "deployment isolation and observed zero errors", "input_series": inputs,
               "promql_expr_test": [query(3, [sample(scoped, 1)]), query(4, [sample(scoped, 0)])]}]
+    deployment = "prod/catalog.v1"
+    selected = api.replace('"local"', f'"{deployment}"')
+    neighbour = api.replace('"local"', '"prod/catalogXv1"')
+    tests.append({"name": "literal slash and dot in the selected deployment",
+                  "input_series": [series('up{' + labels + '}', '1+0x12') for labels in (selected, neighbour)],
+                  "promql_expr_test": [query(1, [sample('up{' + selected + '}', 1)], deployment=deployment)]})
     replica = api.replace('instance="api:8080"', 'instance="api2:8080"')
     tests.append({"name": "a healthy replica cannot validate a failed replica rate", "input_series": inputs + [series('up{' + replica + '}', '1+0x11 0'), series('open_agentic_catalog_http_responses_total{' + replica + route + '}', '0+30x12')],
                   "promql_expr_test": [query(3, [sample(scoped, 1)])]})

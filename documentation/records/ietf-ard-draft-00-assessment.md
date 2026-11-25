@@ -83,7 +83,7 @@ The unchanged pinned conformance CLI tests the selected upstream profile. It can
 | Approved Sources | A changed endpoint, profile or Registry interface requires fresh inspection and the existing replacement-Source boundary. Synchronization refuses drift rather than expanding approved authority. |
 | Immutable publication snapshots | Profile checks bind retained snapshots to configured delivery. A later profile selection requires explicit new publication; old bytes cannot be relabeled under a new contract. |
 
-No identifier rewrite, automatic backfill, evidence conversion or reclassification follows from this decision. There is no released predecessor requiring permanent parallel support under [ADR-0017](../src/content/docs/architecture/decisions/0017-first-release-baseline.md).
+No identifier rewrite, automatic backfill, evidence conversion or reclassification follows from this decision. At the time of this assessment, the Catalog had no released predecessor requiring parallel support under [ADR-0017](../src/content/docs/architecture/decisions/0017-first-release-baseline.md).
 
 ## Rationale and revisit conditions
 

@@ -4,7 +4,7 @@ title: Build, test and release artifacts
 
 To install a published version, start with [Download release packages](#download-release-packages). To cut a release, [prepare the candidate locally](#prepare-the-release-locally), then [configure and approve delivery](#configure-and-approve-delivery).
 
-The local build targets produce binaries, container images, license files, [SPDX](https://spdx.dev/use/specifications/) software bills of materials (SBOMs) and Helm packages. Maintainers use a separate GitHub Actions workflow to deliver tested files to a release draft and images to GitHub Container Registry (GHCR).
+The local build targets produce binaries, container images, license files, [SPDX](https://spdx.dev/use/specifications/) software bills of materials (SBOMs) and Helm packages. Maintainers use a separate GitHub Actions workflow to deliver tested files to a release draft and both images and Helm charts to GitHub Container Registry (GHCR).
 
 ## GitHub Actions
 
@@ -40,7 +40,7 @@ unset VERSION COMMIT CHART_VERSION APP_VERSION
 | Source, units and manual | Run `make check verify`, `make api-validation-test`, `make coverage-unit`, `make test-tooling-unit`, `make test-ui` and `make docs-site-check`. The API validation tests exercise the installed validators with both valid and invalid inputs. |
 | Database and Compose | Run `make test-integration`. Run `make test-functional-webhooks` and `make test-functional-oidc` with the candidate variables unset. Use the sealed images for the remaining default-off API profile, followed by the packaged UI and OIDC browser suites. [Exact candidate commands](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#exact-candidate-qualification) |
 | SDKs and VS Code | Run `make webhook-report-check` for the Go SDK and its example, then `make client-go-check` for the generated client. Run `make sdk-check` with `SDK_LANGUAGE` set to `python`, `typescript` and `rust` in turn. Run `make vscode-check`. The release editor command runs `make test-vscode` and retains the tested VSIX with its TypeScript SDK hash. [Package handoffs](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#release-package-handoffs) |
-| Helm charts | Run `make deploy-check`. On the clean version tag, run `make helm-package` with the default versions and set `ARTIFACT_OUTPUT` to a fresh directory. Pass that directory to the release chart check. It reads each archive's name, chart version and `appVersion`. [Package both charts](#package-helm-charts) |
+| Helm charts | Run `make deploy-check`. On the clean version tag, run `make helm-package` with the default versions and set `ARTIFACT_OUTPUT` to a fresh directory. Qualify those archives, then run `make helm-oci-test HELM_OCI_QUALIFIED="$charts"` on the same directory. [Package both charts](#package-helm-charts) |
 | Security and standalone programs | Run `make security` and `make ui-deps-check` with a current [Trivy database](#scan-local-images). Build, inspect and scan each target image. Exercise the standalone downloads on matching hardware. [Native package checks](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#release-package-handoffs) |
 
 Use a branch rehearsal to find and fix problems before merge. A clean, untagged commit produces a development version. The same commit at the exact `v<VERSION>` tag produces the release version. Compare `make version` with the build reported by the candidate. A tracked documentation edit also changes the source digest used by the release checks, and the UI image includes the manual.
@@ -102,7 +102,14 @@ Extract the CLI archive for your architecture. Run `./catalogctl version` and `.
 
 For direct Linux deployment, extract `catalogd` and `catalogctl` for the same architecture. Supply separate database credentials for the schema owner, API and worker. Follow the [PostgreSQL role setup](../operations/database-roles.mdx) before running `catalogctl migrate plan` and `catalogctl migrate apply` as the schema owner. Start `catalogd api` and `catalogd worker` with their respective runtime settings.
 
-For Helm, extract the coordinator and run `./catalog-deploy --help`. Pass the application chart archive to `--chart`, your selected cluster to `--context`, and explicit `--namespace`, `--release` and `--values` arguments. The [deployment guide](../operations/deployment.mdx) describes credentials, first installation and coordinated upgrades. Set `image.repository` to `ghcr.io/open-agentic-catalog/open-agentic-catalog` and `image.digest` to the verified backend index digest. For the optional UI use `ui.image.repository=ghcr.io/open-agentic-catalog/catalog-ui` and the corresponding `ui.image.digest`.
+For Helm, download the application chart from the release assets or pull the same archive from GitHub Container Registry (GHCR). The monitoring chart is optional. For release `v0.1.2`, both **chart versions** are `0.1.2`. For another release, read each chart version from its asset filename.
+
+```sh
+helm pull oci://ghcr.io/open-agentic-catalog/charts/open-agentic-catalog --version 0.1.2
+helm pull oci://ghcr.io/open-agentic-catalog/charts/open-agentic-catalog-monitoring --version 0.1.2
+```
+
+Each command writes a `.tgz` to the current directory. Check the archive against the release's `SHA256SUMS` using the same procedure as for the CLI. Verify `release.json` the same way before using its image digests. Extract the coordinator for your platform, [prepare the deployment values](../operations/deployment.mdx#install-from-release-packages) and pass the local application archive to [catalog-deploy](../operations/maintenance.mdx#coordinated-release-deployment). The [monitoring guide](../operations/helm-monitoring.mdx#package-and-install) covers the separate Prometheus and Grafana release.
 
 To install the portable Skill, extract its archive into your client's Skill directory. Keep the `catalog-discovery/` directory intact so the relative references resolve. The [assistant discovery guide](../guides/assistant-discovery.md#set-up-the-client) covers client configuration and discovery using the CLI.
 
@@ -124,7 +131,7 @@ Both indexes contain `linux/amd64` and `linux/arm64` members. No floating `lates
 - Protect `main` and merge the reviewed release workflow. Limit creation of `v*` tags to release maintainers. Protect these tags from updates and deletion. Enable [immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases) before creating the draft.
 - Under **Settings > Environments**, configure the `release` environment with a required reviewer and a deployment **tag** rule for `v*`. Choose who may bypass protection. A sole reviewer must be allowed to approve their own runs. For independent review, appoint another eligible reviewer and enable **Prevent self-review**.
 - Under **Settings > Secrets and variables > Actions > Variables**, set the **repository** variable `RELEASE_PUBLISH_ENABLED=false` during setup. Register the maintainer's SSH public key with GitHub as a **Signing key**. Set the repository variable `RELEASE_ALLOWED_SIGNERS` to a trusted OpenSSH allowed-signers entry, such as `release-maintainer namespaces="git" ssh-ed25519 <base64-public-key>`. Verify the key fingerprint independently. Keep the private key on the signing machine.
-- Allow the repository workflow to write the backend and UI GHCR packages. Only the protected `deliver` job requests `contents: write` and `packages: write`. It uses the built-in `GITHUB_TOKEN`. See [GHCR permissions and visibility](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+- Allow the repository workflow to write the backend, UI and both Helm chart packages in GHCR. Only the protected `deliver` job requests `contents: write` and `packages: write`. It uses the built-in `GITHUB_TOKEN`. See [GHCR permissions and visibility](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 #### Sign and verify the tag
 
@@ -175,7 +182,7 @@ gh variable set RELEASE_PUBLISH_ENABLED --repo "$repo" --body true
 gh workflow run release.yml --repo "$repo" --ref "$tag" -f upload_artifacts=true -f publish=true
 ```
 
-Open **Actions > Qualified release candidates**. If dispatch returned an uncertain result, look for an existing run on the tag before trying again. Check the tag and commit, confirm that `qualify` succeeded, then approve the waiting `deliver` job. A green workflow with `deliver` skipped has only qualified the packages. The job pushes both GHCR image indexes and attaches files to the prepared draft. The maintainer publishes the draft separately.
+Open **Actions > Qualified release candidates**. If dispatch returned an uncertain result, look for an existing run on the tag before trying again. Check the tag and commit, confirm that `qualify` succeeded, then approve the waiting `deliver` job. A green workflow with `deliver` skipped has only qualified the packages. The job pushes both image indexes and both qualified Helm archives to GHCR. It attaches the same chart files and the other downloads to the prepared draft. The maintainer publishes the draft separately.
 
 #### Verify and publish the draft
 
@@ -205,7 +212,9 @@ Open **Actions > Qualified release candidates**. If dispatch returned an uncerta
    ```
 
    Both comparisons must succeed. Delivery adds the two registry digest maps to the public manifest. Check their values against the delivery job summary.
-4. On first delivery, make both GHCR packages public in their package settings. Use a signed-out Docker client with Buildx. For each product, compare the displayed index and its two Linux platform digests with the corresponding entries in `release.json`. Pull each platform by the recorded index digest to verify anonymous access.
+   For each entry under `charts` in the job summary, compare `archiveSha256` with the chart download in `SHA256SUMS`. The separate `manifestDigest` identifies the OCI manifest in GHCR. Its `org.opencontainers.image.source` annotation links to the Catalog repository.
+
+4. On first delivery, set public visibility for the two image packages and the two packages under `charts/`. Use a signed-out Docker client with Buildx. For each product, compare the displayed index and its two Linux platform digests with the corresponding entries in `release.json`. Pull each platform by the recorded index digest to verify anonymous access.
 
    ```sh
    for product in backend ui; do
@@ -220,6 +229,8 @@ Open **Actions > Qualified release candidates**. If dispatch returned an uncerta
    done
    ```
 
+   For each chart, use a signed-out Helm client to pull `oci://ghcr.io/open-agentic-catalog/charts/<chart-name>` with `--version <chart-version>`. Compare the pulled archive with the matching draft download.
+
 5. Confirm the draft still has the intended tag, assets and notes. Run the following commands only after approving publication:
 
    ```sh
@@ -227,9 +238,9 @@ Open **Actions > Qualified release candidates**. If dispatch returned an uncerta
    gh variable set RELEASE_PUBLISH_ENABLED --repo "$repo" --body false
    ```
 
-6. Open the published release signed out. Verify that its downloads and both images are publicly accessible. Repeat the checksum check against the public downloads. If you abandon delivery, turn the variable off.
+6. Open the published release signed out. Verify that its downloads, images and charts are publicly accessible. Repeat the checksum check against the public downloads. If you abandon delivery, turn the variable off.
 
-The first supported release establishes the compatibility baseline. For subsequent API changes, use the published tag's `api/openapi/control-v1.yaml` as the local `API_BASE` for [API compatibility checks](testing.md#api-validation). Select the next development version explicitly with the [version tools](#application-version-and-release-checks).
+`v0.1.2` establishes the supported API and stored-data baseline. Compare proposed API changes with the tagged contract using the [API compatibility checks](testing.md#api-validation). Select the next development version explicitly with the [version tools](#application-version-and-release-checks).
 
 #### Recover a failed release run
 
@@ -241,11 +252,12 @@ Reproduce the failing action with the same inputs. For a browser outage, verify 
 | --- | --- |
 | Qualification failed before delivery | Fix the cause. For a runner or tool failure on unchanged source, choose **Re-run all jobs**. Assembly requires one complete qualification attempt. A source fix needs a new tag and version. |
 | Only delivery failed | Inspect the delivery job summary for completed operations. Rerun the failed job within the seven-day artifact retention period. It selects the original qualification bundle by artifact ID and verifies the tag object again. |
-| The destination already contains files or images | Matching bytes can be reused. A conflicting file or image stops delivery. Preserve the draft and investigate before retrying. |
-| The qualified artifact expired after partial delivery | Stop and review the existing draft and image tags. Choose a new version if a rebuild is needed. |
-| The release is already published | Delivery accepts it only when all expected files and images already match. It makes no writes to a published release. |
+| A chart push was interrupted | Rerun delivery with the retained bundle. It compares the OCI chart layer with the qualified archive SHA-256, even if Helm lost the push response. It skips matching charts and pushes missing ones. |
+| A destination conflicts or a registry read fails | Delivery checks the existing image tags, chart tags and draft assets before its first write. Inspect the conflicting bytes or restore registry read access before retrying. Preserve the existing tags and draft. |
+| The qualified artifact expired after partial delivery | Stop and review the existing draft and registry tags. Choose a new version if a rebuild is needed. |
+| The release is already published | Delivery accepts it only when all expected files, images and charts already match. It makes no writes to a published release. |
 
-GHCR and GitHub Releases are separate destinations. Public images can therefore be available while the release is still a draft. Keep the original tag and successful build jobs intact after a partial delivery.
+GHCR and GitHub Releases are separate destinations. Public images and charts can therefore be available while the release is still a draft. Keep the original tag and successful build jobs intact after a partial delivery.
 
 ## Prerequisites and identities
 
@@ -602,6 +614,7 @@ On the clean release tag, check the same packages the workflow would deliver. Us
   charts=$(mktemp -d output/release-charts-XXXXXXXX)
   make helm-package ARTIFACT_OUTPUT="$charts"
   python3 -B test/ci/release_delivery.py charts --directory "$charts"
+  make helm-oci-test HELM_OCI_QUALIFIED="$charts"
 )
 ```
 
@@ -612,11 +625,11 @@ make helm-package APP_VERSION="$(cat VERSION)"
 make helm-package CHART_VERSION=0.1.2-rc.1+build.2 APP_VERSION=0.1.2
 ```
 
-The first command packages each chart at the version in its own `Chart.yaml` and sets the application version from root `VERSION`. The second uses the same explicit package version for both archives. Both commands print the archive paths. Before writing either archive to the output directory, the packager checks that each chart's top-level `LICENSE` matches the repository license byte for byte. The independent monitoring companion includes its shared dashboards, configuration and image pins; the application chart does not depend on it. Charts do not include Go dependencies or inventories of externally referenced Prometheus/Grafana images. Install the companion only when needed; see [optional Helm monitoring](../operations/helm-monitoring.mdx).
+The first command packages each chart at the version in its own `Chart.yaml` and sets the application version from root `VERSION`. With the pinned release Helm, identical chart inputs produce identical archives across checkouts. Choose a new chart version when releasing changed archive bytes, including an updated `appVersion`. The second uses the same explicit package version for both archives. Both commands print the archive paths. Before writing either archive to the output directory, the packager checks that each chart's top-level `LICENSE` matches the repository license byte for byte. The independent monitoring companion includes its shared dashboards, configuration and image pins; the application chart does not depend on it. Charts do not include Go dependencies or inventories of externally referenced Prometheus/Grafana images. Install the companion only when needed; see [optional Helm monitoring](../operations/helm-monitoring.mdx).
 
 Chart versions accept SemVer prereleases and `+` build metadata, without a leading `v`.
 
-The release workflow opens both archives with Helm and checks the packaged chart name, package version and application version before accepting them as downloads. The application version must match the tagged checkout's `VERSION`.
+The release workflow opens both archives with Helm and checks the packaged chart name, package version and application version before accepting them as downloads. The application version must match the tagged checkout's `VERSION`. Before transferring the archives, the job pushes both to a disposable local registry. A signed-out Helm client pulls each by chart version and compares its bytes with the qualified download. Run `make helm-oci-test` to rehearse this check with fresh packages.
 
 The Catalog's full `appVersion` is retained in chart metadata. Kubernetes version labels replace `+` with `_`, truncate to 63 characters and strip trailing punctuation. When `image.tag` is empty, the application chart replaces `+` with `_` in the default image tag too; build/tag the image accordingly.
 

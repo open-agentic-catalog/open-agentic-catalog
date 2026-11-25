@@ -230,6 +230,38 @@ class OperationCoverageTests(unittest.TestCase):
                     "rows": [{"step": "startup-contract", "operationId": "getVersion", "status": 200,
                               "contract": "passed", "outcome": "positive", "count": 3}]}}
 
+    def test_candidate_report_requires_matching_served_build_and_container(self):
+        report = self.report()
+        commit = report["source"]["commit"]
+        build = {"version": "0.1.2-dev+g" + commit[:12], "commit": commit, "sourceState": "modified"}
+        report["servedVersion"].update(build)
+        report["candidate"] = {"build": build, "platform": "linux/amd64",
+                               "imageId": report["images"]["api"]["configurationDigest"],
+                               "source": {"commit": commit, "sourceSha256": "a" * 64}}
+        with tempfile.TemporaryDirectory() as temporary:
+            first, second = Path(temporary) / "first.json", Path(temporary) / "second.json"
+            runner.write_document(first, report)
+            summary = coverage.summarize([first])
+            self.assertEqual(summary["status"], "passed")
+            self.assertEqual(summary["expectedPositiveOperations"], 1)
+            for mutate in (lambda r: r.pop("candidate"),
+                           lambda r: r["candidate"].update(imageId="sha256:" + "f" * 64),
+                           lambda r: r["candidate"]["source"].update(commit="f" * 40),
+                           lambda r: r["candidate"]["build"].update(commit="f" * 40),
+                           lambda r: r["servedVersion"].update(version="functional"),
+                           lambda r: r["servedVersion"].update(sourceState="clean")):
+                changed = copy.deepcopy(report)
+                mutate(changed)
+                runner.write_document(second, changed)
+                with self.assertRaises(ClientFailure):
+                    coverage.summarize([second])
+            changed = copy.deepcopy(report)
+            changed["runId"] = "functional-" + "f" * 12
+            changed["candidate"]["source"]["sourceSha256"] = "f" * 64
+            runner.write_document(second, changed)
+            with self.assertRaisesRegex(ClientFailure, "incompatible report identities"):
+                coverage.summarize([first, second])
+
     def test_explicit_summary_unions_ids_and_refuses_incompatible_or_failed_evidence(self):
         with tempfile.TemporaryDirectory() as temporary:
             first, second = Path(temporary) / "first.json", Path(temporary) / "second.json"

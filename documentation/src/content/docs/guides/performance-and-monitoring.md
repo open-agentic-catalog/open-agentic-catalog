@@ -539,7 +539,7 @@ The checked-in `catalog-ui/scripts/performance-budgets.json` sets generous raw-b
 | --- | ---: |
 | Entry JavaScript and static imports | 500 KiB |
 | Entry CSS | 100 KiB |
-| All emitted JavaScript | 1184 KiB |
+| All emitted JavaScript | 1280 KiB |
 | All emitted CSS | 200 KiB |
 
 Shared files count once. Route totals include their static dependency closure and the shared entry. Do not add overlapping route totals. The report also records each asset and a gzip estimate.
@@ -550,7 +550,7 @@ Search responses in this specific fixture must stay below 64 KiB, without the la
 
 If an asset budget fails, the runner stops before starting the browser and names the limit it exceeded. Open `inputs.json` in the reported run directory. For an entry limit, look up `javaScript` or `css` under `build.entry`. For a total limit, use the same field under `build.total`, which also counts lazy screens such as guided authoring. Compare the raw byte count with the named limit under `budgets`. To see which bundles grew, compare `build.files` with an earlier run using the same build settings.
 
-Shared helpers used by the initial shell and lazy screens occupy separate chunks. Lazy-only authoring, comparison and source controls stay outside the entry closure. The Skill parser and Plugin examples also remain lazy. The split reduces initial JavaScript without removing features; it slightly increases total emitted bytes. Entry, CSS, response and request limits remain unchanged.
+The total JavaScript budget covers every screen, including collections, version comparison and upstream adoption. With the same build tools, the browser source from the original budget used 1,188,018 bytes. The expanded UI used 1,294,610 bytes. Grouping only widely shared helpers in the common lazy chunk brought the Catalog route and its static imports from 713,754 to 640,608 bytes. This splits the code across more files and brings the complete build to 1,299,817 bytes. The 1,280 KiB ceiling gives that build about 11 KiB of headroom. Opening Catalog leaves the upstream adoption and source comparison screens unloaded.
 
 All durations are report-only. Reports retain all six observations and calculate the median/minimum/maximum from the five recorded samples. Document navigation measures elapsed time within the destination document. In-page actions use a same-document monotonic difference.
 

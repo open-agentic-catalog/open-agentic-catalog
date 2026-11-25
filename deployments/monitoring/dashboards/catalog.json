@@ -79,7 +79,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}",
+          "expr": "up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -118,7 +118,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(min by (catalog_deployment, catalog_role, job, instance) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"})) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(min by (catalog_deployment, catalog_role, job, instance) (open_agentic_catalog_go_metric_available{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"})) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -157,7 +157,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "expr": "sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -196,7 +196,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",status_class=\"5xx\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))) or on (catalog_deployment,catalog_role) (0 * (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))))",
+          "expr": "(sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",status_class=\"5xx\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))) or on (catalog_deployment,catalog_role) (0 * (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))))",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -235,7 +235,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95,sum by (le,catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_request_duration_seconds_bucket{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))) and on (catalog_deployment,catalog_role) ((sum by (catalog_deployment,catalog_role) (increase(open_agentic_catalog_http_request_duration_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))) > 0)",
+          "expr": "histogram_quantile(0.95,sum by (le,catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_request_duration_seconds_bucket{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))) and on (catalog_deployment,catalog_role) ((sum by (catalog_deployment,catalog_role) (increase(open_agentic_catalog_http_request_duration_seconds_count{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))) > 0)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -274,7 +274,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role) (increase(open_agentic_catalog_http_responses_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "expr": "sum by (catalog_deployment,catalog_role) (increase(open_agentic_catalog_http_responses_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -313,7 +313,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(open_agentic_catalog_postgresql_pool_connections{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(open_agentic_catalog_postgresql_pool_connections{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -352,7 +352,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role,operation) (rate(open_agentic_catalog_postgresql_operations_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "expr": "sum by (catalog_deployment,catalog_role,operation) (rate(open_agentic_catalog_postgresql_operations_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -391,7 +391,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(open_agentic_catalog_operational_snapshot_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"}) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(open_agentic_catalog_operational_snapshot_available{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"}) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -430,7 +430,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(open_agentic_catalog_job_oldest_runnable_age_seconds{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(open_agentic_catalog_job_oldest_runnable_age_seconds{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -469,7 +469,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(open_agentic_catalog_jobs{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\",state=~\"queued|waiting|running\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(open_agentic_catalog_jobs{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\",state=~\"queued|waiting|running\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -508,7 +508,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(open_agentic_catalog_outbox_oldest_pending_age_seconds{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(open_agentic_catalog_outbox_oldest_pending_age_seconds{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -547,7 +547,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(open_agentic_catalog_go_heap_bytes{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_heap_bytes\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(open_agentic_catalog_go_heap_bytes{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_heap_bytes\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -586,7 +586,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(open_agentic_catalog_go_last_gc_live_heap_bytes{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_last_gc_live_heap_bytes\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(open_agentic_catalog_go_last_gc_live_heap_bytes{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_last_gc_live_heap_bytes\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -625,7 +625,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(rate(open_agentic_catalog_go_allocated_bytes_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval])) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_allocated_bytes_total\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(rate(open_agentic_catalog_go_allocated_bytes_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval])) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_allocated_bytes_total\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -664,7 +664,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(open_agentic_catalog_go_goroutines{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_goroutines\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(open_agentic_catalog_go_goroutines{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_goroutines\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -703,7 +703,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(rate(open_agentic_catalog_go_gc_cycles_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval])) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_gc_cycles_total\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(rate(open_agentic_catalog_go_gc_cycles_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval])) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_gc_cycles_total\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -742,7 +742,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(histogram_quantile(0.95,rate(open_agentic_catalog_go_gc_pause_seconds_bucket{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]))) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_gc_pause_seconds\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (increase(open_agentic_catalog_go_gc_pause_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) > 0)",
+          "expr": "(histogram_quantile(0.95,rate(open_agentic_catalog_go_gc_pause_seconds_bucket{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]))) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_gc_pause_seconds\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (increase(open_agentic_catalog_go_gc_pause_seconds_count{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) > 0)",
           "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
         }
       ],
@@ -780,7 +780,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(rate(open_agentic_catalog_postgresql_pool_empty_acquire_seconds_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(rate(open_agentic_catalog_postgresql_pool_empty_acquire_seconds_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{operation}} {{class}}"
         }
       ],
@@ -810,7 +810,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role,operation) (rate(open_agentic_catalog_postgresql_operation_duration_seconds_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "expr": "sum by (catalog_deployment,catalog_role,operation) (rate(open_agentic_catalog_postgresql_operation_duration_seconds_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))",
           "legendFormat": "{{catalog_role}} {{instance}} {{operation}} {{class}}"
         }
       ],
@@ -840,7 +840,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(rate(open_agentic_catalog_housekeeping_batches_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\",outcome=\"failed\"}[$__rate_interval])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "(rate(open_agentic_catalog_housekeeping_batches_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\",outcome=\"failed\"}[$__rate_interval])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{operation}} {{class}}"
         }
       ],
@@ -870,7 +870,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "((time() - open_agentic_catalog_housekeeping_last_success_timestamp_seconds{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"}) and (open_agentic_catalog_housekeeping_last_success_timestamp_seconds{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"} > 0)) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "((time() - open_agentic_catalog_housekeeping_last_success_timestamp_seconds{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"}) and (open_agentic_catalog_housekeeping_last_success_timestamp_seconds{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"} > 0)) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}} {{operation}} {{class}}"
         }
       ],
@@ -901,7 +901,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role,operation,outcome) (rate(open_agentic_catalog_embedding_request_duration_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "expr": "sum by (catalog_deployment,catalog_role,operation,outcome) (rate(open_agentic_catalog_embedding_request_duration_seconds_count{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))",
           "legendFormat": "{{catalog_role}} {{operation}} {{outcome}}"
         }
       ],
@@ -931,7 +931,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role,operation,outcome) (rate(open_agentic_catalog_search_retrieval_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "expr": "sum by (catalog_deployment,catalog_role,operation,outcome) (rate(open_agentic_catalog_search_retrieval_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))",
           "legendFormat": "{{catalog_role}} {{operation}} {{outcome}}"
         }
       ],
@@ -961,7 +961,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "open_agentic_catalog_semantic_pending_jobs{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "expr": "open_agentic_catalog_semantic_pending_jobs{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)",
           "legendFormat": "{{catalog_role}} {{instance}}"
         }
       ],
@@ -991,7 +991,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role,operation) (rate(open_agentic_catalog_embedding_request_duration_seconds_sum{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) / (sum by (catalog_deployment,catalog_role,operation) (rate(open_agentic_catalog_embedding_request_duration_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) > 0)",
+          "expr": "sum by (catalog_deployment,catalog_role,operation) (rate(open_agentic_catalog_embedding_request_duration_seconds_sum{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)) / (sum by (catalog_deployment,catalog_role,operation) (rate(open_agentic_catalog_embedding_request_duration_seconds_count{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)) > 0)",
           "legendFormat": "{{catalog_role}} {{operation}}"
         }
       ],
@@ -1021,7 +1021,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role,kind) (rate(open_agentic_catalog_job_retry_delay_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "expr": "sum by (catalog_deployment,catalog_role,kind) (rate(open_agentic_catalog_job_retry_delay_seconds_count{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))",
           "legendFormat": "{{catalog_role}} {{kind}}"
         }
       ],
@@ -1051,7 +1051,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role,kind) (rate(open_agentic_catalog_job_retry_delay_seconds_sum{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) / (sum by (catalog_deployment,catalog_role,kind) (rate(open_agentic_catalog_job_retry_delay_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) > 0)",
+          "expr": "sum by (catalog_deployment,catalog_role,kind) (rate(open_agentic_catalog_job_retry_delay_seconds_sum{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)) / (sum by (catalog_deployment,catalog_role,kind) (rate(open_agentic_catalog_job_retry_delay_seconds_count{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)) > 0)",
           "legendFormat": "{{catalog_role}} {{kind}}"
         }
       ],
@@ -1081,7 +1081,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_webhook_retry_delay_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "expr": "sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_webhook_retry_delay_seconds_count{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))",
           "legendFormat": "{{catalog_role}}"
         }
       ],
@@ -1111,7 +1111,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_webhook_retry_delay_seconds_sum{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) / (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_webhook_retry_delay_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) > 0)",
+          "expr": "sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_webhook_retry_delay_seconds_sum{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)) / (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_webhook_retry_delay_seconds_count{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)) > 0)",
           "legendFormat": "{{catalog_role}}"
         }
       ],
@@ -1141,7 +1141,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role,reason) (rate(open_agentic_catalog_security_refusals_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"api\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "expr": "sum by (catalog_deployment,catalog_role,reason) (rate(open_agentic_catalog_security_refusals_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\",catalog_role=\"api\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1))",
           "legendFormat": "{{catalog_role}} {{reason}}"
         }
       ],
@@ -1171,7 +1171,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_trace_export_failures_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) / (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_trace_export_batches_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) > 0)",
+          "expr": "sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_trace_export_failures_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)) / (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_trace_export_batches_total{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=\"${deployment}\",catalog_role=~\"${role:regex}\"} == 1)) > 0)",
           "legendFormat": "{{catalog_role}}"
         }
       ],

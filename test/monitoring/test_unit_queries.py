@@ -17,9 +17,14 @@ class QueryContractTests(unittest.TestCase):
         self.assertTrue(expected <= actual)
         self.assertEqual(32, len(expected))
         self.assertEqual({"datasource", "deployment", "role"}, {item["name"] for item in self.dashboard["templating"]["list"]})
+        deployment = next(item for item in self.dashboard["templating"]["list"] if item["name"] == "deployment")
+        self.assertFalse(deployment["multi"])
+        self.assertFalse(deployment["includeAll"])
         for panel in self.dashboard["panels"]:
             self.assertEqual("${datasource}", panel["datasource"]["uid"])
-            self.assertIn("${deployment:regex}", panel["targets"][0]["expr"])
+            expr = panel["targets"][0]["expr"]
+            self.assertIn('catalog_deployment="${deployment}"', expr)
+            self.assertNotIn("catalog_deployment=~", expr)
             self.assertIn("${role:regex}", panel["targets"][0]["expr"])
             self.assertNotIn("or vector(0)", panel["targets"][0]["expr"])
 

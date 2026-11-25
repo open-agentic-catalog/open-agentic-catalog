@@ -255,7 +255,7 @@ class AdmissionTests(unittest.TestCase):
         target.mkdir()
         charts = {}
         for name in r.release_charts():
-            (target / name).write_bytes(b"chart")
+            (target / name).write_bytes(name.encode())
             charts[name] = c.digest(target / name)
         (target / "qualification.json").write_text(json.dumps({"source": SOURCE, "result": "success", "files": charts}))
         for suite in r.SUITES:
@@ -326,6 +326,11 @@ class AdmissionTests(unittest.TestCase):
             (directory / "release-evidence.tar.gz").write_bytes(b"evidence")
             value = {"source": SOURCE, "build": {"version": "0.1.0"}, "files": {},
                      "images": {product + "-" + arch: "sha256:" + "c" * 64 for product in c.PRODUCTS for arch in ("amd64", "arm64")}}
+            (directory / "charts").mkdir()
+            for filename in r.release_charts():
+                path = directory / "charts" / filename
+                path.write_bytes(b"qualified chart")
+                value["files"]["charts/" + filename] = c.digest(path)
             calls = []
 
             def execute(args, **_kwargs):
@@ -333,7 +338,7 @@ class AdmissionTests(unittest.TestCase):
                 if args[:3] == ["docker", "image", "push"]:
                     raise OSError("fixture push failure")
 
-            with patch.object(r, "delivery_plan", return_value=value), patch.object(r, "existing_assets", return_value={"draft": True, "missing": []}), patch.object(r, "destination_commit", return_value=SOURCE["commit"]), patch.object(r, "registry_manifest", return_value=None), patch.object(r.subprocess, "run", side_effect=execute):
+            with patch.object(r, "delivery_plan", return_value=value), patch.object(r, "existing_assets", return_value={"draft": True, "missing": []}), patch.object(r, "destination_commit", return_value=SOURCE["commit"]), patch.object(r, "registry_bytes", return_value=None), patch.object(r.subprocess, "run", side_effect=execute):
                 with self.assertRaises(OSError):
                     r.publish(directory)
             record = json.loads((directory / "delivery-result.json").read_text())

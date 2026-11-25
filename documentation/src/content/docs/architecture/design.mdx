@@ -168,7 +168,7 @@ The [security architecture](security.mdx#threats-and-principal-controls) contain
 
 Numbered migrations are forward-only, embedded and checksum-verified. One schema-owner operation holds the migration/reconciliation lock and applies the exact API and worker privilege manifests. A committed migration followed by failed reconciliation leaves runtimes stopped until the problem is corrected. There is no automatic application-startup migration authority.
 
-There is no released predecessor to preserve under the [first-release baseline](decisions/0017-first-release-baseline.md). Reject incompatible development state without inventing history or deleting data. Future upgrades must account for actually supported versions, queued payloads, retained evidence and any explicit drain boundary; this does not require speculative old-client aliases or a mixed-version release matrix.
+`v0.1.2` is the first supported release. An upgrade must preserve queued Job payloads, immutable history and retained evidence from supported versions. Drain the old API and worker before the schema owner applies migrations and reconciles runtime grants. The first release excluded formats used only in development. [First-release decision](decisions/0017-first-release-baseline.md) and [coordinated upgrade procedure](../operations/maintenance.mdx#coordinated-release-deployment)
 
 Health checks distinguish liveness, readiness and optional-component degradation. API and worker runtime connections require a usable PostgreSQL writer. Graceful shutdown stops admission or claims, drains within a bound and leaves unfinished work recoverable. Correctness across replicas depends on database transactions, leases and command serialization, not sticky routing or process leadership.
 

@@ -3,5 +3,7 @@ name: open-agentic-catalog-monitoring
 description: Optional namespaced Prometheus and Grafana for Catalog application metrics
 type: application
 kubeVersion: ">=1.34.0-0"
-version: 0.1.2
+version: 0.1.3
 appVersion: 0.1.2
+annotations:
+  org.opencontainers.image.source: https://github.com/open-agentic-catalog/open-agentic-catalog

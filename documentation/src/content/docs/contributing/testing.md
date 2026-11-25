@@ -492,6 +492,14 @@ Install the pinned local tools with `make validation-tools-install` using Node.j
 | `make api-diff API_BASE=/absolute/path/to/baseline.yaml` | Semantic report against an explicitly selected local contract; no default baseline or Git/network acquisition. |
 | `make api-breaking-check API_BASE=/absolute/path/to/baseline.yaml` | The same comparison, failing on error-level breaking changes. |
 
+From the repository root, compare your working copy against the first supported release using the local `v0.1.2` tag. The baseline and the candidate must be separate files.
+
+```sh
+mkdir -p output/api-baselines
+git show v0.1.2:api/openapi/control-v1.yaml > output/api-baselines/v0.1.2.yaml &&
+  make api-breaking-check API_BASE="$PWD/output/api-baselines/v0.1.2.yaml"
+```
+
 `api-validate`, `api-yaml-check` and `api-lint` are focused subsets. API-only Make goals ignore environment files and cannot be mixed with unrelated workflows. Installation runs alone. Normal `make check` retains Make's environment-file behavior, so use `CATALOG_ENV_FILE=/dev/null` to omit local settings. `make verify` and Go builds remain independent of these npm tools.
 
 Checks consume the original OpenAPI 3.1.0 document without fixes or generated replacements. oasdiff normalizes inherited parameters only in memory. It preserves operation overrides and does not flatten `allOf`. Tool input is restricted to bounded local files and local JSON Pointer references. Example values are data, not URLs to fetch. See the [validation harness](../../../../../test/validation/README.md) for exact limits, environment isolation and rule selection.

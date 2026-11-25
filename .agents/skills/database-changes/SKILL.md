@@ -19,7 +19,7 @@ For schema changes, add the next forward migration and preserve applied files an
 
 For changed schema authority, review both exact runtime manifests in `internal/platform/database/privileges.go`, affected extension-function grants and startup admission. Preserve column-explicit least privilege, direct login, role separation and forced RLS. Update affected catalog/restore inventory expectations when schema guards change. Never weaken grants, constraints, RLS or triggers to accommodate an invalid repository write.
 
-Document migration planning/application, reconciliation failure recovery and the actual drain/rollback boundary. Runtime processes never acquire migration authority. Use the current first-release compatibility policy; do not invent a predecessor backfill or silently reset stored data. Authoring and testing migrations does not authorize applying them to retained or shared databases. Follow the owning runbook for any separately authorized operator action.
+Document migration planning/application, reconciliation failure recovery and the actual drain/rollback boundary. Runtime processes never acquire migration authority. Preserve data written by supported releases starting with `v0.1.2`. Test forward migrations against that data. Never reset stored data implicitly. Authoring and testing migrations does not authorize applying them to retained or shared databases. Follow the owning runbook for any separately authorized operator action.
 
 ## Qualify the real boundary
 

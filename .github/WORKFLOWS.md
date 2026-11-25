@@ -121,6 +121,6 @@ A failed delivery reports completed operations. Rerun only the failed delivery j
 
 ## Release downloads and container delivery
 
-The [release procedure](../documentation/src/content/docs/contributing/build-and-release.md#run-checks-for-a-release-candidate) owns setup, file names, installation and retries. GitHub Releases receive the tested SDKs, Linux server, Linux/macOS CLI and coordinator archives, the discovery Skill, VSIX, charts and checksums. GHCR receives the retained backend/UI images. No ecosystem registry or Marketplace publishing is configured.
+The [release procedure](../documentation/src/content/docs/contributing/build-and-release.md#run-checks-for-a-release-candidate) owns setup, file names, installation and retries. GitHub Releases receive the tested SDKs, Linux server, Linux/macOS CLI and coordinator archives, the discovery Skill, VSIX, charts and checksums. GHCR receives the retained backend/UI images and the same two chart archives under `ghcr.io/open-agentic-catalog/charts`. The delivery summary records the archive SHA-256 and OCI manifest digest for each chart. No ecosystem registry or Marketplace publishing is configured.
 
 Both dispatch inputs default to false. Select `upload_artifacts=true` for every release run and leave `publish=false` for a qualification-only run. Configure required reviewers before enabling `RELEASE_PUBLISH_ENABLED`. Maintainers prepare and finally publish the draft release. Local act never delivers releases.

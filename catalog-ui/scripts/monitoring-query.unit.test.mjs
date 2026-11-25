@@ -22,7 +22,7 @@ function fixture(role = "worker") {
         {
           refId: "A",
           datasource: { uid: "catalog-prometheus" },
-          expr: `open_agentic_catalog_go_heap_bytes{catalog_deployment=~"local",catalog_role=~"${role === "All" ? "api|worker" : role}"}`,
+          expr: `open_agentic_catalog_go_heap_bytes{catalog_deployment="local",catalog_role=~"${role === "All" ? "api|worker" : role}"}`,
         },
         {
           refId: "B",

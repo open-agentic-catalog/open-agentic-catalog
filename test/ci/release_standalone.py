@@ -17,6 +17,7 @@ from threading import Thread
 import admission
 import candidate
 
+STANDALONE_RECEIPT = "standalone.json"
 SKILL_FILES = ("LICENSE", "README.md", "SKILL.md", "references/README.md", "references/results.md")
 PLATFORMS = ("linux/amd64", "linux/arm64", "darwin/amd64", "darwin/arm64")
 
@@ -87,7 +88,7 @@ def extra_archives(extracted, output, stamp, source, image_id, arch):
         skill = skill_archive(output, version)
         assets[skill.name] = {"sha256": candidate.digest(skill)}
     receipt = {"source": source, "build": stamp, "imageId": image_id, "arch": arch, "files": assets}
-    (output / "standalone.json").write_text(json.dumps(receipt, sort_keys=True) + "\n")
+    (output / STANDALONE_RECEIPT).write_text(json.dumps(receipt, sort_keys=True) + "\n")
 
 
 def smoke_discovery(executable):
@@ -104,6 +105,7 @@ def smoke_discovery(executable):
             self.wfile.write(json.dumps({"entries": [entry]}).encode())
 
         def log_message(self, *_args):
+            # Access logs would mix fixture traffic with the native checker's diagnostics.
             pass
 
     with HTTPServer(("127.0.0.1", 0), Publication) as peer:
@@ -115,8 +117,12 @@ def smoke_discovery(executable):
         finally:
             peer.shutdown()
             thread.join()
-    if calls != [("/.well-known/ard.json", None, None)] or result["data"]["entries"] != [entry] or result["meta"]["requestId"] != "release-fixture":
-        raise ValueError("Packaged CLI discovery response differs from the selected peer")
+    if calls != [("/.well-known/ard.json", None, None)]:
+        raise ValueError("Packaged CLI must read the manifest once without credentials")
+    if result["meta"]["requestId"] != "release-fixture":
+        raise ValueError("Packaged CLI did not preserve the discovery request ID")
+    if result["data"]["entries"] != [entry]:
+        raise ValueError("Packaged CLI discovery entry differs from the selected peer")
 
 
 def smoke_credentials(executable, directory):
@@ -166,7 +172,7 @@ def check_native(directory, target, output):
     if platform.system().lower() + "/" + str(machine) != target:
         raise ValueError("Selected release binaries require the matching native host")
     source = admission.source_identity(admission.ROOT)
-    extra = json.loads(admission.regular(directory, "standalone.json").read_text())
+    extra = json.loads(admission.regular(directory, STANDALONE_RECEIPT).read_text())
     cli = json.loads(admission.regular(directory, "cli.json").read_text())
     build = extra["build"]
     if (extra["source"] != source or cli["source"] != source or build != cli["build"] or extra["imageId"] != cli["imageId"]
@@ -248,23 +254,29 @@ def verify_skill(path):
         raise ValueError("Incomplete discovery Skill")
 
 
-def qualified_files(inputs, source, images, cli_archives):
-    """Independently derive the inventory and bind each native result to the tested bytes."""
-    selected = {}
+def native_receipts(inputs, source):
+    """Require exactly one matching native check per release platform."""
     native = {}
+    evidence = {}
     for record in inputs.rglob("native-*.json"):
         value = json.loads(admission.regular(inputs, record.relative_to(inputs).as_posix()).read_text())
         target = value["platform"]
         if target in native or target not in PLATFORMS or value["source"] != source or set(value) != {"platform", "files", "source"}:
             raise ValueError("Invalid native release qualification")
         native[target] = value["files"]
-        selected["evidence/native-" + target.replace("/", "-") + ".json"] = (record, candidate.digest(record))
+        evidence["evidence/native-" + target.replace("/", "-") + ".json"] = (record, candidate.digest(record))
     if set(native) != set(PLATFORMS):
         raise ValueError("Missing native release qualification")
+    return native, evidence
+
+
+def qualified_files(inputs, source, images, cli_archives):
+    """Independently derive the inventory and bind each native result to the tested bytes."""
+    native, selected = native_receipts(inputs, source)
 
     for arch in ("amd64", "arm64"):
         directory, cli, inspection = cli_archives[arch]
-        record = admission.regular(directory, "standalone.json")
+        record = admission.regular(directory, STANDALONE_RECEIPT)
         value = json.loads(record.read_text())
         image = images["backend-" + arch]
         if (value["source"] != source or value["imageId"] != image["imageId"] or value["build"] != image["build"]
