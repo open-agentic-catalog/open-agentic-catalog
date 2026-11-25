@@ -134,17 +134,21 @@ class ChartPackagingTests(unittest.TestCase):
                     self.assertNotRegex(metadata, r"(?m)^(home|sources):")
                     source_metadata = (ROOT / "deployments/helm" / chart / "Chart.yaml").read_text()
                     self.assertNotRegex(source_metadata, r"(?m)^(home|sources):")
-            example = "open-agentic-catalog/examples/spire-values.yaml"
-            with tarfile.open(outputs[0]) as archive:
-                self.assertEqual(archive.extractfile(example).read(), (charts.ROOT / "deployments/helm" / example).read_bytes())
             with tarfile.open(outputs[1]) as archive:
                 for filename, source in (("catalog.json", "dashboards/catalog.json"), ("images.json", "images.json"),
                                          ("grafana.ini", "grafana.ini"), ("dashboards.yaml", "provisioning/dashboards/catalog.yaml")):
                     with self.subTest(file=filename):
                         self.assertEqual(archive.extractfile("open-agentic-catalog-monitoring/files/" + filename).read(),
                                          (charts.monitoring.ASSETS / source).read_bytes())
-            def render(*args):
-                return subprocess.run(HELM + ["template", "--kube-version", "1.34.0", "test", str(outputs[0]), *args], check=True, capture_output=True, text=True, timeout=30).stdout
+            def render(*args, values=None):
+                return subprocess.run(HELM + ["template", "--kube-version", "1.34.0", "test", str(outputs[0]), *args], input=values, check=True, capture_output=True, text=True, timeout=30).stdout
+            with tarfile.open(outputs[0]) as archive:
+                for filename, reference in (("spire-values.yaml", "spire-issuer-ca"), ("spire-source-values.yaml", "catalog-a-reader")):
+                    with self.subTest(example=filename):
+                        member = "open-agentic-catalog/examples/" + filename
+                        contents = archive.extractfile(member).read()
+                        self.assertEqual(contents, (charts.ROOT / "deployments/helm" / member).read_bytes())
+                        self.assertIn(reference, render("--values", "-", values=contents.decode()))
             rendered = render()
             self.assertIn('app.kubernetes.io/version: "2.0.0-rc.2_build"', rendered)
             self.assertIn("open-agentic-catalog:2.0.0-rc.2_build", rendered)

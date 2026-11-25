@@ -151,7 +151,8 @@ func TestFederationWorkflowRetryInputs(t *testing.T) {
 func TestSPIREImporterBoundsRetriesAcrossCredentialRollout(t *testing.T) {
 	for _, marker := range []string{"spire-import", "spire-import-off"} {
 		t.Run(marker, func(t *testing.T) {
-			h := &harness{temporary: t.TempDir(), application: "catalog:test", catalogScope: catalogPeerNamespace, options: options{scenario: "spire"}}
+			h := &harness{temporary: t.TempDir(), application: "catalog:test", catalogScope: catalogPeerNamespace,
+				options: options{scenario: "spire", repositoryRoot: filepath.Join("..", "..")}}
 			path, err := h.writeHelmValues(marker, "catalog_api")
 			if err != nil {
 				t.Fatal(err)

@@ -1,0 +1,17 @@
+# Merge into the importing Catalog's complete values. Keep its own OIDC issuer.
+# Use existing objects in the release namespace. The policy must include all
+# required sources and restrict access to the intended tenant and upstream origin.
+federation:
+  policy:
+    existingConfigMap: spire-source-policy
+    key: policy.json
+  # Upstream HTTPS CA referenced by the policy (omit for public roots).
+  trustBundleConfigMap: spire-source-ca
+secrets:
+  # Use a dedicated Secret. Both Catalog roles read every key in it.
+  # A separate writer updates the binding and token together.
+  federationCredentials:
+    name: catalog-a-reader
+configEnv:
+  CATALOG_CREDENTIAL_RESOLUTION_ENABLED: "true"
+  CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY: /etc/open-agentic-catalog/federation/credentials

@@ -10,6 +10,9 @@ spec:
     - name: server
       image: SPIRE_FIXTURE_IMAGE
       imagePullPolicy: Never
+      resources:
+        requests: {cpu: 100m, memory: 64Mi, ephemeral-storage: 8Mi}
+        limits: {memory: 384Mi, ephemeral-storage: 256Mi}
       command: [/opt/spire-server, run, -config, /config/server.conf]
       securityContext: {runAsUser: 0, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true}
       volumeMounts:
@@ -60,6 +63,9 @@ spec:
     - name: frontend
       image: SPIRE_FIXTURE_IMAGE
       imagePullPolicy: Never
+      resources:
+        requests: {cpu: 25m, memory: 16Mi, ephemeral-storage: 8Mi}
+        limits: {memory: 96Mi, ephemeral-storage: 32Mi}
       command: [/opt/frontend]
       securityContext: {runAsUser: 65532, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true}
       env:
@@ -82,6 +88,9 @@ spec:
     - name: agent
       image: SPIRE_FIXTURE_IMAGE
       imagePullPolicy: Never
+      resources:
+        requests: {cpu: 75m, memory: 48Mi, ephemeral-storage: 8Mi}
+        limits: {memory: 256Mi, ephemeral-storage: 128Mi}
       command: [/opt/spire-agent, run, -config, /config/agent.conf, -joinTokenFile, /bootstrap/join]
       securityContext: {runAsUser: 0, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true}
       volumeMounts:
@@ -93,6 +102,9 @@ spec:
     - name: issuer
       image: SPIRE_FIXTURE_IMAGE
       imagePullPolicy: Never
+      resources:
+        requests: {cpu: 25m, memory: 24Mi, ephemeral-storage: 8Mi}
+        limits: {memory: 128Mi, ephemeral-storage: 32Mi}
       command: [/opt/oidc-discovery-provider, -config, /config/provider.conf]
       securityContext: {runAsUser: 11006, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
       volumeMounts:
@@ -103,6 +115,9 @@ spec:
       name: reporter
       image: SPIRE_FIXTURE_IMAGE
       imagePullPolicy: Never
+      resources:
+        requests: {cpu: 10m, memory: 16Mi, ephemeral-storage: 8Mi}
+        limits: {memory: 128Mi, ephemeral-storage: 32Mi}
       command: [/opt/reader, --wait]
       securityContext: &unprivileged
         runAsNonRoot: true

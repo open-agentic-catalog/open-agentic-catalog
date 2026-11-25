@@ -105,6 +105,7 @@ export const downloads = [
   'test/interoperability/spire/reader.go',
   'test/interoperability/spire/renew.py',
   'deployments/helm/open-agentic-catalog/examples/spire-values.yaml',
+  'deployments/helm/open-agentic-catalog/examples/spire-source-values.yaml',
   'extensions/vscode/media/catalog-preview.png',
   'extensions/vscode/media/agent-conversation.png',
   // Reviewed reader screenshots use the same exact-copy and base-path rules.

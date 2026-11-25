@@ -9,6 +9,9 @@ spec:
     - name: source-reader
       image: SPIRE_FIXTURE_IMAGE
       imagePullPolicy: Never
+      resources:
+        requests: {cpu: 25m, memory: 32Mi, ephemeral-storage: 8Mi}
+        limits: {memory: 192Mi, ephemeral-storage: 32Mi}
       command: [python3, -B, /opt/kubernetes_writer.py]
       securityContext: {runAsNonRoot: true, runAsUser: 11007, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
       volumeMounts:

@@ -94,6 +94,10 @@
     "route": "operations/sign-in"
   },
   {
+    "source": "documentation/src/content/docs/operations/spire-workload-identity.md",
+    "route": "operations/spire-workload-identity"
+  },
+  {
     "source": "documentation/src/content/docs/operations/oidc-keycloak.md",
     "route": "operations/oidc-keycloak"
   },

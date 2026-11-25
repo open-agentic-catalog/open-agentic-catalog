@@ -31,7 +31,7 @@ docker compose -f "$run/compose.json" down --volumes --remove-orphans
 
 The fixture image is tagged with that project's name and `:catalog`. Once its containers are gone, remove that tag and the private inputs under that run directory.
 
-See the [operator configuration and troubleshooting guide](../../../documentation/src/content/docs/guides/integrating.mdx#read-a-private-resource-and-publication-with-spire).
+For a hands-on walkthrough, follow the [SPIRE tutorial](../../../documentation/src/content/docs/operations/spire-workload-identity.md). See the [operator configuration and troubleshooting guide](../../../documentation/src/content/docs/guides/integrating.mdx#read-a-private-resource-and-publication-with-spire).
 
 ## Renew an importing Catalog's source credential
 
@@ -62,4 +62,6 @@ The test also reads B's `source.tested` audit events. A missing or expired bindi
 
 The report under `output/interoperability/spire-renewal/` records the credential revisions, Job and snapshot references, process identities and cleanup outcome. Run `go test -race -tags=functional ./internal/federation ./internal/platform/fetcher` for the eligible-peer 304, private TLS, tenant/origin binding and redirect regressions. Follow the [federation guide](../../../documentation/src/content/docs/operations/federation.mdx#renew-a-source-bearer-with-spire) for deployment settings and recovery steps.
 
-To qualify Kubernetes Secret delivery, run [`make test-minikube-spire-renewal`](../../minikube/README.md#optional-spire-workload-authentication). It uses the same native SPIRE tools and pinned Python image. The separately selected `make test-minikube-spire` covers inbound workload authentication on a single Helm release.
+To qualify Kubernetes Secret delivery, run [`make test-minikube-spire-renewal`](../../minikube/README.md#optional-spire-workload-authentication). It uses the same native SPIRE tools and pinned Python image. At startup and after renewal, a successful Source test and a completed synchronization must report the active Secret revision. The test allows time for the API and worker to pick up the projected volume independently. An unknown revision or failed operation fails the run.
+
+The Secret writer removes its superseded token keys once their expiry plus the 30-second grace period has passed. If the Agent still supplies the current token, cleanup preserves the active revision and unrelated Secret keys. The separately selected `make test-minikube-spire` covers inbound workload authentication on a single Helm release.

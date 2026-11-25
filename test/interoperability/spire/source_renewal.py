@@ -15,6 +15,7 @@ from tutorial_oidc import (A, B, activate_publication, assert_auth_failure, asse
 
 MANIFEST = "/.well-known/ard.json"
 SOURCES = "/api/v1/federation/sources"
+SOURCE_BINDING = {"networkProfile": "tutorial-a", "credentialBinding": "catalog-a-reader"}
 B_AUDIENCE = "open-agentic-catalog-b"
 SOURCE_PHASES = ("startup", "published-and-imported", "mixed-generation-retained", "renewed-and-read-back",
                  "peer-refusal-and-outage", "interrupted-delivery-and-expiry", "private-ca-rollout", "disabled-resolution")
@@ -114,24 +115,34 @@ class SourceFixture(Fixture):
         check(len(shared_volumes) == 1, "The writer and consumers must share the same credential volume")
 
 
+def inspect_source(b):
+    return b.request("POST", "/api/v1/federation/source-inspections", {"url": A + MANIFEST, **SOURCE_BINDING}, 201)[0]
+
+
 def connect(b, revision):
-    binding = {"networkProfile": "tutorial-a", "credentialBinding": "catalog-a-reader"}
-    inspection, _ = b.request("POST", "/api/v1/federation/source-inspections", {"url": A + MANIFEST, **binding}, 201)
+    inspection = inspect_source(b)
     check(inspection["credentialRevision"] == revision, "Inspection used a different credential")
+    return create_source(b, inspection)
+
+
+def create_source(b, inspection):
     nest = {"enabled": True, "maxDepth": 2, "allowedOrigins": [A]}
-    return b.request("POST", SOURCES, {**binding, "inspectionId": inspection["id"], "displayName": "Published Agents from A",
+    return b.request("POST", SOURCES, {**SOURCE_BINDING, "inspectionId": inspection["id"], "displayName": "Published Agents from A",
         "retrievalMode": "indexed", "updateMode": "manual_review", "scope": {"kinds": ["agent"]},
         "live": {"enabled": False}, "referrals": {"enabled": False}, "nesting": nest,
         "discoveryAssignments": [{"host": "catalog-b.test", "audience": "authenticated"}],
         "reason": "Qualify the approved peer"}, 201)[0]["id"]
 
 
-def test_source(b, sid, revision, *, previous=None):
+def test_source(b, sid, revision):
+    check(tested_revision(b, sid) == revision, "Unexpected credential in Source test")
+
+
+def tested_revision(b, sid):
     path = SOURCES + "/" + sid
     before, etag = b.request("GET", path)
     tested, tested_etag = b.request("POST", path + ":test", {}, etag=etag)
     observed = tested.get("credentialRevision")
-    check(observed == revision or (previous is not None and observed == previous), "Unexpected credential in Source test")
     assert_test(tested, observed)
     after, stored_etag = b.request("GET", path)
     check(tested["sourceId"] == after["id"] == sid and tested["sourceRevision"] == after["revision"] == before["revision"] + 1
@@ -157,7 +168,13 @@ def finish(b, job_id):
     return job
 
 
-def sync(b, sid, revision, identifier, *, previous=None):
+def sync(b, sid, revision, identifier):
+    snapshot = indexed_snapshot(b, sid, identifier)
+    check(snapshot["credentialRevision"] == revision, "Unexpected credential in snapshot")
+    return snapshot
+
+
+def indexed_snapshot(b, sid, identifier):
     job_id, source_revision = queue(b, sid)
     job = finish(b, job_id)
     if job["state"] != "succeeded":
@@ -170,7 +187,6 @@ def sync(b, sid, revision, identifier, *, previous=None):
     snap = b.request("GET", "/api/v1/federation/snapshots/" + result["snapshotId"])[0]
     check(snap["id"] == result["snapshotId"] and snap["tenantId"] == TENANTS["b"], "Job points to a different snapshot")
     observed = snap.get("credentialRevision")
-    check(observed == revision or (previous is not None and observed == previous), "Unexpected credential in snapshot")
     assert_snapshot(snap, b.request("GET", SOURCES + "/" + sid)[0], source_revision, observed, sid)
     check_index(b, sid, identifier)
     return {"jobId": job_id, "snapshotId": snap["id"], "sourceRevision": source_revision,

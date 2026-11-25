@@ -2,7 +2,11 @@
 
 package helm_test
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestOIDCTrustMountIsAPIOnly(t *testing.T) {
 	baseline := renderChart(t)
@@ -79,6 +83,9 @@ func TestSPIREValuesSelectOnlyTheConfiguredIssuer(t *testing.T) {
 			if data["CATALOG_AUTH_MODE"] != "oidc" || data["CATALOG_AUTH_ISSUER"] != tc.issuer {
 				t.Fatalf("unexpected authentication mode or issuer: %v, %v", data["CATALOG_AUTH_MODE"], data["CATALOG_AUTH_ISSUER"])
 			}
+			if data["CATALOG_CREDENTIAL_RESOLUTION_ENABLED"] != "false" {
+				t.Fatal("selecting the inbound issuer enabled outbound credentials")
+			}
 			api := oneObject(t, objects, "Deployment", "api")
 			mounted := false
 			for _, item := range sliceAt(t, api, "spec", "template", "spec", "volumes") {
@@ -94,5 +101,46 @@ func TestSPIREValuesSelectOnlyTheConfiguredIssuer(t *testing.T) {
 				t.Fatalf("issuer CA mounted = %t", mounted)
 			}
 		})
+	}
+}
+
+func TestSPIRESourceValuesKeepOperatorAuthentication(t *testing.T) {
+	operator := filepath.Join(t.TempDir(), "operator.yaml")
+	const values = `auth:
+  trustBundleConfigMap: operator-ca
+configEnv:
+  CATALOG_AUTH_ISSUER: https://operator.example
+  CATALOG_AUTH_AUDIENCE: operator-api
+  CATALOG_AUTH_TENANCY_MODE: shared
+  CATALOG_AUTH_ORGANIZATION_CLAIM: tenant
+  CATALOG_AUTH_ENFORCE_SCOPES: "true"
+`
+	if err := os.WriteFile(operator, []byte(values), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	objects := renderChart(t, "--values", operator, "--values", chartPath(t, "examples", "spire-source-values.yaml"))
+	validateRenderedConfigurationWithFixtures(t, objects, renderedConfigFixtures{
+		externalPolicies: map[string]map[string]string{"spire-source-policy": {"policy.json": testExternalPolicy}},
+	})
+	data := mapAt(t, oneObject(t, objects, "ConfigMap", "configuration"), "data")
+	for key, want := range map[string]string{
+		"CATALOG_AUTH_ISSUER": "https://operator.example", "CATALOG_AUTH_AUDIENCE": "operator-api",
+		"CATALOG_AUTH_TENANCY_MODE": "shared", "CATALOG_AUTH_ORGANIZATION_CLAIM": "tenant",
+		"CATALOG_AUTH_ENFORCE_SCOPES": "true", "CATALOG_CREDENTIAL_RESOLUTION_ENABLED": "true",
+	} {
+		if data[key] != want {
+			t.Errorf("%s = %v, want %s", key, data[key], want)
+		}
+	}
+	for _, role := range []string{"api", "worker"} {
+		volumes := sliceAt(t, oneObject(t, objects, "Deployment", role), "spec", "template", "spec", "volumes")
+		secret := namedMap(t, volumes, "federation-credentials")
+		trust := namedMap(t, volumes, "federation-trust")
+		if stringAt(t, secret, "secret", "secretName") != "catalog-a-reader" || stringAt(t, trust, "configMap", "name") != "spire-source-ca" {
+			t.Fatalf("%s does not reference the selected source credential and upstream CA", role)
+		}
+		if role == "api" && stringAt(t, namedMap(t, volumes, "oidc-trust"), "configMap", "name") != "operator-ca" {
+			t.Fatal("importer replaced its operator issuer CA")
+		}
 	}
 }

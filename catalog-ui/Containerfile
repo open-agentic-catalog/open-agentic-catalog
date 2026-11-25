@@ -22,7 +22,7 @@ COPY api /src/api
 COPY test/interoperability/spire/reader.go /src/test/interoperability/spire/reader.go
 COPY test/interoperability/spire/renew.py /src/test/interoperability/spire/renew.py
 COPY test/minikube/fixtures/vault/catalog-sync.yaml test/minikube/fixtures/vault/runtime-policy.hcl test/minikube/fixtures/vault/owner-policy.hcl /src/test/minikube/fixtures/vault/
-COPY deployments/helm/open-agentic-catalog/examples/spire-values.yaml /src/deployments/helm/open-agentic-catalog/examples/spire-values.yaml
+COPY deployments/helm/open-agentic-catalog/examples/spire-values.yaml deployments/helm/open-agentic-catalog/examples/spire-source-values.yaml /src/deployments/helm/open-agentic-catalog/examples/
 COPY deployments/helm/open-agentic-catalog/README.md /src/deployments/helm/open-agentic-catalog/README.md
 COPY examples/langgraph/README.md /src/examples/langgraph/README.md
 COPY examples/rust-catalog-report/README.md /src/examples/rust-catalog-report/README.md

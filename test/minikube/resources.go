@@ -701,12 +701,12 @@ func (h *harness) writeHelmValues(marker, apiRole string) (string, error) {
 		}
 	}
 	if h.options.scenario == "spire" && h.catalogNamespace() == catalogPeerNamespace && (marker == "spire-import" || marker == "spire-import-off") {
-		if err := configureSPIREImportValues(values, marker == "spire-import"); err != nil {
+		if err := h.configureSPIREImportValues(values, marker == "spire-import"); err != nil {
 			return "", err
 		}
 	}
 	if h.options.scenario == "spire" && marker == "spire" {
-		if err := h.configureSPIREValues(values); err != nil {
+		if err := h.applySPIREExample(values, "spire-values.yaml"); err != nil {
 			return "", err
 		}
 	}

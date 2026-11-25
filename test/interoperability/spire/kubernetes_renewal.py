@@ -8,7 +8,8 @@ import time
 
 from fixture import API, DOMAIN, TENANTS, until
 from scenario import ME, check, member, refusal
-from source_renewal import connect, finish, preserve, queue, sync, test_source
+from renew import LEAF
+from source_renewal import create_source, finish, indexed_snapshot, inspect_source, preserve, queue, tested_revision
 from tools import HERE
 from tutorial_oidc import A, check_source_refusal
 
@@ -62,12 +63,18 @@ def setup(k):
 
 
 def generation(k):
-    raw = k.kubectl("get", "secret", BINDING, "-o", r"jsonpath={.data.catalog-a-reader\.json}", namespace=PEER)
-    if raw:
-        metadata = json.loads(base64.b64decode(raw, validate=True))
-        check(metadata["tenantId"] == TENANTS["b"] and metadata["origin"] == A, "Unexpected projected scope")
-        return metadata["revision"], datetime.fromisoformat(metadata["expiresAt"]).timestamp()
-    return None
+    # One Secret read supplies the binding and retained filenames. Never emit token values.
+    template = ('{{with .data}}{{with index . "catalog-a-reader.json"}}{{.}}{{"\\n"}}{{end}}'
+                '{{range $key, $_ := .}}{{$key}}{{"\\n"}}{{end}}{{end}}')
+    lines = k.kubectl("get", "secret", BINDING, "-o", "go-template=" + template, namespace=PEER).decode().splitlines()
+    if not lines:
+        return None
+    metadata = json.loads(base64.b64decode(lines[0], validate=True))
+    check(metadata["tenantId"] == TENANTS["b"] and metadata["origin"] == A, "Unexpected projected scope")
+    issued = {name.removesuffix(".token") for name in lines[1:] if LEAF.fullmatch(name)}
+    revision = metadata["revision"]
+    check(revision in issued and metadata["secretFile"] == revision + ".token", "Active binding has no matching leaf")
+    return revision, datetime.fromisoformat(metadata["expiresAt"]).timestamp(), issued
 
 
 def pods(k, enabled):
@@ -112,16 +119,46 @@ def importer(k):
     return b
 
 
-def await_projection(operation, observed):
+def await_projection(operation):
     # A healthy Pod may still serve the previous generation until its kubelet refreshes the volume.
     # An unexpected revision, a failed Job or a broken API assertion fails immediately.
     deadline = time.monotonic() + 120
     while time.monotonic() < deadline:
         value = operation()
-        if observed(value):
+        if value is not None:
             return value
         time.sleep(3)
     raise TimeoutError("Mounted source credential did not advance")
+
+
+def projected(k, *observed):
+    state = generation(k)
+    check(state is not None, "Writer binding disappeared during qualification")
+    current, expiry, issued = state
+    check(all(revision in issued for revision in observed), "Catalog used an unknown credential revision")
+    if all(revision == current for revision in observed):
+        return current, expiry
+    return None
+
+
+def connect_projected(k, b):
+    def inspect():
+        inspection = inspect_source(b)
+        return inspection if projected(k, inspection["credentialRevision"]) else None
+
+    return create_source(b, await_projection(inspect))
+
+
+def synchronize_projected(k, b, sid, published):
+    def observe():
+        api_revision = tested_revision(b, sid)
+        if not projected(k, api_revision):
+            return None
+        snapshot = indexed_snapshot(b, sid, published)
+        agreed = projected(k, api_revision, snapshot["credentialRevision"])
+        return (*agreed, snapshot) if agreed else None
+
+    return await_projection(observe)
 
 
 def qualify(k):
@@ -137,18 +174,15 @@ def qualify(k):
     initial_pods = pods(k, True)
     writer = writer_identity(k)
     published = json.loads((k.args.work / "records.json").read_text())["consumer"][2]
-    first, expiry = generation(k)
-    sid = connect(b, first)
-    test_source(b, sid, first)
-    initial = sync(b, sid, first, published)
+    sid = connect_projected(k, b)
+    first, expiry, initial = synchronize_projected(k, b, sid, published)
 
     def successor():
         current = generation(k)
         return current if current and current[1] > expiry and current[0] != first else None
-    second, _ = until(successor, timeout=320)
-    await_projection(lambda: test_source(b, sid, second, previous=first), lambda rev: rev == second)
-    renewed = await_projection(lambda: sync(b, sid, second, published, previous=first),
-                               lambda snapshot: snapshot["credentialRevision"] == second)
+    until(successor, timeout=320)
+    second, later_expiry, renewed = synchronize_projected(k, b, sid, published)
+    check(second != first and later_expiry > expiry, "Expected an independently renewed credential")
     check(renewed["snapshotId"] != initial["snapshotId"] and pods(k, True) == initial_pods,
           "Renewal must advance the snapshot without restarting either consumer")
     check(writer_identity(k) == writer, "Writer restarted during automatic renewal")

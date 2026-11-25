@@ -19,18 +19,22 @@ def update(secret, token, now):
     expiry = renew.lifetime(token, now)
     data = secret.get("data", {})
     encoded = base64.b64encode(token.encode()).decode()
+    fields = {name: None for name in data if (match := renew.LEAF.fullmatch(name)) and int(match[1]) + 30 < now}
+    activate = True
     if renew.BINDING in data:
         active = json.loads(base64.b64decode(data[renew.BINDING], validate=True))
         leaf = active.get("secretFile") if isinstance(active, dict) else None
         match = renew.LEAF.fullmatch(leaf) if isinstance(leaf, str) else None
         if not match:
             raise ValueError("Invalid active binding")
-        if expiry < int(match[1]) or (active == renew.binding(leaf.removesuffix(".token"), expiry) and data.get(leaf) == encoded):
-            return None
-    revision = renew.PREFIX + str(expiry) + "-" + uuid.uuid4().hex
-    metadata = json.dumps(renew.binding(revision, expiry)).encode()
-    fields = {leaf: None for leaf in data if (m := renew.LEAF.fullmatch(leaf)) and int(m[1]) + 30 < now}
-    fields.update({renew.BINDING: base64.b64encode(metadata).decode(), revision + ".token": encoded})
+        activate = expiry >= int(match[1]) and (
+            active != renew.binding(leaf.removesuffix(".token"), expiry) or data.get(leaf) != encoded)
+    if activate:
+        revision = renew.PREFIX + str(expiry) + "-" + uuid.uuid4().hex
+        metadata = json.dumps(renew.binding(revision, expiry)).encode()
+        fields.update({renew.BINDING: base64.b64encode(metadata).decode(), revision + ".token": encoded})
+    if not fields:
+        return None
     return {"metadata": {"resourceVersion": secret["metadata"]["resourceVersion"]}, "data": fields}
 
 

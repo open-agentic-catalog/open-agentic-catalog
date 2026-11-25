@@ -33,6 +33,20 @@ def token(exp, **extra):
 
 
 class KubernetesSecretTest(unittest.TestCase):
+    def test_cached_token_retires_only_expired_owned_leaves_without_rotation(self):
+        current = token(200)
+        data = kube_writer.update({"metadata": {"resourceVersion": "1"}}, current, 10)["data"]
+        retired = renew.PREFIX + "70-" + "a" * 32 + ".token"
+        recent = renew.PREFIX + "90-" + "b" * 32 + ".token"
+        stored = {"metadata": {"resourceVersion": "2"}, "data": data | {retired: "old", recent: "recent", "keep": "other"}}
+        self.assertIsNone(kube_writer.update(stored, current, 100))
+        for candidate in (current, token(190)):
+            with self.subTest(candidate=candidate):
+                self.assertEqual(kube_writer.update(stored, candidate, 101),
+                                 {"metadata": {"resourceVersion": "2"}, "data": {retired: None}})
+        del stored["data"][retired]
+        self.assertIsNone(kube_writer.update(stored, current, 101))
+
     def test_atomic_conditional_rotation_preserves_recent_leaves(self):
         original = token(100)
         first = kube_writer.update({"metadata": {"resourceVersion": "5"}}, original, 10)

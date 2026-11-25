@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -88,33 +89,35 @@ func (h *harness) verifySPIRE() error {
 			return err
 		}
 		fmt.Printf("SPIRE lab ready. Profile %s, kubeconfig %s\n", h.profile, h.kubeconfig)
-		fmt.Printf("curl --cacert %q --connect-to catalog-a.test:8443:%s https://catalog-a.test:8443/readyz\n", filepath.Join(h.temporary, "spire/trust/ca.pem"), address)
+		fmt.Printf("curl --silent --show-error --fail --noproxy catalog-a.test --cacert %q --connect-to catalog-a.test:8443:%s https://catalog-a.test:8443/readyz\n", filepath.Join(h.temporary, "spire/trust/ca.pem"), address)
 		fmt.Printf("Stop and clean up this lab with Ctrl+C or kill -TERM %d\n", os.Getpid())
 	}
 	return nil
 }
 
-// configureSPIREValues merges the shipped issuer example into the generated Helm values.
-func (h *harness) configureSPIREValues(values map[string]any) error {
-	raw, err := os.ReadFile(filepath.Join(h.options.repositoryRoot, "deployments/helm/open-agentic-catalog/examples/spire-values.yaml")) // #nosec G304 -- repository-owned example.
+// The examples set environment entries and whole Secret or ConfigMap references.
+// Preserve the other settings in each section, including the fixture's DB Secrets.
+func (h *harness) applySPIREExample(values map[string]any, filename string) error {
+	raw, err := os.ReadFile(filepath.Join(h.options.repositoryRoot, "deployments/helm/open-agentic-catalog/examples", filename)) // #nosec G304 -- repository-owned example.
 	if err != nil {
 		return err
 	}
-	var overlay struct {
-		Auth map[string]string `yaml:"auth"`
-		Env  map[string]string `yaml:"configEnv"`
-	}
+	var overlay map[string]map[string]any
 	if err := yaml.Unmarshal(raw, &overlay); err != nil {
 		return err
 	}
-	config, ok := values["configEnv"].(map[string]any)
-	if !ok {
-		return errors.New("missing Catalog configuration in base values")
+	for section, settings := range overlay {
+		base, exists := values[section]
+		if !exists {
+			values[section] = settings
+			continue
+		}
+		target, ok := base.(map[string]any)
+		if !ok {
+			return fmt.Errorf("unexpected %s section in base values", section)
+		}
+		maps.Copy(target, settings)
 	}
-	for key, value := range overlay.Env {
-		config[key] = value
-	}
-	values["auth"] = overlay.Auth
 	return nil
 }
 
@@ -184,7 +187,10 @@ func (h *harness) verifySPIRERenewal(port string) error {
 	return nil
 }
 
-func configureSPIREImportValues(values map[string]any, enabled bool) error {
+func (h *harness) configureSPIREImportValues(values map[string]any, enabled bool) error {
+	if err := h.applySPIREExample(values, "spire-source-values.yaml"); err != nil {
+		return err
+	}
 	config, configOK := values["configEnv"].(map[string]any)
 	secrets, secretsOK := values["secrets"].(map[string]any)
 	if !configOK || !secretsOK {
@@ -195,11 +201,10 @@ func configureSPIREImportValues(values map[string]any, enabled bool) error {
 	config["CATALOG_JOBS_MAX_ATTEMPTS"] = "2"
 	config["CATALOG_JOBS_RETRY_CEILING"] = "5s"
 	config["CATALOG_DISCOVERY_HOSTS"] = `[{"host":"catalog-b.test","tenantId":"00000000-0000-7000-8000-000000000002","mode":"authenticated","publisherDomain":"catalog.example.com"}]`
-	values["federation"] = map[string]any{"policy": map[string]string{"existingConfigMap": "spire-source-policy", "key": "policy.json"}, "trustBundleConfigMap": "spire-source-ca"}
-	if enabled {
-		secrets["federationCredentials"] = map[string]string{"name": "catalog-a-reader"}
-		config["CATALOG_CREDENTIAL_RESOLUTION_ENABLED"] = "true"
-		config["CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY"] = "/etc/open-agentic-catalog/federation/credentials"
+	if !enabled {
+		config["CATALOG_CREDENTIAL_RESOLUTION_ENABLED"] = "false"
+		delete(config, "CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY")
+		delete(secrets, "federationCredentials")
 	}
 	return nil
 }

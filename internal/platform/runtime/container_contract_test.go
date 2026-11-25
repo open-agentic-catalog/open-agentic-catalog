@@ -255,6 +255,7 @@ func TestContainerIgnoreContract(t *testing.T) {
 		"!deployments/helm/open-agentic-catalog/examples/",
 		"deployments/helm/open-agentic-catalog/examples/*",
 		"!deployments/helm/open-agentic-catalog/examples/spire-values.yaml",
+		"!deployments/helm/open-agentic-catalog/examples/spire-source-values.yaml",
 		"!deployments/container/",
 		"!deployments/container/Dockerfile",
 		"!deployments/container/licenses.sh",

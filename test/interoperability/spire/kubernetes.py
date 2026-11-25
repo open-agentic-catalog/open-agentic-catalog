@@ -91,6 +91,13 @@ class Kubernetes:
         self.kubectl("create", "-f", "-", data=json.dumps(secret).encode())
         token = until(lambda: self.issue("reporter"), timeout=120)
         until(lambda: self.exec("workloads", "reporter", "/opt/reader", "--issuer-key", key(token)) == b"")
+        pods = json.loads(self.kubectl("get", "pods", "server", "frontend", "workloads", "-o", "json"))
+        for pod in pods["items"]:
+            for container in pod["spec"]["containers"]:
+                resources = container["resources"]
+                check({"cpu", "memory", "ephemeral-storage"} <= resources.get("requests", {}).keys()
+                      and {"memory", "ephemeral-storage"} <= resources.get("limits", {}).keys(),
+                      "Missing SPIRE fixture resource budget for " + container["name"])
 
     def client(self, token):
         return API(self.args.work, "a", token, loopback_port=self.args.port)
