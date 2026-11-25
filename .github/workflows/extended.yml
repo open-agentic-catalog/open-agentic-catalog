@@ -1,6 +1,10 @@
 name: Extended coverage or source security
 
 on:
+  # The weekly event runs on the default branch and carries no inputs. It
+  # selects only the source-security suite and never uploads reports.
+  schedule:
+    - cron: '17 4 * * 1'
   workflow_call:
     inputs:
       suite:
@@ -28,7 +32,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: extended-${{ github.workflow }}-${{ github.ref }}-${{ inputs.suite }}
+  group: extended-${{ github.workflow }}-${{ github.ref }}-${{ inputs.suite || 'source-security' }}
   cancel-in-progress: false
 
 defaults:
@@ -46,12 +50,14 @@ env:
 
 jobs:
   extended:
-    name: ${{ inputs.suite }}
+    name: ${{ inputs.suite || 'source-security' }}
+    if: ${{ github.event_name != 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
-      SUITE: ${{ inputs.suite }}
-      REPORT_DIRECTORY: output/ci/${{ github.run_id }}-${{ github.run_attempt }}/extended/${{ inputs.suite }}
+      SUITE: ${{ inputs.suite || 'source-security' }}
+      EVENT_NAME: ${{ github.event_name }}
+      REPORT_DIRECTORY: output/ci/${{ github.run_id }}-${{ github.run_attempt }}/extended/${{ inputs.suite || 'source-security' }}
     steps:
       - name: Check out the complete source history
         id: checkout
@@ -75,18 +81,19 @@ jobs:
         run: make dev-tools-install
       - name: Regenerate all coverage constituents and enforce their union
         id: coverage
-        if: inputs.suite == 'full-coverage'
+        if: env.SUITE == 'full-coverage'
         run: make coverage-full
       - name: Refresh the advisory database
-        if: inputs.suite == 'source-security'
+        id: advisory
+        if: env.SUITE == 'source-security'
         run: trivy image --download-db-only
       - name: Scan backend source, dependencies, secrets and configuration
         id: security
-        if: inputs.suite == 'source-security'
+        if: env.SUITE == 'source-security'
         run: make security
       - name: Scan the complete UI lockfile
         id: ui_scan
-        if: inputs.suite == 'source-security' && !cancelled() && steps.security.outcome != 'skipped'
+        if: env.SUITE == 'source-security' && !cancelled() && steps.security.outcome != 'skipped'
         run: make ui-deps-check
       - name: Reject changes outside ignored check output
         if: always() && steps.checkout.outcome == 'success'
@@ -98,6 +105,7 @@ jobs:
       - name: Summarize coverage or security without exporting private diagnostics
         if: always() && steps.checkout.outcome == 'success'
         env:
+          ADVISORY_OUTCOME: ${{ steps.advisory.outcome || 'not_run' }}
           COVERAGE_OUTCOME: ${{ steps.coverage.outcome || 'not_run' }}
           SECURITY_OUTCOME: ${{ steps.security.outcome || 'not_run' }}
           UI_SCAN_OUTCOME: ${{ steps.ui_scan.outcome || 'not_run' }}
@@ -106,8 +114,23 @@ jobs:
           set -euo pipefail
           mkdir -p "$REPORT_DIRECTORY"
           {
-            printf 'Checkout: %s\nSuite: %s\nRunner: %s/%s\nStatus at summary: %s\n' "$(git rev-parse HEAD)" "$SUITE" "$RUNNER_OS" "$RUNNER_ARCH" "$STATUS_AT_SUMMARY"
-            printf 'Full coverage: %s\nSource security: %s\nUI dependency scan: %s\n' "$COVERAGE_OUTCOME" "$SECURITY_OUTCOME" "$UI_SCAN_OUTCOME"
+            printf 'Checkout: %s\nRef: %s\nEvent: %s\nSuite: %s\nRunner: %s/%s\nStatus at summary: %s\n' "$(git rev-parse HEAD)" "$GITHUB_REF" "$EVENT_NAME" "$SUITE" "$RUNNER_OS" "$RUNNER_ARCH" "$STATUS_AT_SUMMARY"
+            printf 'Full coverage: %s\nAdvisory refresh: %s\nSource security: %s\nUI dependency scan: %s\n' "$COVERAGE_OUTCOME" "$ADVISORY_OUTCOME" "$SECURITY_OUTCOME" "$UI_SCAN_OUTCOME"
+            if [ "$SUITE" = source-security ]; then
+              if command -v trivy >/dev/null 2>&1; then
+                printf 'Scanner and advisory database identity:\n'
+                trivy version 2>/dev/null | sed 's/^/  /' || printf '  unavailable\n'
+              else
+                printf 'Scanner and advisory database identity: unavailable (scanner not installed)\n'
+              fi
+              printf '%s\n' 'A component with outcome not_run did not execute; the result is incomplete evidence.'
+              printf '%s\n' 'UI lockfile scans use the Trivy-backed check only; no npm registry audit is submitted.'
+              printf '%s\n' 'Source and UI scans retrieve advisory data themselves; they do not use the frozen exact-image snapshot.'
+              printf '%s\n' 'Nested toolchains, peer images and published releases are not selected here.'
+              if [ "$EVENT_NAME" = schedule ]; then
+                printf '%s\n' 'Weekly run on the default branch. A delayed or disabled schedule leaves the last result stale; run this workflow manually with suite source-security.'
+              fi
+            fi
             printf '%s\n' 'Coverage-full owns fresh unit/local/PostgreSQL/process profiles and their deduplicated union.'
             printf '%s\n' 'A coverage result is not the sum of percentages or a combination of unrelated runs.'
             printf '%s\n' 'Known deferred advisories remain unsuppressed failures; this workflow never updates dependencies.'
@@ -121,7 +144,7 @@ jobs:
         if: ${{ (always() && steps.checkout.outcome == 'success') && inputs.upload_artifacts && !env.ACT }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
-          name: extended-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.suite }}
+          name: extended-${{ github.run_id }}-${{ github.run_attempt }}-${{ env.SUITE }}
           path: |
             ${{ env.REPORT_DIRECTORY }}/summary.txt
             coverage/full.out
