@@ -149,7 +149,7 @@ class TutorialPreparationTests(unittest.TestCase):
             def prepare(directory, selected_environment):
                 return subprocess.run([sys.executable, "-B", str(SOURCE / "prepare.py"), "--directory", str(directory),
                                        "--backend-image", "example-backend:unrun", "--ui-image", "example-ui:unrun"],
-                                      capture_output=True, text=True, env=selected_environment, timeout=45, check=False)
+                                      capture_output=True, text=True, env=selected_environment, timeout=45, check=False, umask=0o077)
 
             failed = prepare(partial, environment)
             self.assertNotEqual(failed.returncode, 0)
@@ -169,6 +169,8 @@ class TutorialPreparationTests(unittest.TestCase):
             self.assertNotEqual((fresh / "trust/ca.pem").read_bytes(), (partial / "trust/ca.pem").read_bytes())
             self.assertEqual((fresh / "trust/ca-key.pem").stat().st_mode & 0o777, 0o600)
             self.assertEqual((fresh / "compose.env").stat().st_mode & 0o777, 0o600)
+            self.assertEqual((fresh / "b").stat().st_mode & 0o777, 0o700)
+            self.assertEqual((fresh / "b/source-credentials").stat().st_mode & 0o777, 0o755)
             self.assertEqual(fixture_snapshot(partial), before)
             selected = subprocess.run([sys.executable, "-B", str(SOURCE / "compose.py"), "--directory", str(fresh), "--show-project"],
                                       capture_output=True, text=True, timeout=10, check=False)

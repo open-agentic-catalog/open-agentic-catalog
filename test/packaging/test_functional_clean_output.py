@@ -141,6 +141,7 @@ class OutputCleanupTests(unittest.TestCase):
         readonly = self.write("output/artifacts/cache/file").parent
         readonly.chmod(0o555)
         inaccessible = self.write("output/review/sealed/file").parent
+        original_mode = stat.S_IMODE(inaccessible.stat().st_mode)
         before = fixtures.snapshot(self.root)
         inaccessible.chmod(0)
         try:
@@ -152,7 +153,7 @@ class OutputCleanupTests(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(readonly.stat().st_mode), 0o555)
                 self.assertEqual(stat.S_IMODE(inaccessible.stat().st_mode), 0)
         finally:
-            inaccessible.chmod(0o755)
+            inaccessible.chmod(original_mode)
         self.assertEqual(fixtures.snapshot(self.root), before)
 
     def test_all_cleanup_goals_are_isolated_before_env_inclusion(self):

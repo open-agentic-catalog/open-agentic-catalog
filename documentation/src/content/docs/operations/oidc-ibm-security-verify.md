@@ -189,4 +189,4 @@ Use the [shared verification procedure](sign-in.md#verify-your-deployment) for p
 | Login fails with a custom domain | Check authorization, token and JWKS origins, exact issuer identity and each connection's trust settings. |
 | CLI cannot renew credentials | Check whether refresh is issued for this application and audience. Check expiry and rotation before signing in again. |
 
-Keep raw tokens, cookie values and client secrets out of diagnostics. Only the [local Keycloak qualification](oidc-keycloak.md#run-the-local-qualification) has maintained provider test evidence.
+Keep raw tokens, cookie values and client secrets out of diagnostics. The [local Keycloak qualification](oidc-keycloak.md#run-the-local-qualification) exercises the complete human sign-in flow. IBM Verify requires verification in your deployment.

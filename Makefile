@@ -128,7 +128,7 @@ $(error Cleanup targets must run alone)
 endif
 override CATALOG_ENV_FILE := /dev/null
 endif
-ifneq ($(filter agentfield-tools-install test-interoperability-agentfield test-interoperability-agentfield-cleanup adk-tools-install test-interoperability-adk test-interoperability-adk-cleanup test-interoperability-pi-ard pi-ard-tools-install test-interoperability-pi-ard-prepare ard-explorer-tools-install test-interoperability-ard-explorer-startup test-interoperability-ard-explorer plugin-tools-install test-interoperability-plugins skill-tools-install test-interoperability-skills ard-registry-tools-install test-interoperability-ard-registry test-interoperability-ard-registry-cleanup agentfinder-tools-install test-interoperability-agentfinder test-demo-catalog test-demo-runtimes demo-runtimes-test a2a-tools-install test-interoperability-a2a mcp-tools-install mcp-catalog-tools-install contextforge-tools-install test-interoperability-contextforge test-interoperability-mcp test-interoperability-mcp-catalog interoperability-tools-install test-interoperability test-interoperability-hf test-interoperability-agntcy agntcy-tools-install test-minikube-agntcy gateway-tools-install test-interoperability-gateway ans-tools-install test-interoperability-ans capture-ans-trust-fixtures test-trust-verification,$(MAKECMDGOALS)),)
+ifneq ($(filter spire-tools-install test-interoperability-spire agentfield-tools-install test-interoperability-agentfield test-interoperability-agentfield-cleanup adk-tools-install test-interoperability-adk test-interoperability-adk-cleanup test-interoperability-pi-ard pi-ard-tools-install test-interoperability-pi-ard-prepare ard-explorer-tools-install test-interoperability-ard-explorer-startup test-interoperability-ard-explorer plugin-tools-install test-interoperability-plugins skill-tools-install test-interoperability-skills ard-registry-tools-install test-interoperability-ard-registry test-interoperability-ard-registry-cleanup agentfinder-tools-install test-interoperability-agentfinder test-demo-catalog test-demo-runtimes demo-runtimes-test a2a-tools-install test-interoperability-a2a mcp-tools-install mcp-catalog-tools-install contextforge-tools-install test-interoperability-contextforge test-interoperability-mcp test-interoperability-mcp-catalog interoperability-tools-install test-interoperability test-interoperability-hf test-interoperability-agntcy agntcy-tools-install test-minikube-agntcy gateway-tools-install test-interoperability-gateway ans-tools-install test-interoperability-ans capture-ans-trust-fixtures test-trust-verification,$(MAKECMDGOALS)),)
 ifneq ($(words $(MAKECMDGOALS)),1)
 $(error Interoperability targets must run alone)
 endif
@@ -507,7 +507,7 @@ KUBECONFORM_SCHEMA_LOCATION := https://raw.githubusercontent.com/yannh/kubernete
 KUBECONFORM_IMAGE := ghcr.io/yannh/kubeconform:$(KUBECONFORM_VERSION)@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e
 HELM_CHART := deployments/helm/open-agentic-catalog
 HELM_KUBE_VERSION := 1.34.0
-HELM_CHECK_VALUES := $(HELM_CHART)/ci/shared-values.yaml $(HELM_CHART)/ci/optional-values.yaml $(HELM_CHART)/ci/ambiguous-values.yaml $(HELM_CHART)/ci/ui-values.yaml $(HELM_CHART)/ci/mcp-values.yaml $(HELM_CHART)/ci/ard-mcp-values.yaml $(HELM_CHART)/ci/semantic-values.yaml $(HELM_CHART)/ci/pgbouncer.yaml $(HELM_CHART)/ci/payload-values.yaml
+HELM_CHECK_VALUES := $(HELM_CHART)/ci/shared-values.yaml $(HELM_CHART)/ci/optional-values.yaml $(HELM_CHART)/ci/ambiguous-values.yaml $(HELM_CHART)/ci/ui-values.yaml $(HELM_CHART)/ci/mcp-values.yaml $(HELM_CHART)/ci/ard-mcp-values.yaml $(HELM_CHART)/ci/semantic-values.yaml $(HELM_CHART)/ci/pgbouncer.yaml $(HELM_CHART)/ci/payload-values.yaml $(HELM_CHART)/examples/spire-values.yaml
 MINIKUBE_VERSION := v1.39.0
 MINIKUBE_KUBERNETES_VERSION := v1.37.2
 MINIKUBE_DRIVER := docker
@@ -1536,6 +1536,13 @@ test-interoperability-hf: ## Qualify local HF peers (opt-in INTEROPERABILITY_TRU
 	$(PYTHON) -B test/interoperability/runner.py peer
 
 .PHONY: agntcy-tools-install test-minikube-agntcy gateway-tools-install test-interoperability-gateway ans-tools-install test-interoperability-ans
+.PHONY: spire-tools-install test-interoperability-spire
+spire-tools-install: ## Download the pinned native SPIRE test tools for the Docker platform
+	$(PYTHON) -B test/interoperability/spire/tools.py
+
+test-interoperability-spire: ## Qualify SPIRE workload reads against an owned HTTPS Catalog
+	$(PYTHON) -B test/interoperability/spire/run.py
+
 agntcy-tools-install: ## Acquire checksum-pinned Directory tools, chart and images; no cluster deployment
 	PYTHONOPTIMIZE=0 $(PYTHON) -B test/interoperability/agntcy_tools.py install
 
@@ -2563,6 +2570,14 @@ endef
 define run_minikube_scenario
 	$(minikube_environment) $(GO) run -tags=minikube ./test/minikube --scenario $(1) $(2)
 endef
+
+.PHONY: test-minikube-spire minikube-spire-lab
+test-minikube-spire minikube-spire-lab: export CATALOG_SPIRE_PYTHON := $(subst ',,$(PYTHON))
+minikube-spire-lab: helm-check test-minikube-contract ## Run the SPIRE qualification and keep the verified profile available until interrupted
+	$(call run_minikube_scenario,spire,--spire-lab)
+
+test-minikube-spire: helm-check test-minikube-contract ## Verify optional SPIRE workload reads against a Helm deployment
+	$(call run_minikube_scenario,spire)
 
 test-minikube: helm-check test-minikube-contract ## Install and exercise the chart in an owned single-node Minikube cluster
 	$(call run_minikube_scenario,basic)

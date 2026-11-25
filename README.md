@@ -124,6 +124,7 @@ The full manual lives in [documentation/](documentation/README.md):
 
 - [Connect to an existing Catalog](documentation/src/content/docs/guides/reader-quickstart.mdx), [local quickstart](documentation/src/content/docs/guides/local-development.mdx) and [Catalog UI](documentation/src/content/docs/guides/catalog-ui.mdx)
 - [Client integration](documentation/src/content/docs/guides/integrating.mdx), [OpenAPI](api/openapi/control-v1.yaml), [request examples](api/examples) and [CLI reads](documentation/src/content/docs/reference/commands.md#remote-catalog-reads)
+- [Sign-in and service accounts](documentation/src/content/docs/operations/sign-in.md) and [workload reads with SPIRE](documentation/src/content/docs/guides/integrating.mdx#read-a-private-resource-and-publication-with-spire)
 - [Configuration](documentation/src/content/docs/reference/configuration.mdx) and [deployment](documentation/src/content/docs/operations/deployment.mdx)
 - [Monitoring and tracing](documentation/src/content/docs/operations/observability.mdx), [webhooks](documentation/src/content/docs/operations/webhooks.mdx) and [backup and recovery](documentation/src/content/docs/operations/backup-restore.mdx)
 - [Architecture and diagrams](documentation/src/content/docs/architecture/overview.mdx) and [standards](documentation/src/content/docs/reference/standards.mdx)

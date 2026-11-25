@@ -1,0 +1,13 @@
+# Merge these settings into the complete values for a dedicated Catalog.
+# Replace the example issuer, tenant, discovery host and publisher domain.
+# CATALOG_DISCOVERY_HOSTS replaces the complete host list.
+auth:
+  trustBundleConfigMap: spire-issuer-ca  # Public issuer CA in the ca.pem key.
+configEnv:
+  CATALOG_AUTH_MODE: oidc
+  CATALOG_AUTH_ISSUER: https://identity.test:8447
+  CATALOG_AUTH_AUDIENCE: open-agentic-catalog
+  CATALOG_AUTH_TENANCY_MODE: dedicated
+  CATALOG_AUTH_DEDICATED_TENANT_ID: 00000000-0000-7000-8000-000000000001
+  CATALOG_AUTH_ENFORCE_SCOPES: "false"
+  CATALOG_DISCOVERY_HOSTS: '[{"host":"catalog-a.test","tenantId":"00000000-0000-7000-8000-000000000001","mode":"authenticated","publisherDomain":"tutorial.catalog.example"}]'

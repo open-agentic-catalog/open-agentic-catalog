@@ -46,6 +46,8 @@ type harness struct {
 	pgbouncerDirect    bool
 	uiImage            string
 	metricsImage       string
+	spireImage         string
+	spireLab           bool
 	certificateImages  map[string]string
 	gitopsImages       map[string]string
 	argoBuild          map[string]string
@@ -483,7 +485,7 @@ func (h *harness) buildImages() error {
 		h.report.Images["metrics-server-config"] = strings.TrimSpace(string(raw))
 	}
 
-	if h.options.scenario == "basic" || h.options.scenario == "topology" || h.options.scenario == "pgbouncer" || h.options.scenario == "peers" || h.options.scenario == "backup-restore" || h.options.scenario == "autoscaling" || h.options.scenario == "cert-manager" || h.options.scenario == "vault" || h.options.scenario == "flux" {
+	if h.options.scenario == "spire" || h.options.scenario == "basic" || h.options.scenario == "topology" || h.options.scenario == "pgbouncer" || h.options.scenario == "peers" || h.options.scenario == "backup-restore" || h.options.scenario == "autoscaling" || h.options.scenario == "cert-manager" || h.options.scenario == "vault" || h.options.scenario == "flux" {
 		if _, err := h.run("build deployment coordinator", "go", "build", "-o", filepath.Join(h.temporary, "catalog-deploy"), "./test/deployment"); err != nil {
 			return err
 		}
@@ -1080,6 +1082,9 @@ func (h *harness) cleanup() error {
 		}
 		for _, image := range h.certificateImages {
 			ownedImages = append(ownedImages, image)
+		}
+		if h.spireImage != "" {
+			ownedImages = append(ownedImages, h.spireImage)
 		}
 		if h.metricsImage != "" {
 			ownedImages = append(ownedImages, h.metricsImage)

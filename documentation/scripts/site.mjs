@@ -102,6 +102,8 @@ export const downloads = [
   'test/minikube/fixtures/vault/catalog-sync.yaml',
   'test/minikube/fixtures/vault/runtime-policy.hcl',
   'test/minikube/fixtures/vault/owner-policy.hcl',
+  'test/interoperability/spire/reader.go',
+  'deployments/helm/open-agentic-catalog/examples/spire-values.yaml',
   'extensions/vscode/media/catalog-preview.png',
   'extensions/vscode/media/agent-conversation.png',
   // Reviewed reader screenshots use the same exact-copy and base-path rules.

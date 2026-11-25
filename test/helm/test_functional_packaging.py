@@ -134,6 +134,9 @@ class ChartPackagingTests(unittest.TestCase):
                     self.assertNotRegex(metadata, r"(?m)^(home|sources):")
                     source_metadata = (ROOT / "deployments/helm" / chart / "Chart.yaml").read_text()
                     self.assertNotRegex(source_metadata, r"(?m)^(home|sources):")
+            example = "open-agentic-catalog/examples/spire-values.yaml"
+            with tarfile.open(outputs[0]) as archive:
+                self.assertEqual(archive.extractfile(example).read(), (charts.ROOT / "deployments/helm" / example).read_bytes())
             with tarfile.open(outputs[1]) as archive:
                 for filename, source in (("catalog.json", "dashboards/catalog.json"), ("images.json", "images.json"),
                                          ("grafana.ini", "grafana.ini"), ("dashboards.yaml", "provisioning/dashboards/catalog.yaml")):

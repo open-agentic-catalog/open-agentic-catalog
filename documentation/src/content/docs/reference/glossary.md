@@ -323,7 +323,7 @@ Retained evidence of source synchronization and its observations. Synchronizatio
 
 ### SPIFFE, SPIRE and SVID
 
-[SPIFFE](https://spiffe.io/docs/latest/spiffe-about/overview/) defines workload identity contracts. A SPIFFE ID is a URI naming a workload within a trust domain; it is not an AIR identifier or proof of public DNS ownership. SPIRE is an implementation that attests workloads and issues SPIFFE Verifiable Identity Documents (SVIDs), using X.509 certificates or JWTs. A SPIRE Agent is an infrastructure process, not a cataloged AI Agent. Catalog has no native SVID authentication or Workload API integration; see [token requirements](configuration.mdx#authentication-and-catalog-identity).
+[SPIFFE](https://spiffe.io/docs/latest/spiffe-about/overview/) defines workload identity contracts. A SPIFFE ID is a URI naming a workload within a trust domain; it is not an AIR identifier or proof of public DNS ownership. SPIRE is an implementation that attests workloads and issues SPIFFE Verifiable Identity Documents (SVIDs), using X.509 certificates or JWTs. A SPIRE Agent is an infrastructure process, not a cataloged AI Agent. A workload can obtain a JWT-SVID through its own Workload API and present it to Catalog's existing OIDC bearer verifier. See [the tested SPIRE setup](../guides/integrating.mdx#read-a-private-resource-and-publication-with-spire) for required claims and grants.
 
 ### SSRF
 

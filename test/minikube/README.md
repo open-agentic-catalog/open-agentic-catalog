@@ -48,6 +48,14 @@ The replica and topology scenarios reuse the packaged federation workflow. Their
 
 The basic scenario checks the failed migration hook's safe command diagnostic, verifies the missing-role fixture and untouched schema directly in PostgreSQL, and then requires a successful install with the correct role.
 
+## Optional SPIRE workload authentication
+
+With the Minikube prerequisites above available, run `make spire-tools-install` once, then `make test-minikube-spire`. The target packages the verified SPIRE binaries and the compiled SDK consumer in a fixture image and starts a fresh cluster. It uses a SPIRE Server, an Agent with Unix workload attestation, and the OIDC Discovery Provider. Each workload has its own UID. Only the Agent receives the one-time join token.
+
+The test provisions a service administrator, checks that its JWT-SVID is refused with the ordinary issuer, and deploys the [Helm values example](../../deployments/helm/open-agentic-catalog/examples/spire-values.yaml). The SDK workload reads a private Resource and an authenticated ARD manifest. The test checks a different namespace, a different audience and revocation of the publication grant. Restoring the original issuer rejects the SPIRE credential again. The harness removes its profile, fixture images, temporary keys and port-forward. Production installations supply their own SPIRE infrastructure and workload registration.
+
+For an interactive session, run `make minikube-spire-lab` instead. It runs the same checks, selects the SPIRE issuer again and verifies that the reporter can read both records. The foreground process prints the private kubeconfig, context and a hostname-verified HTTPS readiness command. Press Ctrl+C in that terminal to remove only this lab. The ordinary test target exits after cleanup.
+
 ## Optional Vault secret delivery
 
 Vault is optional. The default chart and ordinary scenarios use existing Kubernetes Secrets without Vault or VSO.

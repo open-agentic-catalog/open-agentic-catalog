@@ -78,6 +78,9 @@ func (h *harness) execute() error {
 	if err := h.installCatalog(); err != nil {
 		return err
 	}
+	if h.options.scenario == "spire" {
+		return h.verifySPIRE()
+	}
 	if err := h.provisionIdentity("provision-primary", primaryTenantID, "tenant-one", "oidc-admin", "tenant_admin,contributor,reviewer,publisher,reader,source_admin,security_reviewer"); err != nil {
 		return err
 	}

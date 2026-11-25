@@ -21,8 +21,9 @@ func main() {
 
 // run validates scenario inputs and owns the signal-bounded harness lifecycle, including failure diagnostics, cleanup and successful evidence output.
 func run() int {
+	spireLab := flag.Bool("spire-lab", false, "keep the verified SPIRE profile running until interrupted")
 	lab := flag.Bool("argocd-lab", false, "retain the owned Argo CD lab until signaled by its lifecycle command")
-	scenario := flag.String("scenario", "basic", "basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager, vault, flux or argocd")
+	scenario := flag.String("scenario", "basic", "basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager, vault, spire, flux or argocd")
 	upgradeOnly := flag.Bool("upgrade-only", false, "qualify coordinated upgrades only in the topology scenario")
 	ansCapture := flag.Bool("ans-capture", false, "capture authentic ANS V1/V2 public verification fixtures; requires --scenario ans")
 	ansTrust := flag.Bool("ans-trust", false, "qualify explicit ANS assessment Jobs; requires --scenario ans")
@@ -39,6 +40,10 @@ func run() int {
 	}
 	if *lab && *scenario != "argocd" {
 		fmt.Fprintln(os.Stderr, "--argocd-lab requires --scenario argocd")
+		return 2
+	}
+	if *spireLab && *scenario != "spire" {
+		fmt.Fprintln(os.Stderr, "--spire-lab requires --scenario spire")
 		return 2
 	}
 	if *upgradeOnly && *scenario != "topology" {
@@ -70,15 +75,16 @@ func run() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	if *lab {
-		runner.argoLab = true
+	runner.spireLab = *spireLab
+	runner.argoLab = *lab
+	if *lab || *spireLab {
 		runner.forwardLifetime = parent
 	}
 	runErr := runner.interopProgress("setup", nil, nil)
 	if runErr == nil {
 		runErr = runner.execute()
 	}
-	if runErr == nil && *lab {
+	if runErr == nil && (*lab || *spireLab) {
 		<-parent.Done()
 	}
 	expectedVaultFault := runner.expectedVaultCleanupFault(runErr)

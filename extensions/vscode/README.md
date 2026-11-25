@@ -143,6 +143,8 @@ Use **Catalog: Transport Settings** to reach the exact native setting for Catalo
 
 Changing connections or signing out cancels an open token prompt or browser handoff. Start sign-in again for the intended connection. A canceled operation cannot store or send credentials to another connection.
 
+Use your personal Catalog identity in the editor. A SPIRE OIDC Discovery Provider publishes keys for workloads and cannot complete browser sign-in. The extension does not acquire or renew JWT-SVIDs from a workload socket.
+
 For OIDC, register a separate public client with your issuer. Configure Authorization Code with S256 PKCE, the Catalog audience and the extension redirect URI. Stable VS Code starts from `vscode://open-agentic-catalog.open-agentic-catalog/oidc` and can add a window-routing query through `asExternalUri`. Register the actual mapped redirect for your desktop or remote environment.
 
 For the local Keycloak setup, register `vscode://open-agentic-catalog.open-agentic-catalog/oidc/*` to admit that mapped query. The extension checks its exact callback path and pending login state. See **Deploy and operate > Authentication and sign-in > Keycloak > Connect the desktop client** in the companion manual for the complete setup.

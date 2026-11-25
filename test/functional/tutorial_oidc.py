@@ -65,23 +65,26 @@ def native(arguments, *, env=None, seconds=180):
 
 
 class API:
-    def __init__(self, directory, side, token):
+    def __init__(self, directory, side, token, *, loopback_port=None):
+        self.loopback_port = loopback_port
         self.side, self.token = side, token
         self.context = ssl.create_default_context(cafile=str(directory / "trust/ca.pem"))
         self.requests = 0
 
-    def request(self, method, path, body=None, expected=200, etag=None):
+    def request(self, method, path, body=None, expected=200, etag=None, *, expected_challenge=None, if_none_match=None):
         if not path.startswith(("/api/v1/", "/.well-known/", "/readyz", "/version")):
             raise ValueError("Unselected tutorial request path")
         host, port = "catalog-" + self.side + ".test", 8443 if self.side == "a" else 8445
         connection = http.client.HTTPSConnection(host, port, timeout=15, context=self.context)
         connection.connect = lambda: setattr(connection, "sock", self.context.wrap_socket(
-            socket.create_connection(("127.0.0.1", port), timeout=15), server_hostname=host))
+            socket.create_connection(("127.0.0.1", self.loopback_port or port), timeout=15), server_hostname=host))
         headers = {"Authorization": "Bearer " + self.token} if self.token else {}
         if method == "POST":
             headers.update({"Content-Type": "application/json", "Idempotency-Key": "tutorial-test-" + uuid.uuid4().hex})
         if etag:
             headers["If-Match"] = etag
+        if if_none_match is not None:
+            headers["If-None-Match"] = if_none_match
         try:
             connection.request(method, path, None if body is None else json.dumps(body), headers)
             response = connection.getresponse()
@@ -91,6 +94,8 @@ class API:
                 route = re.sub(r"[0-9a-f]{8}-[0-9a-f-]{27,}", ":id", path.split("?", 1)[0])
                 raise ValueError("Tutorial API " + self.side + " " + method + " " + route
                                  + " returned " + str(response.status) + "; expected " + str(expected) + " within its byte bound")
+            if expected_challenge is not None and response.getheader("WWW-Authenticate", "") != expected_challenge:
+                raise ValueError("Unexpected authentication challenge on " + path)
             return (json.loads(raw) if raw else None), response.getheader("ETag")
         finally:
             connection.close()
@@ -215,23 +220,28 @@ def qualification_reviewer(directory, configuration):
     mounts[0]["source"] = str(selected)
 
 
-def publish(api, reviewer):
-    namespace, _ = api.request("POST", "/api/v1/namespaces", {"slug": "tutorial-qualification", "displayName": "Federation tutorial"}, 201)
-    publisher, etag = api.request("POST", "/api/v1/publishers", {"displayName": "Tutorial publisher", "domains": ["tutorial.catalog.example"]}, 201)
-    api.request("POST", "/api/v1/publishers/" + publisher["id"] + "/publication-domains/tutorial.catalog.example:approve", {"reason": "Allow owned tutorial Publisher"}, etag=etag)
-    identifier = "urn:air:tutorial.catalog.example:agents:federation-qualification"
-    resource, _ = api.request("POST", "/api/v1/resources", {"namespaceId": namespace["id"], "canonicalIdentifier": identifier, "kind": "agent"}, 201)
+def create_draft_listing(api, resource, publisher_id, display_name):
     version, _ = api.request("POST", "/api/v1/resources/" + resource["id"] + "/versions", {"version": "1.0.0", "representations": [
         {"role": "primary", "mediaType": "application/a2a-agent-card+json", "data": json.loads((ROOT / "samples/cards/order-agent.json").read_text())}]}, 201)
     validation, _ = api.request("POST", "/api/v1/version-revisions/" + version["revision"]["id"] + ":validate", {}, 201)
     if validation["evidence"]["state"] != "complete":
         raise ValueError("Tutorial native Agent validation incomplete")
-    listing, etag = api.request("POST", "/api/v1/catalog-listings", {"namespaceId": namespace["id"], "resourceId": resource["id"]}, 201)
-    api.request("POST", "/api/v1/catalog-listings/" + listing["id"] + "/revisions", {"versionRevisionId": version["revision"]["id"],
-        "displayName": "Federation tutorial Agent", "description": "Owned federation tutorial metadata", "publisherId": publisher["id"],
+    listing, etag = api.request("POST", "/api/v1/catalog-listings", {"namespaceId": resource["namespaceId"], "resourceId": resource["id"]}, 201)
+    created, _ = api.request("POST", "/api/v1/catalog-listings/" + listing["id"] + "/revisions", {"versionRevisionId": version["revision"]["id"],
+        "displayName": display_name, "description": "Owned federation tutorial metadata", "publisherId": publisher_id,
         "tags": ["federation", "tutorial"], "categories": ["development", "examples"],
         "representativeQueries": ["Find the federation tutorial Agent", "Find setup metadata for the federation tutorial"],
         "license": "Apache-2.0", "visibility": "tenant"}, 201, etag)
+    return created["listing"]
+
+
+def publish_reviewed_release(api, reviewer):
+    namespace, _ = api.request("POST", "/api/v1/namespaces", {"slug": "tutorial-qualification", "displayName": "Federation tutorial"}, 201)
+    publisher, etag = api.request("POST", "/api/v1/publishers", {"displayName": "Tutorial publisher", "domains": ["tutorial.catalog.example"]}, 201)
+    api.request("POST", "/api/v1/publishers/" + publisher["id"] + "/publication-domains/tutorial.catalog.example:approve", {"reason": "Allow owned tutorial Publisher"}, etag=etag)
+    identifier = "urn:air:tutorial.catalog.example:agents:federation-qualification"
+    resource, _ = api.request("POST", "/api/v1/resources", {"namespaceId": namespace["id"], "canonicalIdentifier": identifier, "kind": "agent"}, 201)
+    listing = create_draft_listing(api, resource, publisher["id"], "Federation tutorial Agent")
     submission, etag = api.request("POST", "/api/v1/catalog-listings/" + listing["id"] + "/submissions", {}, 201)
     reviewer.request("POST", "/api/v1/review-submissions/" + submission["id"] + ":approve", {"reason": "Independent owned tutorial review"}, etag=etag)
     _, etag = api.request("GET", "/api/v1/catalog-listings/" + listing["id"])
@@ -246,10 +256,13 @@ def publish(api, reviewer):
     releases = [item["local"]["release"]["id"] for item in page["items"] if item["identifier"] == identifier]
     if denied.get("code") != "FORBIDDEN" or page["partial"] or releases != [published["release"]["id"]]:
         raise ValueError("Service reader access differs from the published release or expected refusal")
+    return identifier, publisher["id"]
+
+
+def activate_publication(api, identifier):
     snapshot, etag = api.request("POST", "/api/v1/publication/snapshots", {"host": "catalog-a.test"}, 201)
     assert_publication(snapshot, identifier)
     api.request("POST", "/api/v1/publication/snapshots/" + snapshot["id"] + ":activate", {"host": "catalog-a.test", "reason": "Owned tutorial activation"}, etag=etag)
-    return identifier
 
 
 def assert_publication(snapshot, identifier):
@@ -429,7 +442,8 @@ def run(args):
                     raise ValueError("Publication reader lacks the expected identity, exact grant or enforced read scope")
                 source_api.request("GET", manifest_path, expected=404)
                 outcome["stage"] = "review-and-publication"
-                identifier = publish(a, reviewer)
+                identifier, _ = publish_reviewed_release(a, reviewer)
+                activate_publication(a, identifier)
                 manifest, _ = source_api.request("GET", manifest_path)
                 if not any(e.get("identifier") == identifier and e.get("version") == "1.0.0" for e in manifest.get("entries", [])):
                     raise ValueError("Authenticated source manifest omitted the exact published Agent/version")

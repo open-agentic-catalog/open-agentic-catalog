@@ -173,6 +173,8 @@ The [remote command reference](../reference/commands.md#remote-catalog-reads) ow
 
 Follow the [worked Keycloak service-account procedure](oidc-keycloak.md#give-a-service-account-access) for protected `client_credentials` acquisition, the actual token subject, explicit `service_client` plus Reader grants, CLI/SDK reads, denial and token replacement. `service_client` supplies no product permissions. A broad grant does not permit a service identity to submit human-only feedback or ratings, or establish a human browser session.
 
+For workloads enrolled in SPIRE, see [read a private Resource and publication with SPIRE](../guides/integrating.mdx#read-a-private-resource-and-publication-with-spire). The tested setup uses a dedicated tenant and the workload's own JWT-SVID. Human sign-in still requires an interactive issuer.
+
 A human CLI credential file is JSON and belongs to `--login-file`. Remote commands, online import and export accept this file directly. A manual bearer file contains only an access token and belongs to `--token-file`. A UI session cookie is neither format. Use the [private credential conversion](oidc-keycloak.md#prepare-private-http-credentials) when a tutorial needs curl headers or another client's bearer file.
 
 ## Deliver the configuration

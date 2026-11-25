@@ -1,0 +1,89 @@
+# All services, ports and volumes belong to the unique project selected by the runner.
+x-tool: &tool
+  image: ${CATALOG_TUTORIAL_BACKEND_IMAGE:?}
+  pull_policy: never
+  read_only: true
+  networks: [tutorial]
+  security_opt: [no-new-privileges:true]
+
+services:
+  postgres-a:
+    extends: {file: ../../../examples/tutorials/local-oidc/compose.yaml, service: postgres-a}
+    pull_policy: never
+  owner-a:
+    extends: {file: ../../../examples/tutorials/local-oidc/compose.yaml, service: owner-a}
+  api-a:
+    extends: {file: ../../../examples/tutorials/local-oidc/compose.yaml, service: api-a}
+    networks:
+      tutorial: {aliases: [api-b]}
+  worker-a:
+    extends: {file: ../../../examples/tutorials/local-oidc/compose.yaml, service: worker-a}
+  frontend:
+    <<: *tool
+    user: "65532:65532"
+    entrypoint: [/opt/frontend]
+    cap_drop: [ALL]
+    environment: {CATALOG_TUTORIAL_API_ONLY: "1"}
+    ports: ["127.0.0.1::8443", "127.0.0.1::8445"]
+    networks:
+      tutorial: {aliases: [catalog-a.test, catalog-b.test]}
+    volumes:
+      - ${FIXTURE}/bin/frontend:/opt/frontend:ro
+      - ${FIXTURE}/trust/catalog-a.pem:/tls/catalog-a.pem:ro
+      - ${FIXTURE}/trust/catalog-a-key.pem:/tls/catalog-a-key.pem:ro
+      - ${FIXTURE}/trust/catalog-b.pem:/tls/catalog-b.pem:ro
+      - ${FIXTURE}/trust/catalog-b-key.pem:/tls/catalog-b-key.pem:ro
+  server:
+    <<: *tool
+    user: "0:0"
+    entrypoint: [/opt/spire-server, run, -config, /config/server.conf]
+    tmpfs: [/tmp]
+    volumes:
+      - server-state:/state
+      - ${FIXTURE}/server:/config:ro
+      - ${FIXTURE}/bin/spire-server:/opt/spire-server:ro
+  agent:
+    <<: *tool
+    user: "0:0"
+    entrypoint: [/opt/spire-agent, run, -config, /config/agent.conf, -joinTokenFile, /bootstrap/join]
+    tmpfs: [/tmp]
+    volumes:
+      - agent-state:/state
+      - workload:/workload
+      - ${FIXTURE}/bootstrap:/bootstrap:ro
+      - ./agent.conf:/config/agent.conf:ro
+      - ${FIXTURE}/bin/spire-agent:/opt/spire-agent:ro
+  issuer:
+    <<: *tool
+    user: "11006:11006"
+    pid: service:agent
+    cap_drop: [ALL]
+    entrypoint: [/opt/provider, -config, /config/provider.conf]
+    networks:
+      tutorial: {aliases: [identity.test]}
+    volumes:
+      - workload:/workload:ro
+      - ./provider.conf:/config/provider.conf:ro
+      - ${FIXTURE}/bin/oidc-discovery-provider:/opt/provider:ro
+      - ${FIXTURE}/trust/identity.pem:/tls/identity.pem:ro
+      - ${FIXTURE}/trust/identity-key.pem:/tls/identity-key.pem:ro
+  # Each invocation uses a registered numeric UID. No bootstrap, node or issuer secrets.
+  reader:
+    <<: *tool
+    user: "11001:11001"
+    pid: service:agent
+    cap_drop: [ALL]
+    entrypoint: [/opt/reader]
+    tmpfs: ["/run/reporter:size=1m,uid=11001,gid=11001,mode=0700,noexec,nosuid,nodev"]
+    volumes:
+      - workload:/workload:ro
+      - ${FIXTURE}/bin/reader:/opt/reader:ro
+      - ${FIXTURE}/bin/spire-agent:/opt/spire-agent:ro
+      - ${FIXTURE}/trust/ca.pem:/trust/ca.pem:ro
+volumes:
+  postgres-a:
+  server-state:
+  agent-state:
+  workload:
+networks:
+  tutorial: {}

@@ -225,7 +225,7 @@ export CATALOG_REMOTE_TOKEN_FILE=/run/secrets/catalog-access-token
 ./bin/catalogctl remote search --text orders --kind agent --tag support --limit 10
 ```
 
-Replace the example hostname and secret-file path. Obtain a manual access token from the deployment's identity provider, or use the [human login procedure](#human-cli-login) and explicitly select its file. Manual bearer inputs have no automatic refresh. For a running local development instance, use `CATALOG_REMOTE_BASE_URL=http://127.0.0.1:8080` and its development token through `CATALOG_REMOTE_TOKEN`, with `CATALOG_REMOTE_TOKEN_FILE` unset. Reads do not seed data; use the [local walkthrough](../guides/local-development.mdx) for the separate mutating smoke workflow.
+Replace the example hostname and secret-file path. Obtain a manual access token from the deployment's identity provider, or use the [human login procedure](#human-cli-login) and explicitly select its file. Manual bearer inputs have no automatic refresh. The [SPIRE reporting job](../guides/integrating.mdx#read-a-private-resource-and-publication-with-spire) supplies its current JWT-SVID through `--token-file` and its private Catalog CA through `--ca-file`. For a running local development instance, use `CATALOG_REMOTE_BASE_URL=http://127.0.0.1:8080` and its development token through `CATALOG_REMOTE_TOKEN`, with `CATALOG_REMOTE_TOKEN_FILE` unset. Reads do not seed data; use the [local walkthrough](../guides/local-development.mdx) for the separate mutating smoke workflow.
 
 | Flag | Environment fallback | Default or bound |
 | --- | --- | --- |

@@ -61,3 +61,38 @@ func TestOIDCTrustMountIsAPIOnly(t *testing.T) {
 	}
 	validateRenderedConfiguration(t, objects)
 }
+
+func TestSPIREValuesSelectOnlyTheConfiguredIssuer(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		args      []string
+		issuer    string
+		privateCA bool
+	}{
+		{name: "default", issuer: "https://identity.example.com"},
+		{name: "workload issuer", args: []string{"--values", chartPath(t, "examples", "spire-values.yaml")}, issuer: "https://identity.test:8447", privateCA: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			objects := renderChart(t, tc.args...)
+			validateRenderedConfiguration(t, objects)
+			data := mapAt(t, oneObject(t, objects, "ConfigMap", "configuration"), "data")
+			if data["CATALOG_AUTH_MODE"] != "oidc" || data["CATALOG_AUTH_ISSUER"] != tc.issuer {
+				t.Fatalf("unexpected authentication mode or issuer: %v, %v", data["CATALOG_AUTH_MODE"], data["CATALOG_AUTH_ISSUER"])
+			}
+			api := oneObject(t, objects, "Deployment", "api")
+			mounted := false
+			for _, item := range sliceAt(t, api, "spec", "template", "spec", "volumes") {
+				volume := asMap(t, item)
+				if volume["name"] == "oidc-trust" {
+					mounted = true
+					if stringAt(t, volume, "configMap", "name") != "spire-issuer-ca" {
+						t.Fatal("API would load a different issuer CA")
+					}
+				}
+			}
+			if mounted != tc.privateCA {
+				t.Fatalf("issuer CA mounted = %t", mounted)
+			}
+		})
+	}
+}

@@ -252,6 +252,9 @@ func TestContainerIgnoreContract(t *testing.T) {
 		"!deployments/helm/",
 		"!deployments/helm/open-agentic-catalog/",
 		"!deployments/helm/open-agentic-catalog/README.md",
+		"!deployments/helm/open-agentic-catalog/examples/",
+		"deployments/helm/open-agentic-catalog/examples/*",
+		"!deployments/helm/open-agentic-catalog/examples/spire-values.yaml",
 		"!deployments/container/",
 		"!deployments/container/Dockerfile",
 		"!deployments/container/licenses.sh",
@@ -268,6 +271,11 @@ func TestContainerIgnoreContract(t *testing.T) {
 		"!samples/",
 		"!samples/**",
 		"!test/",
+		"!test/interoperability/",
+		"test/interoperability/*",
+		"!test/interoperability/spire/",
+		"test/interoperability/spire/*",
+		"!test/interoperability/spire/reader.go",
 		"!test/minikube/",
 		"!test/minikube/fixtures/",
 		"!test/minikube/fixtures/vault/",
@@ -1033,9 +1041,14 @@ func TestHelmConfigurationUsesValidatedEnvironmentAndConditionalSecrets(t *testi
 			t.Fatalf("%s must use strict validation and the pinned schemas", target)
 		}
 	}
-	profiles, err := fs.Glob(repository.FS(), "deployments/helm/open-agentic-catalog/ci/*.yaml")
-	if err != nil || len(profiles) == 0 {
-		t.Fatalf("chart profile inventory: %v", err)
+	const chartDir = "deployments/helm/open-agentic-catalog/"
+	var profiles []string
+	for _, directory := range []string{"ci", "examples"} {
+		files, err := fs.Glob(repository.FS(), chartDir+directory+"/*.yaml")
+		if err != nil || len(files) == 0 {
+			t.Fatalf("chart profile inventory in %s: %v", directory, err)
+		}
+		profiles = append(profiles, files...)
 	}
 	var selected string
 	for _, line := range strings.Split(makefile, "\n") {
@@ -1048,7 +1061,7 @@ func TestHelmConfigurationUsesValidatedEnvironmentAndConditionalSecrets(t *testi
 		t.Fatalf("chart gate must select all %d profiles: %s", len(profiles), selected)
 	}
 	for _, profile := range profiles {
-		if !slices.Contains(fields, "$(HELM_CHART)/ci/"+filepath.Base(profile)) {
+		if !slices.Contains(fields, "$(HELM_CHART)/"+strings.TrimPrefix(profile, chartDir)) {
 			t.Errorf("chart gate omits profile %s", profile)
 		}
 	}

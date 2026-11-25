@@ -156,6 +156,8 @@ The chart creates a default-deny federation-policy ConfigMap unless `federation.
 
 Live Search defaults to one page per peer. Set `configEnv.CATALOG_FEDERATION_MAX_LIVE_PAGES_PER_SOURCE: "3"` to permit deeper paging; accepted string values are `"1"` through `"5"`. The shared configuration checksum triggers a rollout when this startup setting changes. Pages share the existing fan-out, deadline and per-peer byte limits. See [live peer configuration](../../../documentation/src/content/docs/reference/configuration.mdx#live-peer-pages) for partial results and safety rules.
 
+SPIRE is optional. To use an existing SPIRE OIDC Discovery Provider, merge [the SPIRE settings](examples/spire-values.yaml) into your complete values file and replace the example issuer, tenant, discovery hosts and CA reference. This selects the single issuer for a dedicated Catalog. Install and administer SPIRE separately. Only the consuming workload needs the Agent socket. Follow the [workload identity guide](../../../documentation/src/content/docs/guides/integrating.mdx#read-a-private-resource-and-publication-with-spire) to register the workload and grant access.
+
 OIDC private trust is separate: set `auth.trustBundleConfigMap` to an existing ConfigMap containing `ca.pem`. Only that key is mounted read-only into the API at `/etc/open-agentic-catalog/oidc/trust/ca.pem`; the worker and migration hook receive neither the mount nor its environment setting. The bundle extends public roots only for configured-issuer discovery and declared HTTPS signing keys, with normal hostname verification.
 
 The process limit is 4 MiB; Kubernetes also enforces its own smaller ConfigMap object limit.
@@ -340,6 +342,7 @@ The chart supports CNCF-certified Kubernetes 1.34+ distributions meeting its API
 | --- | --- |
 | `test-minikube` | Single-node installation, failed-hook safety and retry, restricted admission, role identities, probes, governed smoke, Pod recreation, retained state, checksum rollout, no-op reapplication and optional webhook delivery/disablement. |
 | `test-minikube-topology` | Three-node revision-scoped replica spread, cross-API replay, worker lease takeover, Eviction/PDB enforcement, drain, direct Pod loss, pinned Calico backend/UI NetworkPolicy allow/deny and survivor continuity after worker-node loss. |
+| `test-minikube-spire` | Select an external SPIRE issuer, verify scoped SDK reads with native JWT-SVIDs, then restore the previous issuer and verify refusal. |
 | `test-minikube-ui` | Default-off UI, two-replica shared sessions and authenticated API requests, synthetic mounted-key staging/promotion and emergency retirement with process replacement, subpath routing/probes and disabling UI without removing the backend. HTTP/session checks, not browser JavaScript or human OIDC login. |
 | `test-minikube-replicas` | Three UI/API/worker replicas, concurrent duplicate commands and optimistic updates, exact readback/audit/replay, shared sessions after process replacement, bounded mixed traffic and resource observations. Single-node fixture; topology/node loss remain the separate scenario above. |
 | `test-minikube-monitoring` | Separate optional companion, scoped Pod discovery, dashboard queries, replacement-Pod metrics, missing-Secret isolation and external-PVC history across disable/re-enable and uninstall/reinstall. |
