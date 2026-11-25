@@ -526,7 +526,7 @@ func (h *harness) verifyMonitoringDashboard(prometheus, grafana monitoringClient
 	if err := h.monitoringJSON(grafana, http.MethodGet, "/api/datasources/uid/catalog-prometheus/health", nil, nil); err != nil {
 		return err
 	}
-	replacer := strings.NewReplacer("${deployment:regex}", "mk-"+h.suffix, "${role:regex}", "api|worker", "$__rate_interval", "1m")
+	replacer := strings.NewReplacer("${deployment}", "mk-"+h.suffix, "${role:regex}", "api|worker", "$__rate_interval", "1m")
 	queries := 0
 	for _, panel := range response.Dashboard.Panels {
 		for _, target := range panel.Targets {

@@ -412,25 +412,25 @@ Keep availability visible alongside dependent measurements. Every dependent quer
 **Check scrape availability.** A value of 0 means the latest scrape failed. An absent target is missing data; compare against your expected target inventory.
 
 ```text
-up{catalog_deployment=~"local",catalog_role=~"api|worker"}
+up{catalog_deployment="local",catalog_role=~"api|worker"}
 ```
 
 **Check worker snapshot availability.** A value of 0 means the worker cannot collect its database snapshot. A successful scrape alone does not establish snapshot availability.
 
 ```text
-(open_agentic_catalog_operational_snapshot_available{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"}) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
+(open_agentic_catalog_operational_snapshot_available{catalog_deployment="local",catalog_role=~"api|worker",catalog_role="worker"}) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment="local",catalog_role=~"api|worker"} == 1)
 ```
 
 **Investigate sustained product failures.** This is a per-second rate of product 5xx responses across successfully scraped processes. Observed traffic without 5xx responses produces zero. Missing traffic remains unavailable.
 
 ```text
-(sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=~"local",catalog_role=~"api|worker",status_class="5xx",route!~"/(metrics|livez|readyz|startupz|status|version|openapi.*)"}[1m]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1))) or on (catalog_deployment,catalog_role) (0 * (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=~"local",catalog_role=~"api|worker",route!~"/(metrics|livez|readyz|startupz|status|version|openapi.*)"}[1m]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1))))
+(sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment="local",catalog_role=~"api|worker",status_class="5xx",route!~"/(metrics|livez|readyz|startupz|status|version|openapi.*)"}[1m]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment="local",catalog_role=~"api|worker"} == 1))) or on (catalog_deployment,catalog_role) (0 * (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment="local",catalog_role=~"api|worker",route!~"/(metrics|livez|readyz|startupz|status|version|openapi.*)"}[1m]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment="local",catalog_role=~"api|worker"} == 1))))
 ```
 
 **Check database pool wait.** Each result is a pool wait rate in seconds per second for one process. Compare it with request deadlines and pool capacity.
 
 ```text
-(rate(open_agentic_catalog_postgresql_pool_empty_acquire_seconds_total{catalog_deployment=~"local",catalog_role=~"api|worker"}[1m])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
+(rate(open_agentic_catalog_postgresql_pool_empty_acquire_seconds_total{catalog_deployment="local",catalog_role=~"api|worker"}[1m])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment="local",catalog_role=~"api|worker"} == 1)
 ```
 
 Also inspect increases in `open_agentic_catalog_postgresql_pool_acquire_canceled_total` for the same healthy process. Cancellation can follow a caller cancellation or deadline; it does not establish pool exhaustion by itself. Compare both signals with the [connection and work budgets](database-roles.mdx#replica-and-dependency-budget).
@@ -438,25 +438,25 @@ Also inspect increases in `open_agentic_catalog_postgresql_pool_acquire_canceled
 **Check the oldest runnable Job.** This database-global age is repeated by reporting workers. Keep the per-worker results; do not sum them. Increasing age can indicate stalled eligible work.
 
 ```text
-(open_agentic_catalog_job_oldest_runnable_age_seconds{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
+(open_agentic_catalog_job_oldest_runnable_age_seconds{catalog_deployment="local",catalog_role=~"api|worker",catalog_role="worker"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment="local",catalog_role=~"api|worker",catalog_role="worker"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment="local",catalog_role=~"api|worker"} == 1)
 ```
 
 **Check pending notification age.** This is the age of the oldest unacknowledged outbox event. Check worker progress and delivery configuration before treating age alone as a receiver failure.
 
 ```text
-(open_agentic_catalog_outbox_oldest_pending_age_seconds{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
+(open_agentic_catalog_outbox_oldest_pending_age_seconds{catalog_deployment="local",catalog_role=~"api|worker",catalog_role="worker"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment="local",catalog_role=~"api|worker",catalog_role="worker"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment="local",catalog_role=~"api|worker"} == 1)
 ```
 
 **Investigate housekeeping failures.** This rate counts failed cleanup batches by class and reporting worker. Read the class outcome and safe diagnostics before changing retention.
 
 ```text
-(rate(open_agentic_catalog_housekeeping_batches_total{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker",outcome="failed"}[1m])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
+(rate(open_agentic_catalog_housekeeping_batches_total{catalog_deployment="local",catalog_role=~"api|worker",catalog_role="worker",outcome="failed"}[1m])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment="local",catalog_role=~"api|worker"} == 1)
 ```
 
 **Check housekeeping freshness.** This measures time since each reporting worker last completed a successful class check. Never-observed success has no age value. A successful check can reclaim zero rows.
 
 ```text
-((time() - open_agentic_catalog_housekeeping_last_success_timestamp_seconds{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"}) and (open_agentic_catalog_housekeeping_last_success_timestamp_seconds{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"} > 0)) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
+((time() - open_agentic_catalog_housekeeping_last_success_timestamp_seconds{catalog_deployment="local",catalog_role=~"api|worker",catalog_role="worker"}) and (open_agentic_catalog_housekeeping_last_success_timestamp_seconds{catalog_deployment="local",catalog_role=~"api|worker",catalog_role="worker"} > 0)) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment="local",catalog_role=~"api|worker"} == 1)
 ```
 
 Rates are calculated before process aggregation so counter resets retain their meaning. Keep database-global gauges per reporting worker, or use a separately reviewed deduplication rule. Missing data is not an observed zero. Failed snapshots omit their database-global series.

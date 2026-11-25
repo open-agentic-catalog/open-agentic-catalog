@@ -71,7 +71,7 @@ export function hasPositiveHeapQuery(exchange, role, window) {
       query.datasource?.uid !== "catalog-prometheus" ||
       typeof query.expr !== "string" ||
       !query.expr.includes("open_agentic_catalog_go_heap_bytes") ||
-      !query.expr.includes('catalog_deployment=~"local"') ||
+      !query.expr.includes('catalog_deployment="local"') ||
       !query.expr.includes(
         `catalog_role=~"${role === "All" ? "api|worker" : role}"`,
       ) ||
