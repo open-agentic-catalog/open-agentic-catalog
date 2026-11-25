@@ -385,6 +385,7 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     for command in ("preflight", "install"):
         sub.add_parser(command).add_argument("--profile", choices=tuple(DISK_GIB), required=True)
+    sub.add_parser("helm-install")
     sub.add_parser("actionlint-install")
     sub.add_parser("actionlint-check")
     args = parser.parse_args()
@@ -393,6 +394,10 @@ def main():
             preflight(args.profile)
         elif args.command == "install":
             install(args.profile)
+        elif args.command == "helm-install":
+            OWNED.mkdir(parents=True, exist_ok=True)
+            binary_install("helm")
+            publish_path(OWNED / "bin")
         elif args.command == "actionlint-install":
             actionlint_install()
         else:

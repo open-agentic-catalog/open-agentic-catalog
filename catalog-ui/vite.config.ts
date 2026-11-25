@@ -75,7 +75,8 @@ export default defineConfig({
                   name: "shared-initial",
                   tags: ["$initial"],
                 },
-                { ...sharedHelpers, name: "shared-lazy" },
+                // Keep helpers used by only a few screens with their consumers.
+                { ...sharedHelpers, name: "shared-lazy", minShareCount: 4 },
               ],
         },
       },

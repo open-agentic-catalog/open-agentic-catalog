@@ -313,6 +313,8 @@ class WorkflowSourcePolicyTests(unittest.TestCase):
         self.assertIn("artifact-ids: ${{ needs.qualify.outputs.bundle_id }}", delivery)
         self.assertIn("bundle_id: ${{ steps.bundle.outputs.artifact-id }}", verification)
         self.assertNotIn("pattern: '*'", verification)
+        self.assertLess(delivery.index("tools.py helm-install"), delivery.index("release_delivery.py publish"))
+        self.assertIn('HELM_REGISTRY_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}/config.json"', delivery)
         self.assertIn("release_delivery.py publish", delivery)
         self.assertIn("delivery-result.json", delivery)
 
@@ -457,6 +459,9 @@ class WorkflowSourcePolicyTests(unittest.TestCase):
         self.assertIn("run: make helm-package", source)
         release = (local.ROOT / ".github/workflows/release.yml").read_text()
         self.assertIn("output/release/charts/*.tgz", release)
+        verify = release.index('make helm-oci-test HELM_OCI_QUALIFIED="$ARTIFACT_OUTPUT"')
+        self.assertLess(release.index('release_delivery.py charts --directory "$ARTIFACT_OUTPUT"'), verify)
+        self.assertLess(verify, release.index("Transfer the qualified charts"))
 
     def test_lint_does_not_select_broad_regression_or_api_launcher_tests(self):
         source = (local.ROOT / ".github/workflows/quality.yml").read_text()

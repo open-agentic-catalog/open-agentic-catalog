@@ -6,6 +6,8 @@ The embedded [OpenAPI document](../../../../../api/openapi/control-v1.yaml) is t
 
 Use the [API reference](../../../../../api/README.md) and OpenAPI contract for supported operations; [design principles](../architecture/design.mdx) explain the architectural boundaries without defining additional endpoints.
 
+`v0.1.2` establishes the compatibility baseline for `/api/v1`. Supported clients can rely on existing field meanings, defaults, authorization requirements, ordering and error semantics. Compare proposed changes with the tagged OpenAPI contract. Use behavioral tests for guarantees the schema cannot express. [API validation](../contributing/testing.md#api-validation)
+
 ## Surfaces
 
 - API operational endpoints are `/livez`, `/readyz`, `/version`, `/metrics`, and `/openapi/control-v1.yaml`. They share the API listener but require no bearer token, so deployment routing keeps metrics and the contract document off unintended ingress.
@@ -28,8 +30,6 @@ The control API has four governed resource kinds: `agent`, `mcp_server`, `skill`
 `limit` is 1-100 (default 20); `cursor` binds identity, policy revision, scope ceiling, filters and page size. `namespaceId` selects only the caller's exact scope hint, without disclosing another namespace. Policy changes require restarting continuation.
 
 `GET /api/v1/access/self` separately pages this caller's effective direct/group assignment sources, with role and group provenance. Neither endpoint returns raw claims, legacy role-name arrays, tokens or another member's access. Clients must check current API decisions after using hints.
-
-The service has no supported released predecessor. Pre-release contract corrections update OpenAPI, implementation, migrations, examples and tests together without aliases for older development clients. After release, `/api/v1` compatibility rules preserve field meaning, defaults, authorization and error behavior.
 
 ## Reusable draft downloads
 

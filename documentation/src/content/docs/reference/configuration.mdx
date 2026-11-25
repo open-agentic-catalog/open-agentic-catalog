@@ -1044,7 +1044,7 @@ Semantic search is independently optional; enabling it validates the provider co
 
 Every environment rejects PostgreSQL application-startup migrations and the combined PostgreSQL `all` role. API and worker require a directly authenticated LOGIN runtime identity and reject assumed roles. Startup verifies effective attributes, absence of role memberships, safe future-object defaults and the exact Catalog-schema privilege manifest.
 
-Before an OIDC token can authenticate, the schema owner must provision its exact realm and tenant or organization mapping. The owner must also provision the subject membership and initial Catalog roles. The service has no released predecessor. [ADR-0017](../architecture/decisions/0017-first-release-baseline.md) defines the current-format baseline without predecessor conversion or backfill. Do not reset existing data implicitly.
+Before an OIDC token can authenticate, the schema owner must provision its exact realm and tenant or organization mapping. The owner must also provision the subject membership and initial Catalog roles. When upgrading from `v0.1.2`, preserve existing identity mappings, memberships and grants. Use the schema-owner migration procedure for changes to stored data. [Coordinated upgrade](../operations/maintenance.mdx#coordinated-release-deployment)
 
 Offline validation checks configuration shape, not dependency reachability or production readiness. Startup and role-specific readiness check required dependencies. Operators must qualify their database, identity and network configuration.
 

@@ -6,7 +6,7 @@ title: "ADR-0017: Current-format first release without development-version compa
 
 ## Context
 
-The Catalog has no supported released predecessor. Supporting older development formats would add runtime, schema and verification costs without a compatibility requirement.
+When this decision was made, the Catalog had no supported released predecessor. Supporting older development formats would have added runtime, schema and verification costs. The first public release, `v0.1.2`, established the baseline for subsequent upgrades.
 
 ## Decision
 
@@ -14,7 +14,7 @@ The first supported release uses the reviewed current contracts only. Do not shi
 
 Preserve current domain history, security and recovery behavior and explicitly selected upstream standards interoperability. Memory development mode remains supported.
 
-Future upgrade and path-major API compatibility obligations start with actual supported releases. Historical development commits are not supported predecessors. Pre-release contract cleanup updates code, OpenAPI, examples and tests together without aliases for old clients.
+Future upgrade and path-major API compatibility obligations start with actual supported releases. Historical development commits are not supported predecessors. Before `v0.1.2`, contract cleanup could update code, OpenAPI, examples and tests together without aliases for development clients.
 
 Resetting development data requires explicit authorization for the exact environment. Incompatible existing state must fail clearly rather than be silently converted or destroyed. Retain applied migration checksums and use forward-only schema cleanup under the current repository rules, without a mixed-version support window or compatibility backfill framework.
 

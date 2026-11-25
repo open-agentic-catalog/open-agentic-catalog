@@ -1,9 +1,11 @@
 """Release policy, archive and delivery tests. External commands are intercepted."""
 
 import copy
+import hashlib
 import io
 import json
 from pathlib import Path
+import subprocess
 import tarfile
 import tempfile
 import unittest
@@ -17,6 +19,14 @@ import release_standalone as standalone
 import test_unit_admission as fixtures
 
 SOURCE = fixtures.SOURCE
+
+
+def registry_chart(checksum):
+    return json.dumps({
+        "schemaVersion": 2, "config": {"mediaType": "application/vnd.cncf.helm.config.v1+json"},
+        "annotations": {"org.opencontainers.image.source": "https://github.com/open-agentic-catalog/open-agentic-catalog"},
+        "layers": [{"mediaType": "application/vnd.cncf.helm.chart.content.v1.tar+gzip", "digest": "sha256:" + checksum}],
+    }).encode()
 
 
 class ReleaseTests(unittest.TestCase):
@@ -69,8 +79,8 @@ class ReleaseTests(unittest.TestCase):
             assets = r.public_assets(directory, value)
             self.assertEqual(len(assets), 21)
             version = (r.ROOT / "VERSION").read_text().strip()
-            self.assertTrue({f"open-agentic-catalog-go-{version}.tar.gz", f"catalogctl-{version}-linux-arm64.tar.gz",
-                             f"open-agentic-catalog-{version}.vsix"} <= assets.keys())
+            self.assertLessEqual({f"open-agentic-catalog-go-{version}.tar.gz", f"catalogctl-{version}-linux-arm64.tar.gz",
+                             f"open-agentic-catalog-{version}.vsix"}, assets.keys())
             lines = (directory / "SHA256SUMS").read_text().splitlines()
             self.assertEqual({line.split("  ")[1] for line in lines}, set(assets))
             for line in lines:
@@ -302,33 +312,85 @@ class ReleaseTests(unittest.TestCase):
                         p.stage_editor(root / "output/fail", {} if change == "source" else SOURCE)
                     self.assertFalse((root / "output/fail").exists())
 
-    def test_delivery_retries_skip_matching_assets_and_published_release_is_read_only(self):
-        for published in (False, True):
-            with self.subTest(published=published), tempfile.TemporaryDirectory() as tmp:
-                _, directory, value = self.fixture(Path(tmp))
-                calls = []
-                present = dict.fromkeys(value["images"], True)
-                digests = {key: "sha256:" + str(i + 1) * 64 for i, key in enumerate(present)}
-                indexes = dict.fromkeys(c.PRODUCTS, True)
-                def manifest(reference):
-                    product = "ui" if "/catalog-ui:" in reference else "backend"
-                    return {"manifests": [{"platform": {"os": "linux", "architecture": arch}, "digest": digests[product + "-" + arch]} for arch in ("amd64", "arm64")]}
-                with patch.object(r, "delivery_plan", return_value=value), patch.object(r, "destination_commit", return_value=SOURCE["commit"]), \
-                        patch.object(r, "existing_assets", return_value={"draft": not published, "missing": []}), \
-                        patch.object(r, "registry_preflight", return_value=(present, digests, indexes)), \
-                        patch.object(r, "registry_manifest", side_effect=manifest), patch.object(r, "registry_digest", return_value="sha256:" + "f" * 64), \
-                        patch.object(r.subprocess, "run", side_effect=lambda args, **kw: calls.append(args)):
-                    r.publish(directory)
-                self.assertEqual(calls, [])
-                record = json.loads((directory / "delivery-result.json").read_text())
-                self.assertEqual(record["result"], "success")
-                self.assertEqual(record["releaseState"], "published" if published else "draft")
-                self.assertEqual(record["delivery"], "verified-existing" if published else "images-pushed-files-in-draft")
+    def test_disabled_publication_never_contacts_destinations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, directory, value = self.fixture(Path(tmp))
+            enabled = {"GITHUB_REPOSITORY": a.REPOSITORY, "GITHUB_REF": "refs/tags/v" + value["build"]["version"],
+                       "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_ACTIONS": "true", "GITHUB_SHA": SOURCE["commit"],
+                       "INPUT_UPLOAD": "true", "INPUT_PUBLISH": "true", "RELEASE_PUBLISH_ENABLED": "true", "RELEASE_PUBLISH": "true"}
+            for switch in ("RELEASE_PUBLISH_ENABLED", "INPUT_PUBLISH", "RELEASE_PUBLISH"):
+                with self.subTest(switch=switch), patch.dict(r.os.environ, {**enabled, switch: "false"}, clear=True):
+                    with self.assertRaisesRegex(ValueError, "disabled|requires the protected maintainer job"):
+                        r.publish(directory)
+                    r.subprocess.run.assert_not_called()
+                    r.subprocess.check_output.assert_not_called()
+                    self.assertFalse((directory / "delivery-result.json").exists())
+
+    def test_registry_missing_diagnostics_must_be_unambiguous(self):
+        ref = "ghcr.io/example/charts/example:1.0.0-RC"
+        for message in (ref + ": not found", "manifest unknown", ref + ": manifest unknown: manifest unknown"):
+            with self.subTest(message=message), patch.object(r.subprocess, "run", return_value=subprocess.CompletedProcess(
+                    [], 1, b"", f"ERROR: {message}\n".encode())):
+                self.assertIsNone(r.registry_bytes(ref))
+        for code, message in ((1, ref.lower() + ": not found"), (1, ref + ": not found\nunauthorized"),
+                              (1, "authorization failed: manifest unknown"), (-15, ref + ": not found")):
+            with self.subTest(message=message), patch.object(r.subprocess, "run", return_value=subprocess.CompletedProcess(
+                    [], code, b"", f"ERROR: {message}\n".encode())), self.assertRaisesRegex(ValueError, "Cannot inspect"):
+                r.registry_bytes(ref)
+
+    def test_null_registry_manifest_stops_delivery_before_any_writes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, directory, value = self.fixture(Path(tmp))
+            ref = r.image_target("backend", value["build"]["version"], "amd64")
+            with patch.object(r, "destination_commit", return_value=SOURCE["commit"]), \
+                    patch.object(r, "registry_bytes", side_effect=lambda target: b"null" if target == ref else None), \
+                    patch.object(r, "existing_assets", side_effect=AssertionError("Invalid image passed preflight")):
+                with self.assertRaisesRegex(ValueError, "Expected a registry manifest object"):
+                    r.deliver(directory, value, Path(tmp))
+            record = json.loads((directory / "delivery-result.json").read_text())
+            self.assertEqual((record["result"], record["completed"]), ("incomplete", []))
+
+    def test_monitoring_chart_conflict_or_registry_failure_stops_all_writes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, directory, value = self.fixture(Path(tmp))
+            charts = {name: (f"{r.CHART_REGISTRY}/{name}:{version.replace('+', '_')}", value["files"]["charts/" + filename])
+                      for filename, (name, version) in r.release_charts().items()}
+            application, application_sha = charts["open-agentic-catalog"]
+            monitoring, monitoring_sha = charts["open-agentic-catalog-monitoring"]
+            self.assertNotEqual(application_sha, monitoring_sha)
+            for outcome, diagnostic in (
+                ("other-chart", "does not match the qualified archive"),
+                ("403 Forbidden", "Cannot inspect the delivery destination"),
+                ("503 Service Unavailable", "Cannot inspect the delivery destination"),
+                ("403 manifest unknown", "Cannot inspect the delivery destination"),
+            ):
+                reads = []
+                def inspect(args, **kwargs):
+                    self.assertEqual(args[:-1], ["docker", "buildx", "imagetools", "inspect", "--raw"], "Unexpected delivery write")
+                    ref = args[-1]
+                    reads.append(ref)
+                    if ref != monitoring:
+                        return subprocess.CompletedProcess(args, 1, b"", f"ERROR: {ref}: not found".encode())
+                    if outcome == "other-chart":
+                        return subprocess.CompletedProcess(args, 0, registry_chart(application_sha), b"")
+                    return subprocess.CompletedProcess(args, 1, b"", f"ERROR: unexpected status from HEAD request: {outcome}".encode())
+                with self.subTest(outcome=outcome), patch.object(r, "delivery_plan", return_value=value), \
+                        patch.object(r, "destination_commit", return_value=SOURCE["commit"]), patch.object(r.subprocess, "run", side_effect=inspect), \
+                        patch.object(r, "existing_assets") as assets:
+                    with self.assertRaisesRegex(ValueError, diagnostic):
+                        r.publish(directory)
+                    self.assertIn(application, reads)
+                    self.assertIn(monitoring, reads)
+                    assets.assert_not_called()
+                    record = json.loads((directory / "delivery-result.json").read_text())
+                    self.assertEqual((record["result"], record["completed"]), ("incomplete", []))
 
     def test_missing_draft_asset_upload_has_no_clobber_and_conflicts_precede_writes(self):
-        for state in ("upload", "published-incomplete", "tag-moved", "registry-conflict"):
+        for state in ("upload", "published-incomplete", "tag-moved", "registry-conflict", "extra-provenance"):
             with self.subTest(state=state), tempfile.TemporaryDirectory() as tmp:
                 _, directory, value = self.fixture(Path(tmp))
+                if state == "extra-provenance":
+                    next((directory / "charts").glob("*.tgz")).with_suffix(".tgz.prov").write_bytes(b"unqualified")
                 missing = [directory / "SHA256SUMS"]
                 calls = []
                 present = dict.fromkeys(value["images"], True)
@@ -346,6 +408,7 @@ class ReleaseTests(unittest.TestCase):
                 with patch.object(r, "delivery_plan", return_value=value), patch.object(r, "destination_commit", return_value=("0" * 40 if state == "tag-moved" else SOURCE["commit"])), \
                         patch.object(r, "existing_assets", side_effect=[{"draft": state != "published-incomplete", "missing": missing}, {"draft": True, "missing": []}]), \
                         patch.object(r, "registry_preflight", side_effect=ValueError("conflict") if state == "registry-conflict" else None, return_value=(present, digests, indexes)), \
+                        patch.object(r, "chart_receipt", return_value={"manifestDigest": "sha256:" + "1" * 64}), \
                         patch.object(r, "registry_manifest", side_effect=registry), patch.object(r, "registry_digest", return_value="sha256:" + "f" * 64), \
                         patch.object(r.subprocess, "run", side_effect=execute):
                     if state == "upload":
@@ -357,6 +420,19 @@ class ReleaseTests(unittest.TestCase):
                         with self.assertRaises(ValueError):
                             r.publish(directory)
                         self.assertEqual(calls, [])
+
+    def test_existing_chart_must_link_the_qualified_archive_and_repository(self):
+        checksum = "f" * 64
+        layer = {"mediaType": "application/vnd.cncf.helm.chart.content.v1.tar+gzip", "digest": "sha256:" + checksum}
+        manifest = {"schemaVersion": 2, "layers": [layer], "annotations": {r.SOURCE_ANNOTATION: r.SOURCE_URL},
+                    "config": {"mediaType": "application/vnd.cncf.helm.config.v1+json"}}
+        changes = ({"annotations": {}}, {"annotations": {r.SOURCE_ANNOTATION: "https://example.invalid/other"}},
+                   {"layers": [{**layer, "digest": "sha256:" + "a" * 64}]}, {"layers": [layer, layer]},
+                   {"layers": [{**layer, "mediaType": "application/octet-stream"}]}, {"config": {}})
+        for change in changes:
+            with self.subTest(change=change), patch.object(r, "registry_bytes", return_value=json.dumps({**manifest, **change}).encode()):
+                with self.assertRaisesRegex(ValueError, "does not match the qualified archive or its source"):
+                    r.chart_receipt("registry.invalid/charts/example:1.0.0", checksum)
 
     def test_remote_tag_peels_annotations_and_rejects_noncommits(self):
         values = [{"object": {"type": "tag", "sha": "c" * 40}}, {"object": {"type": "commit", "sha": SOURCE["commit"]}}]
@@ -429,7 +505,6 @@ class ReleaseTests(unittest.TestCase):
             stage.assert_not_called()
 
     def test_first_delivery_and_retry_transfer_exact_members_without_rebuilding(self):
-        import hashlib
         for interrupted in (False, True):
             with self.subTest(interrupted=interrupted), tempfile.TemporaryDirectory() as tmp:
                 _, directory, value = self.fixture(Path(tmp))
@@ -438,14 +513,21 @@ class ReleaseTests(unittest.TestCase):
                 originals = {p.name: c.digest(p) for p in (directory / "SHA256SUMS", directory / "release.json")}
                 asset_attempts = []
                 fail = [interrupted]
+                interrupt_monitoring = interrupted
+                published = False
                 reads = []
                 def inspect(reference):
                     reads.append(reference)
                     return manifests.get(reference)
+                chart_manifests = {}
+                def inspect_chart(reference):
+                    reads.append(reference)
+                    return chart_manifests.get(reference)
                 def execute(args, **kw):
+                    nonlocal interrupt_monitoring
                     calls.append(args)
                     if args[:3] == ["docker", "image", "load"]:
-                        self.assertGreaterEqual(len(reads), 6, "Inspect every destination before writes")
+                        self.assertGreaterEqual(len(set(reads)), 8, "Inspect every destination before writes")
                     elif args[:3] == ["docker", "image", "tag"]:
                         tags[args[4]] = args[3]
                     elif args[:3] == ["docker", "image", "push"]:
@@ -460,6 +542,18 @@ class ReleaseTests(unittest.TestCase):
                         manifests[target] = {"manifests": [{"platform": {"os": "linux", "architecture": arch}, "digest": digests[target + "-" + arch]} for arch in ("amd64", "arm64")]}
                         self.assertEqual(args[-2:], [target.split(":")[0] + "@" + digests[target + "-" + arch] for arch in ("amd64", "arm64")])
                         digests[target] = "sha256:" + hashlib.sha256(target.encode()).hexdigest()
+                    elif args[:2] == ["helm", "push"]:
+                        _, _, archive, registry = args
+                        archive = Path(archive)
+                        self.assertEqual(archive.parent, directory / "charts")
+                        self.assertEqual(registry, "oci://ghcr.io/open-agentic-catalog/charts")
+                        name, version = r.release_charts()[archive.name]
+                        ref = f"{r.CHART_REGISTRY}/{name}:{version.replace('+', '_')}"
+                        self.assertNotIn(ref, chart_manifests)
+                        if name == "open-agentic-catalog-monitoring" and interrupt_monitoring:
+                            interrupt_monitoring = False
+                            raise OSError("fixture interrupted before monitoring chart")
+                        chart_manifests[ref] = registry_chart(c.digest(archive))
                     elif args[:3] == ["gh", "release", "upload"]:
                         self.assertNotIn("--clobber", args)
                         paths = [Path(p) for p in args[args.index("--repo") + 2:]]
@@ -474,9 +568,10 @@ class ReleaseTests(unittest.TestCase):
                     for p in paths:
                         if p.name in uploaded:
                             self.assertEqual(uploaded[p.name], p.read_bytes())
-                    return {"draft": True, "missing": [p for p in paths if p.name not in uploaded]}
+                    return {"draft": not published, "missing": [p for p in paths if p.name not in uploaded]}
                 with patch.object(r, "delivery_plan", return_value=value), patch.object(r, "destination_commit", return_value=SOURCE["commit"]), \
                         patch.object(r, "existing_assets", side_effect=assets), patch.object(r, "registry_manifest", side_effect=inspect), \
+                        patch.object(r, "registry_bytes", side_effect=inspect_chart), \
                         patch.object(r, "registry_digest", side_effect=lambda target: digests[target]), patch.object(r.subprocess, "run", side_effect=execute):
                     if interrupted:
                         with self.assertRaisesRegex(OSError, "interrupted"):
@@ -485,11 +580,32 @@ class ReleaseTests(unittest.TestCase):
                         self.assertEqual(record["result"], "incomplete")
                         self.assertIn("index-backend", record["completed"])
                         calls.clear()
+                        with self.assertRaisesRegex(OSError, "interrupted before monitoring chart"):
+                            r.publish(directory)
+                        record = json.loads((directory / "delivery-result.json").read_text())
+                        archives = {chart: filename for filename, (chart, _) in r.release_charts().items()}
+                        application = archives["open-agentic-catalog"]
+                        monitoring = archives["open-agentic-catalog-monitoring"]
+                        self.assertEqual(record["result"], "incomplete")
+                        self.assertEqual(record["completed"][-1], "push-" + application)
+                        self.assertEqual([v["archiveSha256"] for v in record["charts"].values()], [value["files"]["charts/" + application]])
+                        self.assertFalse(uploaded)
+                        self.assertFalse(any("push" in args and "/open-agentic-catalog:" in args[-1] for args in calls))
+                        # A fresh runner recovers from registry contents without the previous delivery report.
+                        (directory / "delivery-result.json").unlink()
+                        calls.clear()
                         with self.assertRaisesRegex(OSError, "interrupted asset upload"):
                             r.publish(directory)
+                        self.assertEqual([Path(args[2]).name for args in calls if args[:2] == ["helm", "push"]], [monitoring])
                     r.publish(directory)
-                    if interrupted:
-                        self.assertFalse(any("push" in args and "/open-agentic-catalog:" in args[-1] for args in calls))
+                    receipts = json.loads((directory / "delivery-result.json").read_text())["charts"]
+                    self.assertEqual(len(receipts), 2)
+                    for filename, (name, version) in r.release_charts().items():
+                        ref = f"{r.CHART_REGISTRY}/{name}:{version.replace('+', '_')}"
+                        self.assertEqual(receipts[ref], {
+                            "archiveSha256": hashlib.sha256(uploaded[filename]).hexdigest(),
+                            "manifestDigest": "sha256:" + hashlib.sha256(chart_manifests[ref]).hexdigest(),
+                        })
                     public_manifest = json.loads(uploaded["release.json"])
                     self.assertEqual({key: public_manifest.pop(key) for key in ("indexDigests", "platformDigests")},
                                      {"indexDigests": {p: digests[r.image_target(p, value["build"]["version"])] for p in c.PRODUCTS},
@@ -504,3 +620,15 @@ class ReleaseTests(unittest.TestCase):
                     calls.clear()
                     r.publish(directory)
                     self.assertEqual(calls, [], "A matching retry must make no write calls")
+                    record = json.loads((directory / "delivery-result.json").read_text())
+                    self.assertEqual((record["releaseState"], record["delivery"]), ("draft", "images-pushed-files-in-draft"))
+                    published = True
+                    r.publish(directory)
+                    record = json.loads((directory / "delivery-result.json").read_text())
+                    self.assertEqual((record["result"], record["releaseState"], record["delivery"]), ("success", "published", "verified-existing"))
+                    self.assertEqual(record["charts"], receipts)
+                    self.assertEqual(calls, [], "A published release must be read-only")
+                    chart_manifests.pop(next(ref for ref in chart_manifests if "/open-agentic-catalog-monitoring:" in ref))
+                    with self.assertRaisesRegex(ValueError, "Published release is incomplete"):
+                        r.publish(directory)
+                    self.assertEqual(calls, [], "Delivery must not repair a published release")

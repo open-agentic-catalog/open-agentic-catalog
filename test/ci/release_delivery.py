@@ -2,8 +2,10 @@
 
 import argparse
 import gzip
+import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shlex
 import shutil
@@ -16,6 +18,9 @@ import candidate
 import release_standalone
 
 ROOT = admission.ROOT
+CHART_REGISTRY = "ghcr.io/open-agentic-catalog/charts"
+SOURCE_ANNOTATION = "org.opencontainers.image.source"
+SOURCE_URL = "https://github.com/" + admission.REPOSITORY
 SUITES = ("api", "ui-compose", "ui-oidc")
 
 
@@ -92,6 +97,9 @@ def chart_result(directory):
         metadata = subprocess.check_output(helm + ["show", "chart", str(path.resolve())], text=True, timeout=30).splitlines()
         if not {f"name: {name}", f"version: {version}", f"appVersion: {app_version}"}.issubset(metadata):
             raise ValueError(f"Packaged chart {path.name} must declare {name} {version} with appVersion {app_version}")
+        annotations = re.search(r"^annotations:\n((?:  [^\n]*\n)+)", "\n".join(metadata) + "\n", re.MULTILINE)
+        if not annotations or f"  {SOURCE_ANNOTATION}: {SOURCE_URL}" not in annotations[1].splitlines():
+            raise ValueError(f"Packaged chart {path.name} must identify its source repository")
     value = {"source": admission.source_identity(ROOT), "result": "success",
              "files": {path.name: candidate.digest(path) for path in files}}
     (directory / "qualification.json").write_text(json.dumps(value, sort_keys=True) + "\n")
@@ -279,15 +287,48 @@ def delivery_plan(directory, environment):
     return value
 
 
-def registry_manifest(reference):
+def registry_bytes(reference):
     """Return an existing manifest or a confirmed not-found response, never an auth error."""
     result = subprocess.run(["docker", "buildx", "imagetools", "inspect", "--raw", reference],
-                            capture_output=True, text=True, timeout=120, check=False)
+                            capture_output=True, timeout=120, check=False)
     if result.returncode:
-        if "manifest unknown" in result.stderr.lower() or (reference.lower() + ": not found") in result.stderr.lower():
+        error = result.stderr.decode(errors="replace").strip().removeprefix("ERROR: ")
+        # Match the complete Buildx diagnostic. A denial or transport error may also mention a missing manifest.
+        missing = {"manifest unknown", "manifest unknown: manifest unknown"}
+        if result.returncode == 1 and (error == f"{reference}: not found" or error.removeprefix(reference + ": ") in missing):
             return None
-        raise ValueError("Cannot inspect the delivery destination")
-    return json.loads(result.stdout)
+        raise ValueError(f"Cannot inspect the delivery destination {reference}")
+    return result.stdout
+
+
+def parse_registry_manifest(raw, reference):
+    manifest = json.loads(raw)
+    if not isinstance(manifest, dict):
+        raise ValueError(f"Expected a registry manifest object at {reference}")
+    return manifest
+
+
+def registry_manifest(reference):
+    raw = registry_bytes(reference)
+    return parse_registry_manifest(raw, reference) if raw is not None else None
+
+
+def chart_tag(version):
+    # OCI tags use an underscore for the SemVer build separator.
+    return version.replace("+", "_")
+
+
+def chart_receipt(reference, checksum):
+    raw = registry_bytes(reference)
+    if raw is None:
+        return None
+    manifest = parse_registry_manifest(raw, reference)
+    layers = manifest.get("layers", [])
+    if (manifest.get("schemaVersion") != 2 or manifest.get("config", {}).get("mediaType") != "application/vnd.cncf.helm.config.v1+json"
+            or len(layers) != 1 or layers[0].get("mediaType") != "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
+            or layers[0].get("digest") != "sha256:" + checksum or manifest.get("annotations", {}).get(SOURCE_ANNOTATION) != SOURCE_URL):
+        raise ValueError(f"Registry chart {reference} does not match the qualified archive or its source")
+    return {"archiveSha256": checksum, "manifestDigest": "sha256:" + hashlib.sha256(raw).hexdigest()}
 
 
 def registry_digest(reference):
@@ -415,14 +456,29 @@ def deliver(directory, value, public_directory):
         if destination_commit(version, os.environ.get("RELEASE_TAG_OBJECT", "")) != value["source"]["commit"]:
             raise ValueError("Remote release tag no longer matches approved source")
         present, digests, indexes = registry_preflight(value)
-        registry_complete = all(indexes.values()) and all(present.values())
-        if registry_complete:
+        missing_charts = {}
+        record["charts"] = {}
+        for filename, (name, chart_version) in release_charts().items():
+            reference = f"{CHART_REGISTRY}/{name}:{chart_tag(chart_version)}"
+            path = "charts/" + filename
+            archive = directory / path
+            # Helm automatically uploads an adjacent provenance file as another OCI layer.
+            if os.path.lexists(str(archive) + ".prov"):
+                raise ValueError(f"Unexpected provenance file beside qualified chart {filename}")
+            checksum = value["files"][path]
+            receipt = chart_receipt(reference, checksum)
+            if receipt:
+                record["charts"][reference] = receipt
+            else:
+                missing_charts[reference] = (archive, checksum)
+        images_complete = all(indexes.values()) and all(present.values())
+        if images_complete:
             record["indexDigests"] = {product: registry_digest(image_target(product, version)) for product in candidate.PRODUCTS}
             record["platformDigests"] = dict(digests)
             write_metadata(record["indexDigests"], digests)
         release = existing_assets(version, release_assets)
         if not release["draft"]:
-            if release["missing"] or not registry_complete:
+            if release["missing"] or missing_charts or not images_complete:
                 raise ValueError("Published release is incomplete; no writes are permitted")
             record.update(result="success", releaseState="published", delivery="verified-existing")
             return
@@ -454,13 +510,20 @@ def deliver(directory, value, public_directory):
                 raise ValueError("Pushed platform index is unavailable")
             existing_index(index, members)
             verified_digest = registry_digest(target)
-            if registry_complete and verified_digest != record["indexDigests"][product]:
+            if images_complete and verified_digest != record["indexDigests"][product]:
                 raise ValueError("Registry index changed during verification")
             record.setdefault("indexDigests", {})[product] = verified_digest
             destination.write_text(json.dumps(record, sort_keys=True) + "\n")
+        for reference, (archive, checksum) in missing_charts.items():
+            operation(["helm", "push", str(archive), "oci://" + CHART_REGISTRY], "push-" + archive.name)
+            receipt = chart_receipt(reference, checksum)
+            if receipt is None:
+                raise ValueError(f"Pushed chart {reference} is unavailable")
+            record["charts"][reference] = receipt
+            destination.write_text(json.dumps(record, sort_keys=True) + "\n")
         # No release creation or guessed notes. The maintainer prepares the
         # matching GitHub release; this job only attaches qualified assets.
-        if not registry_complete:
+        if not images_complete:
             write_metadata(record["indexDigests"], digests)
             release = existing_assets(version, release_assets)
             if not release["draft"]:

@@ -2467,7 +2467,7 @@ test-functional-workflow: conformance-prerequisite
 ##@ 🚢 Helm, Minikube and monitoring
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-.PHONY: helm-package helm-lint helm-package-test helm-test helm-check helm-render helm-schema-check
+.PHONY: helm-package helm-lint helm-package-test helm-oci-test helm-test helm-check helm-render helm-schema-check
 .PHONY: deploy-check monitoring-package monitoring-schema-check monitoring-install monitoring-status
 .PHONY: monitoring-access monitoring-uninstall test-minikube-contract test-minikube test-minikube-topology
 .PHONY: test-minikube-monitoring test-minikube-tracing test-minikube-semantic test-minikube-ui
@@ -2496,6 +2496,11 @@ helm-lint: ## Strictly lint the default and every representative Helm profile
 
 helm-package-test: ## Test versioned chart packaging with Helm; no cluster required
 	HELM="$(HELM)" $(PYTHON) -B test/helm/test_functional_packaging.py
+
+helm-oci-test: ## Push and anonymously pull qualified charts in a disposable loopback OCI registry
+	cd test/helm/oci && HELM="$(HELM)" PYTHON=$(PYTHON) HELM_OCI_QUALIFIED="$(HELM_OCI_QUALIFIED)" GOWORK=off GOTOOLCHAIN=$(GO_TOOLCHAIN) \
+		$(PYTHON) -B "$(CURDIR)/test/packaging/completion.py" go --required TestAnonymousChartPulls -- \
+		$(GO) test -tags=helm -mod=readonly -shuffle=on -count=1 -json .
 
 helm-test: helm-package-test ## Verify rendered chart semantics, configuration, rejection cases, and package contents
 	HELM="$(HELM)" HELM_CHART="$(abspath $(HELM_CHART))" HELM_KUBE_VERSION="$(HELM_KUBE_VERSION)" GOTOOLCHAIN=$(GO_TOOLCHAIN) $(GO) test -tags=helm ./test/helm ./test/deployment -shuffle=on -count=1

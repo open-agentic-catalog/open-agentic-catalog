@@ -216,6 +216,7 @@ jobs:
       - run: make deploy-check
       - run: make helm-package
       - run: python3.12 -B test/ci/release_delivery.py charts --directory "$ARTIFACT_OUTPUT"
+      - run: make helm-oci-test HELM_OCI_QUALIFIED="$ARTIFACT_OUTPUT"
       - name: Transfer the qualified charts
         if: ${{ success() && needs.policy.outputs.upload == 'true' && !env.ACT }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
@@ -333,6 +334,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: release
+    # Different release tags can target the same chart version.
+    concurrency:
+      group: catalog-release-package-delivery
+      cancel-in-progress: false
     permissions:
       contents: write
       packages: write
@@ -352,6 +357,8 @@ jobs:
           artifact-ids: ${{ needs.qualify.outputs.bundle_id }}
           merge-multiple: true
           path: output/release/delivery
+      - name: Install the checksum-pinned release Helm
+        run: python3.12 -B test/ci/tools.py helm-install
       - name: Authenticate the maintainer delivery job
         env:
           TOKEN: ${{ github.token }}
@@ -365,7 +372,9 @@ jobs:
           RELEASE_PUBLISH_ENABLED: ${{ vars.RELEASE_PUBLISH_ENABLED }}
           INPUT_UPLOAD: ${{ inputs.upload_artifacts }}
           INPUT_PUBLISH: ${{ inputs.publish }}
-        run: python3.12 -B test/ci/release_delivery.py publish --directory output/release/delivery
+        run: |
+          export HELM_REGISTRY_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}/config.json"
+          python3.12 -B test/ci/release_delivery.py publish --directory output/release/delivery
       - name: Report completed and partial delivery
         if: ${{ always() }}
         run: |

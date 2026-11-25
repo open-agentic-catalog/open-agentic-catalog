@@ -95,7 +95,7 @@ Summarize explicitly selected reports from the repository root:
 make functional-coverage FUNCTIONAL_REPORTS='output/functional/run-<suffix>/report.json'
 ```
 
-Copy the report path printed at the end of your run. To combine compatible runs, pass their paths as one space-separated value. Each Compose profile builds its own image. If their API image configuration digests differ, run the command once per profile and keep the results separate. The [testing guide](../../documentation/src/content/docs/contributing/testing.md#read-functional-operation-reports) lists the other identity checks.
+Copy the report path printed at the end of your run. To combine compatible runs, pass their paths as one space-separated value. Profiles normally build their own images. When the default-off profile uses a sealed backend image, the summary checks its recorded image ID, commit, version and source state against the running API and worker evidence. If their API image configuration digests differ, run the command once per profile and keep the results separate. The [testing guide](../../documentation/src/content/docs/contributing/testing.md#read-functional-operation-reports) lists the other identity checks.
 
 The command reads the selected reports and prints JSON with the denominator, observed and expected-positive operation counts, per-operation negative evidence, profile results and `packagedGaps`. A gap means the selected runs recorded no positive response for an applicable packaged operation.
 

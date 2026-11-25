@@ -40,6 +40,24 @@ For Kubernetes, provision the namespace, external PostgreSQL/roles and reference
 
 Run only one deployment operation at a time. The coordinator refuses HorizontalPodAutoscalers (HPAs) that target either runtime, including inactive HPAs. Remove those HPAs before invoking the coordinator. Pause controllers that can recreate them. Restore the selected autoscaling configuration after successful deployment. The migration advisory lock protects SQL application, not concurrent deployment commands.
 
+With the downloaded coordinator, put Helm and kubectl on your path. For example, to check the `v0.1.2` application chart in the existing `catalog-system` namespace:
+
+```sh
+./catalog-deploy --context my-cluster --namespace catalog-system --release catalog \
+  --chart ./open-agentic-catalog-0.1.2.tgz --values ./production-values.yaml \
+  --timeout 20m --check
+```
+
+For an upgrade, use the target chart archive and complete target values, including the [image digests](deployment.mdx#install-from-release-packages). Before draining, save the release UUID of a Catalog record your identity can read and inspect it with the CLI:
+
+```sh
+./catalogctl remote record --base-url "$API_URL" --token-file "$TOKEN_FILE" --id "$RELEASE_ID"
+```
+
+After preflight succeeds, repeat the coordinator command without `--check` to deploy. Once both roles are ready, compare their `/version` responses with the target build. For an upgrade, repeat the CLI read with the same identity and UUID and check that the release ID and canonical identifier agree. If the migration hook fails, follow [upgrade and failed migration](#upgrade-and-failed-migration) before retrying.
+
+From a source checkout the equivalent commands are:
+
 ```sh
 make helm-deploy-check HELM_CONTEXT=my-cluster HELM_NAMESPACE=catalog \
   HELM_RELEASE=catalog HELM_CHART=/path/to/open-agentic-catalog.tgz \

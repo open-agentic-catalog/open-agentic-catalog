@@ -168,9 +168,27 @@ def validate_coverage(value, profile):
     return value
 
 
+def report_build_identity(report, commit, image):
+    """Match the served version to the fixture or the admitted backend candidate."""
+    from runner import version_identity
+    if "candidate" not in report:
+        return version_identity(report["servedVersion"], commit), None
+    candidate = report["candidate"]
+    build, source = candidate["build"], candidate["source"]
+    if (report["profile"] != "default-off" or candidate["imageId"] != image
+            or candidate["platform"] not in ("linux/amd64", "linux/arm64")
+            or build["commit"] != commit or source["commit"] != commit
+            or not re.fullmatch(r"[0-9a-f]{64}", source["sourceSha256"])
+            or build["sourceState"] not in ("clean", "modified")
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.+-]{0,127}", build["version"])):
+        raise ValueError("invalid report candidate")
+    served = version_identity(report["servedVersion"], commit, build["version"], build["sourceState"])
+    return served, (candidate["platform"], source["sourceSha256"])
+
+
 def summarize(paths):
     """Union explicit compatible reports; never discover or rerun a test."""
-    from runner import DIGEST, Failure, digest_files, read_document, selected_steps, version_identity
+    from runner import DIGEST, Failure, digest_files, read_document, selected_steps
     if not 1 <= len(paths) <= 32:
         raise ClientFailure("select between one and 32 functional reports")
     inventory = read_document("test/functional/coverage.json")
@@ -217,7 +235,7 @@ def summarize(paths):
                     or not re.fullmatch(r"[0-9a-f]{40,64}", source["commit"])
                     or report["images"]["worker"]["configurationDigest"] != image):
                 raise ValueError()
-            served = version_identity(report["servedVersion"], source["commit"])
+            served = report_build_identity(report, source["commit"], image)
             current = (source, report["contractDigest"], report["inventoryDigest"], image, served)
         except (KeyError, TypeError, ValueError, Failure):
             raise ClientFailure("missing or invalid build identity") from None

@@ -1,4 +1,5 @@
 """Real chart-packager checks, explicitly run by make helm-package-test."""
+from contextlib import contextmanager
 import importlib.util
 import os
 from pathlib import Path
@@ -20,6 +21,18 @@ HELM = shlex.split(os.environ.get("HELM", "helm"))
 if not HELM:
     raise ValueError("HELM must name a command")
 IDENTIFIER = "sha256:" + "a" * 64
+
+
+@contextmanager
+def independent_chart_sources(root, versions):
+    chart_dir = root / "deployments/helm"
+    for name, version in versions.items():
+        shutil.copytree(ROOT / "deployments/helm" / name, chart_dir / name)
+        metadata = chart_dir / name / "Chart.yaml"
+        metadata.write_text(re.sub(r"^version: .+$", "version: " + version, metadata.read_text(), flags=re.M))
+    shutil.copyfile(ROOT / "LICENSE", root / "LICENSE")
+    with patch.object(charts, "ROOT", root), patch.object(charts.monitoring, "SOURCE", chart_dir / charts.monitoring.CHART_NAME):
+        yield
 
 
 class ChartPackagingTests(unittest.TestCase):
@@ -44,14 +57,8 @@ class ChartPackagingTests(unittest.TestCase):
     def test_default_packages_keep_each_chart_version_and_use_the_supplied_app_version(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            chart_dir = root / "deployments/helm"
             versions = {"open-agentic-catalog": "1.2.3", "open-agentic-catalog-monitoring": "2.0.0-rc.1"}
-            for name, version in versions.items():
-                shutil.copytree(ROOT / "deployments/helm" / name, chart_dir / name)
-                metadata = chart_dir / name / "Chart.yaml"
-                metadata.write_text(re.sub(r"^version: .+$", "version: " + version, metadata.read_text(), flags=re.M))
-            shutil.copyfile(ROOT / "LICENSE", root / "LICENSE")
-            with patch.object(charts, "ROOT", root), patch.object(charts.monitoring, "SOURCE", chart_dir / charts.monitoring.CHART_NAME):
+            with independent_chart_sources(root, versions):
                 archives = charts.package(root / "packages", None, "3.0.0", HELM)
             self.assertEqual({path.name for path in archives}, {f"{name}-{version}.tgz" for name, version in versions.items()})
             for name, version in versions.items():
