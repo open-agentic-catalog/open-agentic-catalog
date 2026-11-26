@@ -19,6 +19,8 @@ COPY CONTRIBUTING.md SECURITY.md /src/
 COPY schemas/PROFILES.md /src/schemas/PROFILES.md
 COPY schemas/extensions/artwork-v1.schema.json schemas/extensions/ratings-v1.schema.json /src/schemas/extensions/
 COPY api /src/api
+COPY test/interoperability/publication-replay/README.md /src/test/interoperability/publication-replay/README.md
+COPY test/interoperability/agentic-registry/README.md /src/test/interoperability/agentic-registry/README.md
 COPY test/interoperability/spire/reader.go /src/test/interoperability/spire/reader.go
 COPY test/interoperability/spire/renew.py /src/test/interoperability/spire/renew.py
 COPY test/minikube/fixtures/vault/catalog-sync.yaml test/minikube/fixtures/vault/runtime-policy.hcl test/minikube/fixtures/vault/owner-policy.hcl /src/test/minikube/fixtures/vault/

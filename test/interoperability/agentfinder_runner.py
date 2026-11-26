@@ -64,6 +64,7 @@ class Catalog:
         items, cursors = [], set()
         for _ in range(30):
             page, _ = self.request(path + "?" + urllib.parse.urlencode(dict(query, limit=100)))
+            assert len(page["items"]) <= 100, "administrative page exceeded the requested limit"
             items.extend(page["items"])
             cursor = page.get("nextCursor")
             if not cursor:
@@ -237,7 +238,8 @@ def cleanup_owned(compose, env, project, images, private, report):
     """Remove only the invocation's recorded resources and retain cleanup status."""
     directory = private.parent
     errors = []
-    for name in [project + "-generate", *report.get("probeNames", []), *([report["clientName"]] if report.get("clientName") else [])]:
+    auxiliaries = [project + "-generate", *report.get("probeNames", []), *([report["clientName"]] if report.get("clientName") else [])]
+    for name in auxiliaries:
         try:
             run(["docker", "rm", "-f", name], env=env, timeout=15, check=False)
         except Exception as error:
@@ -250,10 +252,12 @@ def cleanup_owned(compose, env, project, images, private, report):
                 (directory / (service + ".log")).write_text(result.stdout + result.stderr)
     except Exception as error:
         report["diagnosticError"] = str(error)[-2000:]
+    down = compose + ["down", "--volumes", "--remove-orphans"]
+    teardown_error = None
     try:
-        run(compose + ["down", "--volumes", "--remove-orphans"], env=env, timeout=120)
+        run(down, env=env, timeout=120)
     except Exception as error:
-        errors.append("Compose teardown: " + str(error))
+        teardown_error = error
     for tag in images:
         try:
             if run(["docker", "image", "inspect", tag], env=env, check=False).code == 0:
@@ -262,10 +266,25 @@ def cleanup_owned(compose, env, project, images, private, report):
             errors.append("owned image: " + str(error))
     try:
         remaining = owned_resources(project, env)
+        # The daemon can finish a container create after its interrupted Docker client exits.
+        # Only reclaim known auxiliaries from the project's label-filtered inventory.
+        found_auxiliary = False
+        for cid in remaining["container"].splitlines():
+            name = run(["docker", "inspect", "--format", "{{.Name}}", cid], env=env, timeout=15, check=False)
+            if name.code == 0 and name.stdout.strip().removeprefix("/") in auxiliaries:
+                run(["docker", "rm", "-f", cid], env=env, timeout=15, check=False)
+                found_auxiliary = True
+        if found_auxiliary and teardown_error is not None:
+            run(down, env=env, timeout=120)
+            teardown_error = None
+        if remaining["container"]:
+            remaining = owned_resources(project, env)
         assert not any(remaining.values()), "owned resource residue"
         shutil.rmtree(private)
     except Exception as error:
         errors.append("owned inventory/private files: " + str(error))
+    if teardown_error is not None:
+        errors.append("Compose teardown: " + str(teardown_error))
     report["cleanup"] = "failed" if errors else "complete"
     if errors:
         report["cleanupError"] = "\n".join(errors)[-4000:]

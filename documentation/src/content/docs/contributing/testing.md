@@ -2684,6 +2684,17 @@ Use the optional [native registry campaign](../../../../../test/interoperability
 
 The selected peer retains one version per identifier and has an incompatible null terminal List token. Success qualifies the one-way publication-consumer path; reverse indexed replication and crash-durable snapshots remain unqualified. Ordinary unit tests do not execute this independent peer.
 
+## Test inbound ARD discovery
+
+Use these optional workflows to check what Catalog readers can find after an administrator connects an ARD source. Each starts a disposable Catalog with its own PostgreSQL database on a local Docker engine.
+
+| What you want to verify | How to run it |
+| --- | --- |
+| Import a saved Desvela or Nevermined publication | Follow the [publication replay guide](../../../../../test/interoperability/publication-replay/README.md) to prepare the images and supply the three checksum-matched response bodies. Run `make test-interoperability-publication-replay`. The test checks the indexed results and the original entries an authorized reader can retrieve, including after a failed refresh and restart. |
+| Compare indexed and live Search against Agentic Resource Registry | Follow the [registry setup](../../../../../test/interoperability/agentic-registry/README.md) to build the pinned peer with `make agentic-registry-tools-install`. Run `make test-interoperability-agentic-registry`. The peer approves and archives synthetic resources. Catalog searches the peer over private HTTPS and checks which records survive an outage. |
+
+Both tests run locally once their inputs are ready. The replay keeps the original files private and makes no requests to hosted publishers or payment services. The registry test sends live queries only to the disposable peer. Each test prints its run directory. Check for `status` equal to `passed` and `cleanup` equal to `complete` in each report. The [compatibility table](../reference/standards.mdx#compatibility-with-other-catalogs-and-clients) lists the supported formats and known limits.
+
 ## AgentField metadata consumption
 
 Run `make agentfield-tools-install`, then `make test-interoperability-agentfield` and `make test-interoperability-agentfield-cleanup` separately. The [native campaign](../../../../../test/interoperability/agentfield/README.md) uses current Catalog API/worker publication and a pinned AgentField server with separate owned PostgreSQL stores. It verifies real HTTPS Search, exact metadata transformations, explicit imports, fresh readback after restart, refusals, draft/withdrawal behavior, egress isolation and zero resource requests. Cleanup controls use a real assertion failure and actual SIGTERM. Helper units do not start either product. The [consumer guide](../guides/agentfield.mdx) describes setup and the native limitations.

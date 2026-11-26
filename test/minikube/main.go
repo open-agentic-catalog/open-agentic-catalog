@@ -80,6 +80,13 @@ func run() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
+	// A panic still needs to release the owned profile. The normal reporting
+	// path calls cleanup first and its sync.Once makes this fallback a no-op.
+	defer func() {
+		if err := runner.cleanup(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	}()
 	runner.spireRenewal = *spireRenewal
 	runner.spireLab = *spireLab
 	runner.argoLab = *lab

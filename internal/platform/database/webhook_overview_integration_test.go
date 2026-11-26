@@ -5,10 +5,10 @@ package database
 import (
 	"context"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 )
@@ -91,14 +91,16 @@ func TestPostgresWebhookOverviewLatestRetentionAndBounds(t *testing.T) {
 	if _, err = db.operator.Exec(t.Context(), `INSERT INTO outbox_events(id,tenant_id,event_type,subject,data,created_at,published_at) VALUES($1::uuid,$2,'com.open.agentic.catalog.resource.created.v1',$1::uuid::text,jsonb_build_object('action','resource.created','targetType','resource','targetId',$1::uuid::text),$3,$3)`, later, housekeepingTenantA, at); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.operator.Exec(t.Context(), `UPDATE webhook_deliveries SET cleanup_after=clock_timestamp()+interval '1 millisecond' WHERE tenant_id=$1 AND id=$2`, housekeepingTenantA, later); err != nil {
+	if _, err = db.worker.Exec(t.Context(), `UPDATE webhook_deliveries SET cleanup_after=clock_timestamp()+interval '1 second' WHERE tenant_id=$1 AND id=$2`, housekeepingTenantA, later); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.operator.Exec(t.Context(), `SELECT pg_sleep(0.01)`); err != nil {
+	// Let PostgreSQL wait for the stored deadline on the same clock used by the delete guard.
+	if _, err = db.worker.Exec(t.Context(), `SELECT pg_sleep_until(cleanup_after) FROM webhook_deliveries WHERE tenant_id=$1 AND id=$2`, housekeepingTenantA, later); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.operator.Exec(t.Context(), `DELETE FROM webhook_deliveries WHERE tenant_id=$1 AND id=$2`, housekeepingTenantA, later); err != nil {
-		t.Fatal(err)
+	deleted, err := db.worker.Exec(t.Context(), `DELETE FROM webhook_deliveries WHERE tenant_id=$1 AND id=$2`, housekeepingTenantA, later)
+	if err != nil || deleted.RowsAffected() != 1 {
+		t.Fatalf("reclaim latest delivery: deleted %d rows, err %v", deleted.RowsAffected(), err)
 	}
 	rows, err = store.ReadDeliveryOverview(ctx, housekeepingTenantA)
 	if err != nil || rows.FailedEndpoints[0].EndpointID != key {

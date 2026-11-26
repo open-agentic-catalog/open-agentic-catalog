@@ -100,6 +100,10 @@ The reviewed linked module closure is `golang.org/x/tools` v0.52.0, `golang.org/
 
 Refresh the exact pin deliberately with license/dependency and vulnerability review, the [actual-analyzer fixtures](../../../../../test/packaging/README.md), both report/check targets and the applicable source/functional gates. Do not silently substitute a globally installed or latest-version binary. See [testing prerequisites and bounds](../contributing/testing.md#unreachable-function-analysis) for first-use acquisition, offline caching, subprocess limits and analysis limitations.
 
+## Agentic Resource Registry test deployment
+
+The [local registry qualification](../../../../../test/interoperability/agentic-registry/README.md) builds the Apache-2.0 upstream API at `d587d73df6bbdde4be2adcf4f834dca89c2902d9`. Its Dockerfile pins Python and uv images by digest and uses its own frozen Python lock. The test overlay pins PostgreSQL 18.3, Redis 8 and ClickHouse 26.6 by digest. Preparation retains the source notices, OS and Python package inventories and local image IDs. These services run only in the selected test project. The Catalog release includes none of them.
+
 ## Independent ARD Explorer test tools
 
 The optional [Explorer harness](../../../../../test/interoperability/ard-explorer/README.md) selects MIT-licensed source at `ba00c28ec268af379a5b7d06dd2a5f5c1d2fd821`. It retains the unchanged npm lock and verifies source and license hashes. Its npm packages declare MIT, Apache-2.0 and 0BSD licenses. Local installation records embedded manifests and notice-file hashes. It reuses the pinned UI Node, npm, Playwright and Chromium tools. Explorer remains an execution-only test client; it adds no Catalog runtime dependency or shipped files.

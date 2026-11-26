@@ -250,6 +250,16 @@
     "route": "contributing/testing"
   },
   {
+    "source": "test/interoperability/publication-replay/README.md",
+    "route": "contributing/publication-replay",
+    "projection": true
+  },
+  {
+    "source": "test/interoperability/agentic-registry/README.md",
+    "route": "contributing/agentic-resource-registry",
+    "projection": true
+  },
+  {
     "source": "documentation/src/content/docs/architecture/design.mdx",
     "route": "architecture/design"
   },

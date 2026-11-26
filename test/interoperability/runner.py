@@ -94,6 +94,16 @@ def docker(*args, **kwargs):
     return run(["docker", *args], **kwargs)
 
 
+def require_internal_networks(config):
+    """Check the rendered Compose networks before starting an offline campaign."""
+    networks = config.get("networks")
+    if not networks:
+        raise ValueError("offline qualification requires an internal Compose network")
+    for name, network in networks.items():
+        if network.get("internal") is not True:
+            raise ValueError(f"Compose network {name} must be internal for offline qualification")
+
+
 def local_daemon():
     """Reject remote Docker endpoints and non-Linux engines before any mutation."""
     context = os.environ.get("DOCKER_CONTEXT")

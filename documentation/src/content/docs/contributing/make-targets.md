@@ -119,6 +119,8 @@ Run each target separately. Root Go tests and SDK package checks do not execute 
 
 `make conformance-prerequisite` checks the selected Python validator and pinned ARD schema without contacting a service. `conformance-fixture`, `conformance-live` and the packaged functional workflow enforce it and use the same guarded upstream CLI. Follow [ARD conformance](../contributing/testing.md#schema-validation-and-ard-conformance) for explicit installation, mode coverage and selected-service prerequisites.
 
+For inbound discovery, run `make test-interoperability-publication-replay` for saved Desvela and Nevermined documents, or `make test-interoperability-agentic-registry` for the local peer. See [Test inbound ARD discovery](testing.md#test-inbound-ard-discovery) for prerequisites and expected results.
+
 ## Workflow file checks
 
 Run `make workflow-tools-install` explicitly to acquire the pinned actionlint executable under `.tools/ci/bin/`. Run `make workflow-check` separately to check the GitHub Actions files and shell commands. Both targets bypass local Make env files and reject mixed goals. The check requires installed ShellCheck and the repository Go toolchain; it never downloads tools.

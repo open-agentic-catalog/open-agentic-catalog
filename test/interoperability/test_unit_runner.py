@@ -13,6 +13,18 @@ import runner as r
 import runner_test_helpers as helpers
 
 
+class OfflineNetworks(unittest.TestCase):
+    def test_every_declared_network_must_be_internal(self):
+        private = {"internal": True}
+        r.require_internal_networks({"networks": {"default": private, "peerdata": private}})
+        for network in ({}, {"internal": False}, {"internal": "true"}):
+            with self.subTest(network=network), self.assertRaisesRegex(ValueError, "peerdata must be internal"):
+                r.require_internal_networks({"networks": {"default": private, "peerdata": network}})
+        for config in ({}, {"networks": {}}):
+            with self.subTest(config=config), self.assertRaisesRegex(ValueError, "requires an internal Compose network"):
+                r.require_internal_networks(config)
+
+
 class Fingerprint(unittest.TestCase):
     def test_embedded_smoke_sample_changes_invalidate_catalog_identity(self):
         with tempfile.TemporaryDirectory() as name:
