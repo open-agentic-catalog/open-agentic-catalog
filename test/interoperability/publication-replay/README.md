@@ -4,7 +4,7 @@ Use `make test-interoperability-publication-replay` to check how Catalog imports
 
 ## Supply the captures
 
-The repository carries checksums and synthetic tests. Supply the original files privately under ignored `output/`. Public availability does not establish redistribution rights for the entries, prices or descriptions.
+The repository carries checksums and synthetic tests. Supply each original HTTP response body as a separate file under ignored `output/`. Keep headers separately and preserve the body bytes exactly. Reformatting the JSON changes its checksum. Public availability does not establish redistribution rights for the entries, prices or descriptions.
 
 | Environment variable | File observed | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
@@ -18,30 +18,43 @@ If conducting a new assessment, download only the public manifest for which you 
 
 ## Run locally
 
-Use the standard development Python with the pinned `jsonschema` and a local Linux Docker engine with Compose. Run `make profiles` and `make conformance-prerequisite` to check the standards tools. Prepare the Catalog and fixture images from the checkout. A prebuilt pair can be selected with `PUBLICATION_REPLAY_IMAGE` and `PUBLICATION_REPLAY_FIXTURE_IMAGE`.
+Start at the repository root with the [build prerequisites](../../../documentation/src/content/docs/contributing/build-and-release.md#prerequisites-and-identities) and Docker Compose connected to a local Linux engine. Install the shared Python tools once with `make dev-tools-install`. Verify the vendored profiles and validator, then build the two local images:
 
 ```sh
+make profiles
+make conformance-prerequisite
 make container-build
 docker build -f test/functional/Containerfile -t open-agentic-catalog:publication-replay-fixture .
 ```
 
-Cache the PostgreSQL image pinned in `compose.yaml` and the Python image pinned in `test/interoperability/Containerfile` before running. The target checks their presence and disables pulls and builds. Set the three capture paths, for example:
+If the pinned PostgreSQL or Python image is missing locally, fetch it during preparation. These commands use the same image references as the test:
+
+```sh
+docker compose --env-file /dev/null pull postgres
+docker pull "$(awk '$1 == "FROM" {print $2; exit}' test/interoperability/Containerfile)"
+```
+
+The replay itself disables pulls and builds. It uses `open-agentic-catalog:dev` and `open-agentic-catalog:publication-replay-fixture` by default. To reuse other local builds, set `PUBLICATION_REPLAY_IMAGE` and `PUBLICATION_REPLAY_FIXTURE_IMAGE`. Point the three capture variables at your private files and run the target:
 
 ```sh
 export DESVELA_CAPTURE="$PWD/output/captures/desvela.json"
 export NEVERMINED_CAPTURE="$PWD/output/captures/nevermined.json"
-export NEVERMINED_TRANSPORT_CAPTURE="$PWD/output/captures/nevermined-with-http-evidence.json"
+export NEVERMINED_TRANSPORT_CAPTURE="$PWD/output/captures/nevermined-2026-11-26.json"
 make test-interoperability-publication-replay
 ```
 
-Each publisher has a separate report under `output/interoperability/publication-replay/`. For a focused rerun, use `.tools/dev/bin/python -B test/interoperability/publication_replay_runner.py --provider desvela` or select `nevermined`. A missing or changed capture marks that publisher as `blocked` before its Catalog starts. Either a blocked or failed publisher makes the target exit unsuccessfully. The other publisher still runs. The runner removes its project, volumes and temporary keys on completion or interruption.
+Open the run directory printed by the target. Both `desvela/report.json` and `nevermined/report.json` must show `"status": "passed"` and `"cleanup": "complete"`. The runner checks retained data after restarting the Catalog and removes each disposable project, its volumes and temporary keys.
+
+A missing or changed capture marks its publisher as `blocked` before that Catalog starts. The other publisher still runs, and the target exits unsuccessfully. Restore the file matching the recorded checksum. To repeat a single publisher, run `.tools/dev/bin/python -B test/interoperability/publication_replay_runner.py --provider desvela` or select `nevermined`.
 
 ## What the replay establishes
 
 | Capture | Pinned ARD CLI | Catalog importer and indexed Search |
 | --- | --- | --- |
 | Desvela | Manifest and five entries pass with zero warnings. | Four MCP entries are searchable, including Preflight. The Registry advertisement is retained as unsupported. |
-| Nevermined | Manifest and 158 entries pass with 157 warnings. The CLI flags media types outside its list on 139 JSON entries and 17 OpenAPI entries. The Registry entry omits the recommended representative queries. | Flylabs is searchable as an A2A Agent. All 158 original entries remain available to an authorized evidence reader. This includes pricing declarations on AgentOracle, and on Quicknode MPP and Tempo RPC where JSON-LD expansion fails. |
+| Nevermined | Manifest and 158 entries pass with 157 warnings. The CLI flags media types outside its list on 139 JSON entries and 17 OpenAPI entries. The Registry entry omits the recommended representative queries. | Flylabs is searchable as an A2A Agent. All 158 original entries remain available to an authorized evidence reader. These include pricing declarations on AgentOracle, Quicknode MPP and Tempo RPC. |
+
+The Quicknode MPP and Tempo RPC entries pass schema validation but fail JSON-LD expansion. Each has a numeric `id` in a nested request example. The ARD context maps that field to `@id`, which requires a string there. Catalog retains the original entry, including its pricing declarations.
 
 Both inspections select `ard-0.91-aa3e598` and classify the publication as Hybrid. All entries omit a version. Each healthy inspection reads the manifest once. Catalog derives `https://registry.desvela.dev/search` and `https://api.live.nevermined.app/api/v1/ard/search/search` from the advertised Registry URLs. Neither inspection establishes List support. The replay does not call those services, resolve offers, fetch artifacts or make payments.
 

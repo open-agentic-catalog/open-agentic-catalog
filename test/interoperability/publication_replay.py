@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from agentfinder_tools import unique_object
+from peer_contract import has_credential_header
 
 PROFILE = "ard-0.91-aa3e598"
 PATH = "/.well-known/ard.json"
@@ -40,7 +41,7 @@ class CapturePrerequisiteError(ValueError):
 
 def replay_route(path, headers, mode):
     """Classify an anonymous GET using the HTTP server's case-insensitive headers."""
-    if any(name in headers for name in ("Authorization", "Cookie", "Proxy-Authorization", "X-Api-Key")):
+    if has_credential_header(headers):
         return "unexpected"
     if path == PATH:
         return "manifest"

@@ -151,6 +151,8 @@ export default defineConfig({
         { label: 'Build and release', slug: 'contributing/build-and-release', attrs: { 'data-nav-icon': 'approve-check-circle' } },
         { label: 'Testing overview', slug: 'contributing/testing-map', attrs: { 'data-nav-icon': 'list-format' } },
         { label: 'Tests and quality checks', slug: 'contributing/testing', attrs: { 'data-nav-icon': 'list-format' } },
+        { label: 'Replay Desvela and Nevermined publications', slug: 'contributing/publication-replay', attrs: { 'data-nav-icon': 'list-format' } },
+        { label: 'Test Agentic Resource Registry discovery', slug: 'contributing/agentic-resource-registry', attrs: { 'data-nav-icon': 'list-format' } },
         { label: 'Performance testing and diagnostics', slug: 'guides/performance-and-monitoring', attrs: { 'data-nav-icon': 'analytics' } },
         { label: 'Discovery quality benchmark', slug: 'guides/discovery-quality', attrs: { 'data-nav-icon': 'analytics' } },
         { label: 'Dependency and tooling policy', slug: 'reference/dependencies', attrs: { 'data-nav-icon': 'setting' } },

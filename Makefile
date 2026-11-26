@@ -128,7 +128,7 @@ $(error Cleanup targets must run alone)
 endif
 override CATALOG_ENV_FILE := /dev/null
 endif
-ifneq ($(filter spire-tools-install test-interoperability-spire test-interoperability-spire-renewal agentfield-tools-install test-interoperability-agentfield test-interoperability-agentfield-cleanup adk-tools-install test-interoperability-adk test-interoperability-adk-cleanup test-interoperability-pi-ard pi-ard-tools-install test-interoperability-pi-ard-prepare ard-explorer-tools-install test-interoperability-ard-explorer-startup test-interoperability-ard-explorer plugin-tools-install test-interoperability-plugins skill-tools-install test-interoperability-skills ard-registry-tools-install test-interoperability-ard-registry test-interoperability-ard-registry-cleanup agentfinder-tools-install test-interoperability-agentfinder test-interoperability-publication-replay test-demo-catalog test-demo-runtimes demo-runtimes-test a2a-tools-install test-interoperability-a2a mcp-tools-install mcp-catalog-tools-install contextforge-tools-install test-interoperability-contextforge test-interoperability-mcp test-interoperability-mcp-catalog interoperability-tools-install test-interoperability test-interoperability-hf test-interoperability-agntcy agntcy-tools-install test-minikube-agntcy gateway-tools-install test-interoperability-gateway ans-tools-install test-interoperability-ans capture-ans-trust-fixtures test-trust-verification,$(MAKECMDGOALS)),)
+ifneq ($(filter spire-tools-install test-interoperability-spire test-interoperability-spire-renewal agentfield-tools-install test-interoperability-agentfield test-interoperability-agentfield-cleanup adk-tools-install test-interoperability-adk test-interoperability-adk-cleanup test-interoperability-pi-ard pi-ard-tools-install test-interoperability-pi-ard-prepare ard-explorer-tools-install test-interoperability-ard-explorer-startup test-interoperability-ard-explorer plugin-tools-install test-interoperability-plugins skill-tools-install test-interoperability-skills ard-registry-tools-install test-interoperability-ard-registry test-interoperability-ard-registry-cleanup agentfinder-tools-install test-interoperability-agentfinder test-interoperability-publication-replay agentic-registry-tools-install test-interoperability-agentic-registry test-demo-catalog test-demo-runtimes demo-runtimes-test a2a-tools-install test-interoperability-a2a mcp-tools-install mcp-catalog-tools-install contextforge-tools-install test-interoperability-contextforge test-interoperability-mcp test-interoperability-mcp-catalog interoperability-tools-install test-interoperability test-interoperability-hf test-interoperability-agntcy agntcy-tools-install test-minikube-agntcy gateway-tools-install test-interoperability-gateway ans-tools-install test-interoperability-ans capture-ans-trust-fixtures test-trust-verification,$(MAKECMDGOALS)),)
 ifneq ($(words $(MAKECMDGOALS)),1)
 $(error Interoperability targets must run alone)
 endif
@@ -1468,6 +1468,13 @@ agentfinder-tools-install: ## Verify bundled Agent Finder inputs and acquire the
 
 test-interoperability-agentfinder: ## Qualify one-way consumption of pinned GitHub Agent Finder catalog publication
 	$(PYTHON) -B test/interoperability/agentfinder_runner.py check
+
+.PHONY: agentic-registry-tools-install test-interoperability-agentic-registry
+agentic-registry-tools-install: ## Prepare the pinned independent Agentic Resource Registry and private test fixtures
+	$(PYTHON) -B test/interoperability/agentic_registry_tools.py
+
+test-interoperability-agentic-registry: profiles ## Qualify native Agentic Resource Registry publication and live Search locally
+	$(PYTHON) -B test/interoperability/agentic_registry_runner.py
 
 .PHONY: test-interoperability-publication-replay
 test-interoperability-publication-replay: profiles ## Replay local Desvela and Nevermined captures against disposable Catalogs

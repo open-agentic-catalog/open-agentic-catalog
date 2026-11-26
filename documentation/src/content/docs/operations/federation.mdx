@@ -25,6 +25,14 @@ Preparation verifies bundled source bytes and acquires the pinned local Python r
 
 All five declared media types are unsupported by the current Catalog kind mapping. Their observations remain private source evidence and do not appear in reader Search. The fixture deliberately sends `application/ai-catalog+json`, which selects the predecessor profile. The same bytes served as generic JSON are refused. These results characterize the selected static publication and transport, not GitHub hosting, Copilot support or two-way exchange.
 
+## Import a publication or search a registry
+
+For a saved Desvela or Nevermined publication, the tested Source uses indexed retrieval scoped to the publisher. Both documents advertise a Registry. You can import their entries without enabling live queries. After synchronization, compare the last complete snapshot with reader Search. An entry with an unfamiliar media type can have a retained observation even when Search has no result for it.
+
+The Agentic Resource Registry example uses hybrid retrieval. After the administrator acknowledges query disclosure and enables live Search for an authenticated discovery host, an authorized reader can find an approved MCP Server in both indexed and live results. A reader without permission to search live receives HTTP 403 before Catalog sends the query to the peer.
+
+If this peer disables public discovery, its manifest contains only the Registry advertisement. Synchronization fails and the existing Source keeps its last complete snapshot. Restoring the original interface allows that Source to synchronize again. If you intend to adopt the Registry-only interface at the same endpoint, [preview and confirm removal of the old Source](#manage-sources-in-the-ui), then [inspect and connect it as a new Source](#inspect-and-connect-a). See [Test inbound ARD discovery](../contributing/testing.md#test-inbound-ard-discovery) to try both workflows locally.
+
 ## Prepare both Catalogs
 
 On A, publish the intended Resources through independent review and release publication. Generate and activate a discovery snapshot for the exact upstream host. Follow [resource publication](../guides/publishing.mdx), including publisher-domain approval and host/audience selection. A published release alone does not create a discoverable manifest.
@@ -350,7 +358,7 @@ The `201` response is the inspection object itself. Review `requestedUrl`, `reso
 
 Inspection discovers and probes bounded interfaces. It does not approve a source or contact every observed referral. Do not infer trust, publisher rights or execution permission from a successful inspection. See [the distinction between validation and approval](../guides/concepts.md#from-authoring-to-discovery).
 
-Use the returned `id` before its `expiresAt`. Inspections expire after 15 minutes. If the approved endpoint, discovered format profile or Registry interface changes, inspect and connect a new Source identity. PATCH cannot replace that interface on an existing Source. Its retained observations keep their original provenance.
+Use the returned `id` before its `expiresAt`. Inspections expire after 15 minutes. A change to the approved endpoint, discovered format profile or Registry interface requires inspection and connection as a new Source. Each tenant can have only one nonremoved Source for an endpoint. To reuse the endpoint, preview and confirm removal of the old Source before connecting the replacement. Retained observations keep their original provenance.
 
 Send `POST /api/v1/federation/sources` with:
 

@@ -91,6 +91,12 @@ deployments/helm/open-agentic-catalog/examples/*
 !test/
 !test/interoperability/
 test/interoperability/*
+!test/interoperability/publication-replay/
+test/interoperability/publication-replay/*
+!test/interoperability/publication-replay/README.md
+!test/interoperability/agentic-registry/
+test/interoperability/agentic-registry/*
+!test/interoperability/agentic-registry/README.md
 !test/interoperability/spire/
 test/interoperability/spire/*
 !test/interoperability/spire/reader.go

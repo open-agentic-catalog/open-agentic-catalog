@@ -141,6 +141,36 @@ func TestPinnedARDAndMCPSchemas(t *testing.T) {
 	}
 }
 
+func TestARDExpansionDistinguishesNestedIdentifiersFromOpaqueJSON(t *testing.T) {
+	t.Parallel()
+	// The base context aliases id to @id in an extension object. It treats
+	// metadata as literal JSON, including ordinary numeric request IDs.
+	entry := `{"identifier":"urn:air:example.com:agent:one","displayName":"One","type":"application/json","url":"https://example.com/one","https://example.com/request":{"id":7}}`
+	for _, tc := range []struct {
+		name, document string
+		wantInvalidID  bool
+	}{
+		{"numeric linked identifier", entry, true},
+		{"string linked identifier", strings.Replace(entry, `"id":7`, `"id":"urn:example:request:7"`, 1), false},
+		{"numeric ID in literal metadata", strings.Replace(entry, `"https://example.com/request"`, `"metadata"`, 1), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := []byte(tc.document)
+			if err := ValidateARDEntry(raw); err != nil {
+				t.Fatalf("schema validation: %v", err)
+			}
+			_, err := NormalizeARDEntry(raw, nil)
+			if tc.wantInvalidID {
+				if err == nil || !strings.Contains(err.Error(), "invalid @id value") {
+					t.Fatalf("expected invalid JSON-LD identifier, got %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestARDJSONLDExpansionUsesBaseInlineAndRemoteContexts(t *testing.T) {
 	inline := []byte(`{
     "@context": {

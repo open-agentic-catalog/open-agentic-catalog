@@ -1,0 +1,89 @@
+# Native peer services for the explicitly selected interoperability campaign.
+x-peer: &peer
+  image: ${ARR_IMAGE:?prepare the native peer first}
+  environment:
+    DATABASE_URL: postgresql+asyncpg://postgres:${ARR_PASSWORD:?}@arr-db:5432/observal
+    CLICKHOUSE_URL: clickhouse://default:${ARR_PASSWORD:?}@arr-clickhouse:8123/observal
+    REDIS_URL: redis://arr-redis:6379
+    SECRET_KEY: ${ARR_SECRET:?}
+    JWT_KEY_DIR: /data/keys
+    SKIP_DDL_ON_STARTUP: "true"
+    SEED_DEMO_ACCOUNTS: "true"
+    DEMO_SUPER_ADMIN_EMAIL: curator@registry.example
+    DEMO_USER_EMAIL: author@registry.example
+    DEMO_SUPER_ADMIN_PASSWORD: ${ARR_PASSWORD:?}
+    DEMO_USER_PASSWORD: ${ARR_PASSWORD:?}
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: [no-new-privileges:true]
+  dns: [127.0.0.1]
+  volumes: [arr-data:/data]
+  networks: [peerdata]
+
+services:
+  arr-db:
+    dns: [127.0.0.1]
+    image: postgres:18.3-bookworm@sha256:80630f83606d8db77d30b3851b16a9f78be2d0d4dda6f7b82a1fdca5ebe3acba
+    networks: [peerdata]
+    environment:
+      POSTGRES_PASSWORD: ${ARR_PASSWORD:?}
+      POSTGRES_DB: observal
+    volumes: [arr-postgres:/var/lib/postgresql]
+    healthcheck:
+      test: [CMD, pg_isready, -U, postgres, -d, observal]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+  arr-redis:
+    dns: [127.0.0.1]
+    image: redis:8-alpine@sha256:5af80107c1eeecb484a2269b80a26d12bfa6521787da4663bd9f19f60a163483
+    networks: [peerdata]
+    volumes: [arr-redis:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+  arr-clickhouse:
+    dns: [127.0.0.1]
+    image: clickhouse/clickhouse-server:26.6@sha256:2c870d77ea76e955fb1c8dad536ad40a1236b6093db0c4966e22d21d4428982b
+    networks: [peerdata]
+    volumes: [arr-clickhouse:/var/lib/clickhouse]
+    environment:
+      CLICKHOUSE_DB: observal
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${ARR_PASSWORD:?}
+    healthcheck:
+      test: [CMD-SHELL, 'clickhouse-client --password "$$CLICKHOUSE_PASSWORD" --query "SELECT 1"']
+      interval: 2s
+      timeout: 3s
+      retries: 60
+  arr-init:
+    <<: *peer
+    command: [/app/entrypoint.sh]
+    depends_on:
+      arr-db: {condition: service_healthy}
+      arr-redis: {condition: service_healthy}
+      arr-clickhouse: {condition: service_healthy}
+  arr-api:
+    <<: *peer
+    networks: [peerdata, default]
+    command: [/app/.venv/bin/python, -m, uvicorn, main:app, --host, 0.0.0.0, --port, "8000", --workers, "1"]
+    depends_on:
+      arr-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+networks:
+  default:
+    internal: true
+  peerdata:
+    internal: true
+volumes:
+  arr-data:
+  arr-postgres:
+  arr-redis:
+  arr-clickhouse:

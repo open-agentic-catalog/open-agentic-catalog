@@ -17,7 +17,7 @@ from agentfinder_runner import cleanup_owned
 from agentfinder_tools import runner_image
 from common import run
 from publication_replay import CapturePrerequisiteError, EXERCISE_PHASES, FEEDS, PATH, PROFILE, inventory, read_capture
-from runner import fingerprint, local_daemon
+from runner import fingerprint, local_daemon, require_internal_networks
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -123,6 +123,7 @@ def qualify(provider, directory):
         start("setup")
         local_daemon()
         config = json.loads(dc("config", "--format", "json"))
+        require_internal_networks(config)
         images = {config["services"][s]["image"] for s in ("api", "worker", "postgres", "migrate", "provision")}
         images.update((generator, runner_image()))
         report["images"] = {image: command(["docker", "image", "inspect", "--format", "{{.Id}}", image]).strip() for image in sorted(images)}
@@ -135,7 +136,7 @@ def qualify(provider, directory):
         up = ["up", "-d", "--wait", "--wait-timeout", "130", "--pull", "never", "--no-build", "api", "worker"]
         dc(*up)
         network = project + "_default"
-        assert json.loads(command(["docker", "network", "inspect", network]))[0]["Internal"]
+        assert json.loads(command(["docker", "network", "inspect", network]))[0]["Internal"], f"running network {network} is not internal"
         report["catalogBuild"] = json.loads(dc("exec", "-T", "api", "/usr/local/bin/catalogctl", "version"))
         ids = {s: dc("ps", "-q", s).strip() for s in ("api", "worker", "postgres")}
 
@@ -145,10 +146,10 @@ def qualify(provider, directory):
         for service in ids:
             inspect_service = inspect(service)
             assert inspect_service["Image"] == report["images"][config["services"][service]["image"]], "running image differs from preflight"
-            assert set(inspect_service["NetworkSettings"]["Networks"]) == {network}
-            assert not inspect_service["HostConfig"].get("PortBindings")
+            assert set(inspect_service["NetworkSettings"]["Networks"]) == {network}, f"{service} is outside the replay network"
+            assert not inspect_service["HostConfig"].get("PortBindings"), f"{service} published a host port"
             if service != "postgres":
-                assert inspect_service["HostConfig"]["Dns"] == ["127.0.0.1"]
+                assert inspect_service["HostConfig"]["Dns"] == ["127.0.0.1"], f"{service} DNS is not restricted to loopback"
         report["phases"]["setup"] = "passed"
         result = private / "result"
         result.mkdir()
@@ -166,7 +167,8 @@ def qualify(provider, directory):
         starts = {s: inspect(s)["State"]["StartedAt"] for s in ("api", "worker")}
         dc("restart", "api", "worker")
         dc(*up)
-        assert all(inspect(s)["State"]["StartedAt"] != value for s, value in starts.items())
+        for service, started in starts.items():
+            assert inspect(service)["State"]["StartedAt"] != started, f"{service} did not restart"
         command(client + ["restart"])
         report["phases"]["restart"] = "passed"
         start("database")

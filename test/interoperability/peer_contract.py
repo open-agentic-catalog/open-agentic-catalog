@@ -61,6 +61,11 @@ PHASES = {
 }
 
 
+def has_credential_header(headers):
+    """Check presence, including empty values, in a server's case-insensitive HTTP headers."""
+    return any(name in headers for name in ("Authorization", "Cookie", "Proxy-Authorization", "X-Api-Key"))
+
+
 def outcome(name, evidence):
     """Passing characterization does not imply a supported peer capability."""
     return dict(name=name, status="pass", disposition=DISPOSITIONS[name], evidence=evidence)
