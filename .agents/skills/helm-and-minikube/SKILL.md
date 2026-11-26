@@ -55,6 +55,8 @@ When the Helm runtime boundary changes, run the basic and topology gates require
 | `make test-minikube-ui` | Optional packaged UI, subpath probes and shared sessions; not browser JavaScript or human OIDC login. |
 | `make test-minikube-replicas` | Three UI/API/worker replicas, concurrent integrity, replacement and bounded traffic; separate from multi-node loss. |
 | `make test-minikube-peers` | Federation between two independent Helm releases with separate namespaces, PostgreSQL stores and credentials; distinct from shared-database replicas and physical replication. |
+| `make test-minikube-spire` | Optional inbound workload authentication. Select the SPIRE issuer, check authorized SDK reads and restore the previous issuer. |
+| `make test-minikube-spire-renewal` | Optional outbound source credentials. Verify that two Catalogs can synchronize across renewal of a projected Secret and that disabling resolution preserves the last complete import. See the [SPIRE harness prerequisites](../../../test/minikube/README.md#optional-spire-workload-authentication). |
 | `make test-minikube-monitoring` | Companion enable/disable, discovery, dashboards, isolation and retained external PVCs. |
 | `make test-minikube-tracing` | Cross-replica/process causality, export credentials/trust, collector outages and disablement. |
 | `make test-minikube-pgbouncer` | Optional one-instance session pooler, two API/worker replicas, direct migration hooks, private TLS, enforcing policy, replacement and explicit direct-return/disablement. |

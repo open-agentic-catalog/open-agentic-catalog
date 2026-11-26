@@ -28,6 +28,12 @@ Use these recipes after the language guide's client setup. Each example keeps ne
 
 A Search result ID is not a local release UUID. The local-detail recipes use `local.release.id`; indexed and live results retain their external provenance. Discovery does not authorize installation or execution.
 
+To verify a [federation source after its upstream bearer rotates](../documentation/src/content/docs/operations/federation.mdx#renew-a-source-bearer-with-spire), connect your SDK to the **importing Catalog** with your operator credentials. All four SDKs expose the following Control operations (names follow the OpenAPI spelling):
+
+1. Read the Source with `getFederationSource`. Send `testFederationSource` with its ETag, an idempotency key and `{}`. Check for `status: succeeded` and the expected `credentialRevision`.
+2. Send `syncFederationSource` with the updated Source ETag, a different idempotency key and `{}`. Follow the returned `job.id` with `getJob` until it succeeds or reaches an unsuccessful terminal state.
+3. On success, use `result.snapshotId` with `getFederationSourceSnapshot`. Check that the snapshot is complete and records the expected credential revision. Read the Source again to see which snapshot is currently complete. A subsequent successful synchronization can advance `lastCompleteSnapshotId`.
+
 For [adopting a different upstream version into an existing Resource](../documentation/src/content/docs/operations/federation.mdx#adopt-a-different-upstream-version-into-an-existing-resource), use the generated `getVersionAdoptionTarget` and `adoptResourceVersion` operations. A deployment administrator must enable this default-off authoring feature. Bind the command to the selected occurrence and prior adopted revision, and retain its body and idempotency key for recovery. The resulting draft still requires ordinary Listing selection, review and publication before discovery changes.
 
 The Catalog UI highlights definition changes and [summarizes declared capabilities and connections](../documentation/src/content/docs/guides/resource-authoring.mdx#read-capability-and-connection-changes) for reviewers. SDK consumers can read selected immutable revisions and exact retained documents through existing operations and compare them locally. There is no server-generated document diff. Saved source synchronization comparison is a separate, summary-only API operation; it does not return native document bytes or infer upstream deletion.
@@ -62,6 +68,8 @@ The [Rust Catalog report](../examples/rust-catalog-report/README.md) is a standa
 4. Use the integration examples to search, create drafts or read exact bytes.
 
 The language guides' first-request examples read `CATALOG_SDK_ORIGIN` and `CATALOG_SDK_TOKEN` from the consumer process environment. These names belong to those examples; the SDK does not read environment settings automatically. Inject the token through your development tools or deployment. Do not put real tokens in source files or shell history. The token needs an active Catalog membership; see [verify your first authenticated read](../documentation/src/content/docs/guides/integrating.mdx#verify-your-first-authenticated-read) and the [Python service-account example](../documentation/src/content/docs/operations/oidc-keycloak.md#verify-cli-sdk-and-refusal).
+
+For a workload with rotating credentials, use the client's token provider: `Config.TokenProvider` in Go, `token_provider` in Python and Rust, or `tokenProvider` in TypeScript/JavaScript. The workload acquires the token and supplies it for the request. Report acquisition failure as an error. The [SPIRE example](../documentation/src/content/docs/guides/integrating.mdx#read-a-private-resource-and-publication-with-spire) uses the Go SDK for a private Resource and an authenticated ARD manifest.
 
 For the default local Compose setup, the API origin is `http://127.0.0.1:8080`; port 4180 serves the UI. Each guide shows an explicit loopback HTTP option. Enable it only for the selected local API. Development tokens work only with configured development authentication; they are not production credentials.
 

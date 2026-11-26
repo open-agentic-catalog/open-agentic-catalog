@@ -763,6 +763,46 @@ func TestNilHeadersAndProviderCancellation(t *testing.T) {
 	}
 }
 
+func TestConditionalManifestReacquiresWorkloadCredential(t *testing.T) {
+	etag := `"active-publication"`
+	params := &GetARDManifestParams{IfNoneMatch: &etag}
+	token := "first-workload-token"
+	var providerErr error
+	var sent []string
+	client := unitClient(t, Config{TokenProvider: func(context.Context) (string, error) {
+		return token, providerErr
+	}}, doerFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method != http.MethodGet || r.URL.Path != "/.well-known/ard.json" || r.Header.Get("If-None-Match") != etag {
+			t.Fatal("unexpected conditional request", r.Method, r.URL.Path, r.Header.Get("If-None-Match"))
+		}
+		sent = append(sent, r.Header.Get("Authorization"))
+		reply := response("", http.StatusNotModified, "")
+		reply.Header.Set("ETag", etag)
+		return reply, nil
+	}))
+	revalidate := func() {
+		t.Helper()
+		reply, err := client.GetARDManifestWithResponse(t.Context(), params)
+		if err != nil || reply == nil || reply.StatusCode() != http.StatusNotModified ||
+			reply.Headers304 == nil || reply.Headers304.ETag == nil || *reply.Headers304.ETag != etag || len(reply.Body) != 0 {
+			t.Fatalf("expected a bodyless 304 for the selected publication: %v, %v", reply, err)
+		}
+	}
+	revalidate()
+	// A failed refresh may return the old value alongside its error.
+	providerErr = errors.New("workload credential unavailable")
+	reply, err := client.GetARDManifestWithResponse(t.Context(), params)
+	var failure *Error
+	if reply != nil || !errors.As(err, &failure) || failure.Code != "credential_provider_failed" || len(sent) != 1 {
+		t.Fatalf("failed refresh: response=%v error=%v requests=%d", reply, err, len(sent))
+	}
+	token, providerErr = "renewed-workload-token", nil
+	revalidate()
+	if !reflect.DeepEqual(sent, []string{"Bearer first-workload-token", "Bearer renewed-workload-token"}) {
+		t.Fatalf("unexpected transmitted credentials: %v", sent)
+	}
+}
+
 func TestBodylessProblemAndPartialResponseBranches(t *testing.T) {
 	cached := unitClient(t, Config{}, doerFunc(func(*http.Request) (*http.Response, error) { return response("", 304, ""), nil }))
 	manifest, err := cached.GetARDManifestWithResponse(context.Background(), nil)

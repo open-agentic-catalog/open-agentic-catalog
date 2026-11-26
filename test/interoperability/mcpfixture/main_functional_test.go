@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -103,12 +104,18 @@ func TestProxyPreservesMCPBytesHeadersAndStreamingCancellation(t *testing.T) {
 }
 
 func TestUnavailableBackendHasBoundedGenericFailure(t *testing.T) {
-	upstream := httptest.NewServer(http.NotFoundHandler())
+	// Keep the upstream address reserved while dropping the connection before
+	// any response. A closed listener's port can be reassigned to the proxy.
+	var reached atomic.Bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		reached.Store(true)
+		panic(http.ErrAbortHandler)
+	}))
+	defer upstream.Close()
 	target, err := url.Parse(upstream.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	upstream.Close()
 	f := newFixture("test-key", target)
 	defer f.transport.CloseIdleConnections()
 	proxy := httptest.NewServer(f)
@@ -127,6 +134,9 @@ func TestUnavailableBackendHasBoundedGenericFailure(t *testing.T) {
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !reached.Load() {
+		t.Fatal("request did not reach the failing upstream")
 	}
 	if response.StatusCode != http.StatusBadGateway || string(body) != "fixture upstream unavailable\n" {
 		t.Fatalf("failure %d: %s", response.StatusCode, body)

@@ -210,7 +210,7 @@ The optional [assistant discovery Skill](../guides/assistant-discovery.md) uses 
 | `catalogctl remote capabilities` | Authenticated server capabilities, not the local binary version. |
 | `catalogctl remote search --text <text>` | One page of local, indexed and eligible live results. |
 | `catalogctl remote record --id <release-uuid>` | Published record including its resource, version, listing, release and evidence. Use `local.release.id` from Search, not its Resource UUID or prefixed Search ID. |
-| `catalogctl remote job --id <job-uuid>` | One retained Job status. No polling, retry or cancellation. |
+| `catalogctl remote job --id <job-uuid>` | Reads one retained Job once, without polling, retry or cancellation. For a successful [source synchronization](../operations/federation.mdx#test-synchronize-and-inspect-the-result), read `data.result.snapshotId` from the CLI output. Select the importing Catalog and use its operator credentials. |
 | `catalogctl remote source-compare --before-snapshot-id <uuid> --after-snapshot-id <uuid>` | One page of saved source membership changes. Requires current `source.read` permission. |
 | `catalogctl remote reindex --reason <text> --idempotency-key <key>` | Enqueue a tenant-authorized search-index rebuild and return the Job. Add `--snapshot-id <uuid>` for one active public snapshot. Requires enabled semantic search; metadata is unchanged. |
 | `catalogctl remote trust-request --source-id <uuid> --request-file <json> --idempotency-key <key>` | Request an assessment of one exact current source entry. Requires enabled verification and source administration/evidence permissions. |
@@ -225,7 +225,7 @@ export CATALOG_REMOTE_TOKEN_FILE=/run/secrets/catalog-access-token
 ./bin/catalogctl remote search --text orders --kind agent --tag support --limit 10
 ```
 
-Replace the example hostname and secret-file path. Obtain a manual access token from the deployment's identity provider, or use the [human login procedure](#human-cli-login) and explicitly select its file. Manual bearer inputs have no automatic refresh. For a running local development instance, use `CATALOG_REMOTE_BASE_URL=http://127.0.0.1:8080` and its development token through `CATALOG_REMOTE_TOKEN`, with `CATALOG_REMOTE_TOKEN_FILE` unset. Reads do not seed data; use the [local walkthrough](../guides/local-development.mdx) for the separate mutating smoke workflow.
+Replace the example hostname and secret-file path. Obtain a manual access token from the deployment's identity provider, or use the [human login procedure](#human-cli-login) and explicitly select its file. Manual bearer inputs have no automatic refresh. The [SPIRE reporting job](../guides/integrating.mdx#read-a-private-resource-and-publication-with-spire) supplies its current JWT-SVID through `--token-file` and its private Catalog CA through `--ca-file`. For a running local development instance, use `CATALOG_REMOTE_BASE_URL=http://127.0.0.1:8080` and its development token through `CATALOG_REMOTE_TOKEN`, with `CATALOG_REMOTE_TOKEN_FILE` unset. Reads do not seed data; use the [local walkthrough](../guides/local-development.mdx) for the separate mutating smoke workflow.
 
 | Flag | Environment fallback | Default or bound |
 | --- | --- | --- |

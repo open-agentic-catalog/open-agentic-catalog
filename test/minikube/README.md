@@ -48,6 +48,18 @@ The replica and topology scenarios reuse the packaged federation workflow. Their
 
 The basic scenario checks the failed migration hook's safe command diagnostic, verifies the missing-role fixture and untouched schema directly in PostgreSQL, and then requires a successful install with the correct role.
 
+## Optional SPIRE workload authentication
+
+With the Minikube prerequisites above available, run `make spire-tools-install` once, then `make test-minikube-spire`. The target packages the verified SPIRE binaries and the compiled SDK consumer in a fixture image and starts a fresh cluster. It uses a SPIRE Server, an Agent with Unix workload attestation, and the OIDC Discovery Provider. Each workload has its own UID. Only the Agent receives the one-time join token.
+
+The test provisions a service administrator, checks that its JWT-SVID is refused with the ordinary issuer, and deploys the [Helm values example](../../deployments/helm/open-agentic-catalog/examples/spire-values.yaml). The SDK workload reads a private Resource and an authenticated ARD manifest. The test checks a different namespace, a different audience and revocation of the publication grant. Restoring the original issuer rejects the SPIRE credential again. The harness removes its profile, fixture images, temporary keys and port-forward. Production installations supply their own SPIRE infrastructure and workload registration.
+
+For renewal between Catalogs, use the same prerequisites and cache the pinned Python image listed in the [source renewal fixture](../interoperability/spire/README.md#renew-an-importing-catalogs-source-credential). Run `make test-minikube-spire-renewal`. This target starts two Helm releases with separate PostgreSQL stores. The publisher accepts SPIRE tokens. The importer's operator uses its ordinary OIDC issuer.
+
+The registered writer has a five-minute JWT-SVID lifetime. Its Kubernetes service account can get and patch one pre-created Secret in the importer namespace. The API and worker mount the whole Secret read-only. The test waits for each pod to observe the new generation, then checks the Source test, completed Job, snapshot and indexed Agent. Disabling resolution removes both mounts and preserves the last complete import. The harness removes the profile, writer, Secret and private inputs on exit.
+
+For an interactive session with one Catalog, run `make minikube-spire-lab`. It runs the workload reads from `test-minikube-spire`, selects the SPIRE issuer again and verifies that the reporter can read both records. The foreground process prints the private kubeconfig, context and a hostname-verified HTTPS readiness command. Press Ctrl+C in that terminal to remove only this lab. Both automated test targets clean up their own profiles.
+
 ## Optional Vault secret delivery
 
 Vault is optional. The default chart and ordinary scenarios use existing Kubernetes Secrets without Vault or VSO.

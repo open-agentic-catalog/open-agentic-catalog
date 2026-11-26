@@ -103,12 +103,12 @@ func loadOptions(scenario string) (options, error) {
 	switch scenario {
 	case "basic":
 		configured.overallTimeout = 25 * time.Minute
-	case "monitoring", "tracing", "ui", "replicas", "semantic", "pgbouncer", "agntcy", "gateway", "ans", "peers", "backup-restore", "autoscaling", "cert-manager", "vault", "flux", "argocd":
+	case "monitoring", "tracing", "ui", "replicas", "semantic", "pgbouncer", "agntcy", "gateway", "ans", "peers", "backup-restore", "autoscaling", "cert-manager", "vault", "spire", "flux", "argocd":
 		configured.overallTimeout = 40 * time.Minute
 	case "topology":
 		configured.overallTimeout = 40 * time.Minute
 	default:
-		return options{}, errors.New("scenario must be basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager, vault, flux or argocd")
+		return options{}, errors.New("scenario must be basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager, vault, spire, flux or argocd")
 	}
 	if scenario == "gateway" || scenario == "agntcy" {
 		value, present := os.LookupEnv("INTEROPERABILITY_TRUST_VERIFICATION")
@@ -282,15 +282,15 @@ func newSigningKey() (*rsa.PrivateKey, []byte, error) {
 	return key, raw, err
 }
 
-// signToken issues a short-lived fixture access token with fixed issuer/audience.
+// signToken issues a short-lived fixture access token for one selected audience.
 // Catalog membership provisioning, not token claims alone, grants test roles.
-func signToken(key *rsa.PrivateKey, subject, organization string, now time.Time) (string, error) {
+func signToken(key *rsa.PrivateKey, subject, organization, audience string, now time.Time) (string, error) {
 	header, err := json.Marshal(map[string]any{"alg": "RS256", "kid": fixtureKeyID, "typ": "JWT"})
 	if err != nil {
 		return "", err
 	}
 	claims, err := json.Marshal(map[string]any{
-		"iss": oidcIssuer, "sub": subject, "aud": oidcAudience,
+		"iss": oidcIssuer, "sub": subject, "aud": audience,
 		"iat": now.Unix(), "nbf": now.Add(-time.Minute).Unix(), "exp": now.Add(45 * time.Minute).Unix(),
 		"organization_id": organization,
 	})

@@ -156,6 +156,17 @@ The chart creates a default-deny federation-policy ConfigMap unless `federation.
 
 Live Search defaults to one page per peer. Set `configEnv.CATALOG_FEDERATION_MAX_LIVE_PAGES_PER_SOURCE: "3"` to permit deeper paging; accepted string values are `"1"` through `"5"`. The shared configuration checksum triggers a rollout when this startup setting changes. Pages share the existing fan-out, deadline and per-peer byte limits. See [live peer configuration](../../../documentation/src/content/docs/reference/configuration.mdx#live-peer-pages) for partial results and safety rules.
 
+SPIRE is optional. Choose the example for the Catalog you are deploying and merge it into the complete values file passed to the deployment coordinator.
+
+| What the Catalog needs to do | Helm example | What to supply |
+| --- | --- | --- |
+| Accept workload reads | [Publisher values](examples/spire-values.yaml) | An external SPIRE OIDC Discovery Provider, the intended audience, a dedicated tenant and its discovery hosts. Replace the example issuer CA reference if you use private roots. This selects the deployment's single inbound issuer. |
+| Import from a publisher that requires a JWT-SVID | [Importer values](examples/spire-source-values.yaml) | The importing tenant's federation policy, the upstream HTTPS CA if private, and an existing Secret populated by a separate credential writer. The importer keeps its own issuer, tenancy and OAuth settings. |
+
+Only the workload obtaining a token needs the Agent socket. The Catalog API verifies incoming tokens. For federation, the API and worker read the projected Secret. Operators install SPIRE and run the writer separately. Follow the [SPIRE tutorial](../../../documentation/src/content/docs/operations/spire-workload-identity.md) to try both roles. The [source renewal procedure](../../../documentation/src/content/docs/operations/federation.mdx#renew-a-source-bearer-with-spire) describes writer permissions, Secret projection and recovery.
+
+To stop accepting SPIRE-issued tokens, redeploy with your previous issuer, audience, tenancy and CA settings. To turn off source credential resolution across the importing deployment, set `CATALOG_CREDENTIAL_RESOLUTION_ENABLED` to `"false"` in `configEnv` and remove `CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY`. The chart then omits the credential mount. All Sources that require a binding lose authenticated refresh. Their last complete imports remain readable. If other Sources need credentials, pause only the Source you are retiring.
+
 OIDC private trust is separate: set `auth.trustBundleConfigMap` to an existing ConfigMap containing `ca.pem`. Only that key is mounted read-only into the API at `/etc/open-agentic-catalog/oidc/trust/ca.pem`; the worker and migration hook receive neither the mount nor its environment setting. The bundle extends public roots only for configured-issuer discovery and declared HTTPS signing keys, with normal hostname verification.
 
 The process limit is 4 MiB; Kubernetes also enforces its own smaller ConfigMap object limit.
@@ -340,6 +351,8 @@ The chart supports CNCF-certified Kubernetes 1.34+ distributions meeting its API
 | --- | --- |
 | `test-minikube` | Single-node installation, failed-hook safety and retry, restricted admission, role identities, probes, governed smoke, Pod recreation, retained state, checksum rollout, no-op reapplication and optional webhook delivery/disablement. |
 | `test-minikube-topology` | Three-node revision-scoped replica spread, cross-API replay, worker lease takeover, Eviction/PDB enforcement, drain, direct Pod loss, pinned Calico backend/UI NetworkPolicy allow/deny and survivor continuity after worker-node loss. |
+| `test-minikube-spire-renewal` | Import an authenticated publication, rotate the projected Secret without restarting either consumer, then disable credential resolution. |
+| `test-minikube-spire` | Select an external SPIRE issuer, verify scoped SDK reads with native JWT-SVIDs, then restore the previous issuer and verify refusal. |
 | `test-minikube-ui` | Default-off UI, two-replica shared sessions and authenticated API requests, synthetic mounted-key staging/promotion and emergency retirement with process replacement, subpath routing/probes and disabling UI without removing the backend. HTTP/session checks, not browser JavaScript or human OIDC login. |
 | `test-minikube-replicas` | Three UI/API/worker replicas, concurrent duplicate commands and optimistic updates, exact readback/audit/replay, shared sessions after process replacement, bounded mixed traffic and resource observations. Single-node fixture; topology/node loss remain the separate scenario above. |
 | `test-minikube-monitoring` | Separate optional companion, scoped Pod discovery, dashboard queries, replacement-Pod metrics, missing-Secret isolation and external-PVC history across disable/re-enable and uninstall/reinstall. |

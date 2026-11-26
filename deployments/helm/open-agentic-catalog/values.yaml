@@ -199,6 +199,8 @@ secrets:
     name: open-agentic-catalog-migration-database
     key: dsn
   webhookEncryption: null
+  # Optional whole-directory projection for bound source reads. For an external
+  # SPIRE writer, see examples/spire-source-values.yaml.
   federationCredentials: null
   # Optional existing Secret, mounted read-only at /etc/open-agentic-catalog/tracing in
   # API and worker Pods only when CATALOG_TRACING enables trace export.
@@ -209,6 +211,7 @@ secrets:
 
 auth:
   # Existing ConfigMap with one ca.pem key, mounted only by the API.
+  # See examples/spire-values.yaml to select a SPIRE issuer for workload reads.
   trustBundleConfigMap: ""
 
 webhooks:

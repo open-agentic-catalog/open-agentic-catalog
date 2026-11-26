@@ -92,6 +92,7 @@ export default defineConfig({
         ] },
         { label: 'Authentication and sign-in', collapsed: true, items: [
           { label: 'Authentication setup', slug: 'operations/sign-in', attrs: { 'data-nav-icon': 'padlock' } },
+          { label: 'SPIRE workload identity tutorial', slug: 'operations/spire-workload-identity', attrs: { 'data-nav-icon': 'padlock' } },
           { label: 'Keycloak', slug: 'operations/oidc-keycloak', attrs: { 'data-nav-icon': 'padlock' } },
           { label: 'Microsoft Entra ID', slug: 'operations/oidc-entra', attrs: { 'data-nav-icon': 'padlock' } },
           { label: 'Auth0', slug: 'operations/oidc-auth0', attrs: { 'data-nav-icon': 'padlock' } },

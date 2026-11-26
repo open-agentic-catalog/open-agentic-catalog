@@ -4,6 +4,8 @@ package authn
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -57,8 +59,13 @@ func oidcJSONResponse(request *http.Request, status int, body []byte) *http.Resp
 
 func unitOIDCDocuments(t *testing.T, key *rsa.PrivateKey) http.RoundTripper {
 	t.Helper()
+	return unitIssuerDocuments(t, oidcTestKeySet("test-key", &key.PublicKey))
+}
+
+func unitIssuerDocuments(t *testing.T, keySet any) http.RoundTripper {
+	t.Helper()
 	metadata := mustJSON(t, map[string]any{"issuer": unitIssuer, "jwks_uri": unitIssuer + "/keys"})
-	keys := mustJSON(t, oidcTestKeySet("test-key", &key.PublicKey))
+	keys := mustJSON(t, keySet)
 	return oidcRoundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.String() {
 		case unitIssuer + "/.well-known/openid-configuration":
@@ -82,6 +89,62 @@ func unitOIDC(t *testing.T, now func() time.Time, transport http.RoundTripper, r
 	}
 	authenticator.verifier, authenticator.verifierCreatedAt = verifier, now()
 	return authenticator
+}
+
+func TestOIDCVerifiesES256WorkloadIdentityBeforeMembership(t *testing.T) {
+	const subject = "spiffe://workloads.test/reporting/daily"
+	const kid = "workload-signer"
+	now := time.Date(2026, 1, 10, 12, 0, 0, 0, time.UTC)
+	claims := unitOIDCClaims(now)
+	claims["sub"], claims["aud"] = subject, []string{"catalog"}
+
+	newKey := func() *ecdsa.PrivateKey {
+		t.Helper()
+		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return key
+	}
+	sign := func(key *ecdsa.PrivateKey) string {
+		t.Helper()
+		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.ES256, Key: key}, (&jose.SignerOptions{}).WithHeader("kid", kid))
+		if err != nil {
+			t.Fatal(err)
+		}
+		signed, err := signer.Sign(mustJSON(t, claims))
+		if err != nil {
+			t.Fatal(err)
+		}
+		token, err := signed.CompactSerialize()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return token
+	}
+
+	issuerKey := newKey()
+	documents := unitIssuerDocuments(t, jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
+		{Key: &issuerKey.PublicKey, KeyID: kid, Algorithm: "ES256", Use: "sig"},
+	}})
+	membershipCalls := 0
+	membership := identity.Actor{TenantID: unitTenant, Subject: subject, ActorType: identity.ActorService, MembershipID: "reporting-membership"}
+	authenticator := unitOIDC(t, func() time.Time { return now }, documents, resolverFunc(func(_ context.Context, principal identity.Principal) (identity.Actor, error) {
+		membershipCalls++
+		if principal.Subject != subject || principal.Issuer != unitIssuer || principal.TenantID != unitTenant || principal.ExternalOrganization != "" || len(principal.Claims) != 0 {
+			t.Errorf("unexpected workload principal: %#v", principal)
+		}
+		return membership, nil
+	}))
+	actor, err := authenticator.Authenticate(t.Context(), sign(issuerKey))
+	if err != nil || !reflect.DeepEqual(actor, membership) || membershipCalls != 1 {
+		t.Fatalf("trusted signer: actor=%#v membership calls=%d error=%v", actor, membershipCalls, err)
+	}
+	// The claims, algorithm and key ID still match. Only the signing key differs.
+	actor, err = authenticator.Authenticate(t.Context(), sign(newKey()))
+	if err == nil || identity.ErrorCodeOf(err) == identity.CodeDependency || !reflect.DeepEqual(actor, identity.Actor{}) || membershipCalls != 1 {
+		t.Fatalf("untrusted signer: actor=%#v membership calls=%d error=%v", actor, membershipCalls, err)
+	}
 }
 
 func TestOIDCUnitRejectsOversizedRSAKeysAndRecovers(t *testing.T) {

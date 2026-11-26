@@ -122,7 +122,8 @@ class CredentialFilesTests(unittest.TestCase):
 
     def test_nonprivate_output_directory_is_refused(self):
         output = self.directory / "shared"
-        output.mkdir(mode=0o755)
+        output.mkdir()
+        output.chmod(0o755)
         args = self.arguments()
         args.output_stem = str(output / "derived")
         with self.assertRaises(ValueError):

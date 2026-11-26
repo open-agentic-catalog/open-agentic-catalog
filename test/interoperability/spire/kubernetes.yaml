@@ -1,0 +1,144 @@
+# Only for the owned Minikube profile. "test" is also the DNS suffix of the fixture Services.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: server
+  labels: {app: spire-server}
+spec:
+  automountServiceAccountToken: false
+  containers:
+    - name: server
+      image: SPIRE_FIXTURE_IMAGE
+      imagePullPolicy: Never
+      resources:
+        requests: {cpu: 100m, memory: 64Mi, ephemeral-storage: 8Mi}
+        limits: {memory: 384Mi, ephemeral-storage: 256Mi}
+      command: [/opt/spire-server, run, -config, /config/server.conf]
+      securityContext: {runAsUser: 0, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true}
+      volumeMounts:
+        - {name: config, mountPath: /config, readOnly: true}
+        - {name: server-state, mountPath: /state}
+        - {name: tmp, mountPath: /tmp}
+  volumes:
+    - {name: config, configMap: {name: spire-config}}
+    - {name: server-state, emptyDir: {}}
+    - {name: tmp, emptyDir: {}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: server}
+spec:
+  selector: {app: spire-server}
+  ports: [{port: 8081}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: identity}
+spec:
+  selector: {app: workloads}
+  ports: [{port: 8447}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: catalog-a}
+spec:
+  selector: {app: tls-frontend}
+  ports: [{port: 8443}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: api-a}
+spec:
+  type: ExternalName
+  externalName: catalog.CATALOG_NAMESPACE.svc.cluster.local
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: frontend
+  labels: {app: tls-frontend}
+spec:
+  automountServiceAccountToken: false
+  containers:
+    - name: frontend
+      image: SPIRE_FIXTURE_IMAGE
+      imagePullPolicy: Never
+      resources:
+        requests: {cpu: 25m, memory: 16Mi, ephemeral-storage: 8Mi}
+        limits: {memory: 96Mi, ephemeral-storage: 32Mi}
+      command: [/opt/frontend]
+      securityContext: {runAsUser: 65532, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true}
+      env:
+        - {name: CATALOG_TUTORIAL_API_ONLY, value: "1"}
+        - {name: CATALOG_TUTORIAL_SINGLE, value: "1"}
+      volumeMounts:
+        - {name: tls, mountPath: /tls, readOnly: true}
+  volumes:
+    - {name: tls, secret: {secretName: frontend-tls}}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: workloads
+  labels: {app: workloads}
+spec:
+  automountServiceAccountToken: false
+  shareProcessNamespace: true
+  containers:
+    - name: agent
+      image: SPIRE_FIXTURE_IMAGE
+      imagePullPolicy: Never
+      resources:
+        requests: {cpu: 75m, memory: 48Mi, ephemeral-storage: 8Mi}
+        limits: {memory: 256Mi, ephemeral-storage: 128Mi}
+      command: [/opt/spire-agent, run, -config, /config/agent.conf, -joinTokenFile, /bootstrap/join]
+      securityContext: {runAsUser: 0, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true}
+      volumeMounts:
+        - {name: config, mountPath: /config, readOnly: true}
+        - {name: bootstrap, mountPath: /bootstrap, readOnly: true}
+        - {name: agent-state, mountPath: /state}
+        - {name: workload, mountPath: /workload}
+        - {name: tmp, mountPath: /tmp}
+    - name: issuer
+      image: SPIRE_FIXTURE_IMAGE
+      imagePullPolicy: Never
+      resources:
+        requests: {cpu: 25m, memory: 24Mi, ephemeral-storage: 8Mi}
+        limits: {memory: 128Mi, ephemeral-storage: 32Mi}
+      command: [/opt/oidc-discovery-provider, -config, /config/provider.conf]
+      securityContext: {runAsUser: 11006, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+      volumeMounts:
+        - {name: config, mountPath: /config, readOnly: true}
+        - {name: issuer-tls, mountPath: /tls, readOnly: true}
+        - {name: workload, mountPath: /workload, readOnly: true}
+    - &reader
+      name: reporter
+      image: SPIRE_FIXTURE_IMAGE
+      imagePullPolicy: Never
+      resources:
+        requests: {cpu: 10m, memory: 16Mi, ephemeral-storage: 8Mi}
+        limits: {memory: 128Mi, ephemeral-storage: 32Mi}
+      command: [/opt/reader, --wait]
+      securityContext: &unprivileged
+        runAsNonRoot: true
+        runAsUser: 11001
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+      volumeMounts:
+        - {name: workload, mountPath: /workload, readOnly: true}
+        - {name: trust, mountPath: /trust, readOnly: true}
+    - <<: *reader
+      name: admin
+      securityContext: {<<: *unprivileged, runAsUser: 11003}
+    - <<: *reader
+      name: reviewer
+      securityContext: {<<: *unprivileged, runAsUser: 11004}
+  volumes:
+    - {name: config, configMap: {name: spire-config}}
+    - {name: bootstrap, secret: {secretName: agent-bootstrap}}
+    - {name: issuer-tls, secret: {secretName: issuer-tls}}
+    - {name: trust, configMap: {name: spire-issuer-ca}}
+    - {name: agent-state, emptyDir: {}}
+    - {name: workload, emptyDir: {}}
+    - {name: tmp, emptyDir: {}}

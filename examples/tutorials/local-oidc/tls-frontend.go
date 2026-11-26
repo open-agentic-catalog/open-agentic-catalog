@@ -37,6 +37,9 @@ func run() int {
 		{"browse-a.test", "9443", "ui-a:8080", "browse-a"},
 		{"browse-b.test", "9445", "ui-b:8080", "browse-b"},
 	} {
+		if os.Getenv("CATALOG_TUTORIAL_API_ONLY") == "1" && (route.port == "9443" || route.port == "9445") {
+			continue
+		}
 		if os.Getenv("CATALOG_TUTORIAL_SINGLE") == "1" && (route.port == "8445" || route.port == "9445") {
 			continue
 		}

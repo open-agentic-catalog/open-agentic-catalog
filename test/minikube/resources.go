@@ -700,6 +700,16 @@ func (h *harness) writeHelmValues(marker, apiRole string) (string, error) {
 			return "", err
 		}
 	}
+	if h.options.scenario == "spire" && h.catalogNamespace() == catalogPeerNamespace && (marker == "spire-import" || marker == "spire-import-off") {
+		if err := h.configureSPIREImportValues(values, marker == "spire-import"); err != nil {
+			return "", err
+		}
+	}
+	if h.options.scenario == "spire" && marker == "spire" {
+		if err := h.applySPIREExample(values, "spire-values.yaml"); err != nil {
+			return "", err
+		}
+	}
 	raw, err := json.MarshalIndent(values, "", "  ")
 	if err != nil {
 		return "", err
@@ -714,6 +724,11 @@ func (h *harness) writeHelmValues(marker, apiRole string) (string, error) {
 // provisionIdentity runs an explicit schema-owner operator Job to establish one deterministic test tenant, realm and subject.
 func (h *harness) provisionIdentity(name, tenantID, organization, subject, roles string) error {
 	command := []string{"/usr/local/bin/catalogctl", "identity", "provision", "--tenant", tenantID, "--tenant-name", "Minikube " + organization, "--issuer", oidcIssuer, "--tenancy-mode", "shared", "--external-organization", organization, "--subject", subject, "--roles", roles, "--operator", "minikube-harness", "--reason", "Provision deterministic local identity"}
+	return h.runIdentityJob(name, command)
+}
+
+// runIdentityJob keeps schema-owner access confined to the disposable provisioning Job.
+func (h *harness) runIdentityJob(name string, command []string) error {
 	mounts := []any{map[string]any{"name": "tmp", "mountPath": "/tmp"}}
 	volumes := []any{map[string]any{"name": "tmp", "emptyDir": map[string]any{"sizeLimit": "16Mi"}}}
 	if h.options.scenario == "pgbouncer" || h.vault != nil {
@@ -740,10 +755,10 @@ func (h *harness) provisionIdentity(name, tenantID, organization, subject, roles
 			},
 		},
 	}
-	if err := h.applyObject("provision "+organization+" identity realm", job); err != nil {
+	if err := h.applyObject("create "+name+" operator Job", job); err != nil {
 		return err
 	}
-	_, err := h.kubectl("wait for "+organization+" identity provisioning", "-n", h.catalogNamespace(), "wait", "--for=condition=complete", "job/"+name, "--timeout=2m")
+	_, err := h.kubectl("wait for "+name+" operator Job", "-n", h.catalogNamespace(), "wait", "--for=condition=complete", "job/"+name, "--timeout=2m")
 	return err
 }
 
@@ -761,7 +776,7 @@ func (h *harness) issueTokens() error {
 		"reader":      {"oidc-reader", "tenant-one"},
 		"other":       {"oidc-other-admin", "tenant-two"},
 	} {
-		token, err := signToken(h.signingKey, identity.subject, identity.organization, time.Now().UTC())
+		token, err := signToken(h.signingKey, identity.subject, identity.organization, oidcAudience, time.Now().UTC())
 		if err != nil {
 			return err
 		}

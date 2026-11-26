@@ -110,6 +110,16 @@ END $$;
 """
 
 
+def database_inputs(target, name):
+    database = "catalog_" + name
+    passwords = {role: secrets.token_hex(32) for role in ("catalog_owner", "catalog_api", "catalog_worker")}
+    write(target / "postgres-password", secrets.token_hex(32), 0o444)
+    write(target / "bootstrap.sql", bootstrap(database, passwords), 0o444)
+    write(target / "pg_hba.conf", "local all all trust\nhostssl all all all scram-sha-256\nhostnossl all all all reject\n", 0o444)
+    write(target / "cursor.key", base64.b64encode(secrets.token_bytes(32)).decode("ascii"), 0o444)
+    return database, passwords
+
+
 def prepare(args):
     directory = Path(args.directory).expanduser().resolve()
     if not re.fullmatch(r"/[-a-zA-Z0-9_./]+", str(directory)) or ".." in directory.parts:
@@ -160,12 +170,7 @@ def prepare(args):
             continue
         target = directory / name
         target.mkdir(mode=0o700)
-        database = "catalog_" + name
-        passwords = {role: secrets.token_hex(32) for role in ("catalog_owner", "catalog_api", "catalog_worker")}
-        write(target / "postgres-password", secrets.token_hex(32), 0o444)
-        write(target / "bootstrap.sql", bootstrap(database, passwords), 0o444)
-        write(target / "pg_hba.conf", "local all all trust\nhostssl all all all scram-sha-256\nhostnossl all all all reject\n", 0o444)
-        write(target / "cursor.key", base64.b64encode(secrets.token_bytes(32)).decode("ascii"), 0o444)
+        database, passwords = database_inputs(target, name)
         policy = {"schemaVersion": 1, "policyId": "tutorial-" + name, "revision": 1, "public": {"mode": "disabled"}}
         if name == "b":
             policy["privateProfiles"] = [{
@@ -176,7 +181,10 @@ def prepare(args):
         document(target / "federation-policy.json", policy, 0o644)
         if not single:
             credential_directory = target / "source-credentials"
-            credential_directory.mkdir(mode=0o755)
+            credential_directory.mkdir(mode=0o700)
+            # The non-root API and worker traverse this read-only bind mount.
+            # The enclosing host directory remains private to the operator.
+            credential_directory.chmod(0o755)
         for role, filename in (("catalog_owner", "owner"), ("catalog_api", "api"), ("catalog_worker", "worker")):
             config = json.loads((ROOT / "config/production.example.json").read_text())
             config["profile"] = "tutorial-" + name

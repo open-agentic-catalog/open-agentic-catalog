@@ -1,0 +1,25 @@
+# Strategic merge for the optional source renewal qualification.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: workloads
+spec:
+  serviceAccountName: source-writer
+  containers:
+    - name: source-reader
+      image: SPIRE_FIXTURE_IMAGE
+      imagePullPolicy: Never
+      resources:
+        requests: {cpu: 25m, memory: 32Mi, ephemeral-storage: 8Mi}
+        limits: {memory: 192Mi, ephemeral-storage: 32Mi}
+      command: [python3, -B, /opt/kubernetes_writer.py]
+      securityContext: {runAsNonRoot: true, runAsUser: 11007, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+      volumeMounts:
+        - {name: workload, mountPath: /workload, readOnly: true}
+        - {name: kube-api, mountPath: /kube-api, readOnly: true}
+  volumes:
+    - name: kube-api
+      projected:
+        sources:
+          - serviceAccountToken: {path: token, expirationSeconds: 3600}
+          - configMap: {name: kube-root-ca.crt, items: [{key: ca.crt, path: ca.crt}]}

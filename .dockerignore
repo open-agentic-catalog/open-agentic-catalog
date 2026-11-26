@@ -68,6 +68,10 @@ extensions/vscode/media/*
 !deployments/helm/
 !deployments/helm/open-agentic-catalog/
 !deployments/helm/open-agentic-catalog/README.md
+!deployments/helm/open-agentic-catalog/examples/
+deployments/helm/open-agentic-catalog/examples/*
+!deployments/helm/open-agentic-catalog/examples/spire-values.yaml
+!deployments/helm/open-agentic-catalog/examples/spire-source-values.yaml
 !deployments/container/
 !deployments/container/Dockerfile
 !deployments/container/licenses.sh
@@ -85,6 +89,12 @@ extensions/vscode/media/*
 !samples/**
 # The test-only image compiles the fixture and its shared webhook verifier.
 !test/
+!test/interoperability/
+test/interoperability/*
+!test/interoperability/spire/
+test/interoperability/spire/*
+!test/interoperability/spire/reader.go
+!test/interoperability/spire/renew.py
 !test/minikube/
 !test/minikube/fixtures/
 !test/minikube/fixtures/vault/

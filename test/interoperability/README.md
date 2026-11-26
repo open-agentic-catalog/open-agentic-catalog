@@ -215,3 +215,7 @@ Missing ANS evidence must remain incomplete, with no receipt, checkpoint or stat
 Generic Job reads must omit the private result. Reader and other-tenant identities must not read it.
 Reports retain the loaded verifier configuration and current Catalog image identity.
 Existing peer capability limits and cleanup checks remain required.
+
+## SPIRE workload identity
+
+Use `make spire-tools-install`, then `make test-interoperability-spire` to qualify native JWT-SVIDs for a private Resource and an authenticated ARD publication. The [SPIRE fixture](spire/README.md) uses independent Unix identities, the Go SDK and an owned PostgreSQL-backed Catalog. `make test-interoperability-spire-renewal` exercises automatic delivery of the upstream reader credential to a second Catalog and checks the imported snapshot after renewal and interruption. Use `make test-minikube-spire-renewal` to verify automatic Kubernetes Secret delivery to two Helm workloads.

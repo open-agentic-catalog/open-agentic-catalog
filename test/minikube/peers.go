@@ -306,7 +306,7 @@ func (h *harness) verifyPeerCredentialRotation(upstream *harness, run func(strin
 		if phase == "refused" {
 			signer = h.signingKey
 		}
-		token, err := signToken(signer, "oidc-peer-reader", "tenant-one", time.Now().UTC())
+		token, err := signToken(signer, "oidc-peer-reader", "tenant-one", oidcAudience, time.Now().UTC())
 		if err != nil {
 			return err
 		}

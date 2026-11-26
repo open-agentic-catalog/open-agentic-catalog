@@ -656,12 +656,80 @@ The [Keycloak service-account walkthrough](../operations/oidc-keycloak.md#give-a
 
 ### Example: a workload reads the Control API
 
-This is an illustrative production flow, not a provider setup recipe or a cloud-qualified integration. The local walkthrough tests discovery using development tokens, not these production credentials.
+A reporting job that already authenticates through an external issuer can use its own identity for Catalog reads. The steps below apply to service accounts. The SPIRE example that follows uses a short-lived workload credential.
 
 1. An operator provisions the workload's exact issuer/subject as an active service membership and grants Reader access for the intended Catalog scope. `service_client` alone does not grant Reader access.
 2. The workload obtains an access token intended for the configured Catalog audience through its external identity system. Keep its credentials outside Catalog records and inject or renew them through the deployment.
 3. It sends that token to the configured Catalog API origin. Catalog checks the [required JWT claims](../reference/configuration.mdx#authentication-and-catalog-identity). Dedicated mode selects the configured tenant; shared mode resolves the verified issuer and one configured top-level organization string through a provisioned mapping, never an arbitrary token-carried tenant UUID.
 4. Catalog resolves current membership and enforces the read's roles, namespaces and optional scope ceiling, then returns authorized metadata. A valid token signature alone does not grant access. The [identity diagram](../architecture/security.mdx#inbound-identity-decision) shows this Control API boundary.
+
+### Read a private Resource and publication with SPIRE
+
+Use this profile for a dedicated Catalog whose workloads already get identities from SPIRE. The reporting process asks its local SPIRE Agent for a short-lived JWT-SVID with the Catalog audience, then presents it to Catalog over HTTPS. The tested SPIRE 1.16.0 configuration signs these tokens with ES256. The SPIFFE ID identifies the caller. Catalog roles determine what the caller can read.
+
+Catalog accepts one issuer. The SPIRE provider publishes signing keys. If people also need browser, CLI or VS Code sign-in, keep an issuer that provides authorization and token endpoints. The native JWT-SVID in this example has no OAuth scopes or organization claim. Use a dedicated tenant, leave `CATALOG_AUTH_ORGANIZATION_CLAIM` unset and choose this profile only if you can turn off OAuth scope enforcement for the whole deployment.
+
+1. Register the reporter in SPIRE under an exact SPIFFE ID, such as `spiffe://workloads.test/reporter`, and select its operating-system identity. Give each independently authorized workload a distinct selector. Mount only the Agent's Workload API socket in the workload. Keep the Server administration socket, Agent bootstrap credentials and issuer TLS key private.
+2. Set the SPIRE Server's `jwt_issuer` to the HTTPS URL served by the SPIRE OIDC Discovery Provider. Configure the provider to advertise the same issuer and obtain keys for the selected trust domain. From the API deployment, check `/.well-known/openid-configuration` and its advertised `jwks_uri` using hostname-verified TLS. Catalog needs the issuer's CA. The reporter needs the CA for the Catalog API.
+3. Configure Catalog's existing OIDC verifier as shown below. Replace the example issuer, tenant, publication host and publisher domain. Supply the complete host list when setting `CATALOG_DISCOVERY_HOSTS`.
+4. On a fresh Catalog, use the [schema-owner bootstrap](../operations/database-roles.mdx#initial-catalog-identity-provisioning) for a separate administrator. Run `catalogctl identity provision` with the SPIRE issuer, the administrator's SPIFFE ID, `--actor-type service` and the required initial `tenant_admin` role.
+5. Using the administrator's own credential, grant the reporter's exact SPIFFE ID a service membership and **Reader** in the namespace of its private Resource. For the manifest, also assign a **tenant-wide** role with `discovery.read`. The host must have an active publication. See [Catalog roles and assignments](access-management.mdx) for the scoped grants.
+
+```sh
+export CATALOG_AUTH_MODE=oidc
+export CATALOG_AUTH_ISSUER=https://identity.test:8447
+export CATALOG_AUTH_AUDIENCE=open-agentic-catalog
+export CATALOG_AUTH_TENANCY_MODE=dedicated
+export CATALOG_AUTH_DEDICATED_TENANT_ID=00000000-0000-7000-8000-000000000001
+export CATALOG_AUTH_ENFORCE_SCOPES=false
+export CATALOG_AUTH_TRUST_BUNDLE_FILE=/run/trust/issuer-ca.pem
+export CATALOG_DISCOVERY_HOSTS='[{"host":"catalog-a.test","tenantId":"00000000-0000-7000-8000-000000000001","publisherDomain":"tutorial.catalog.example","mode":"authenticated"}]'
+```
+
+**With Helm**, merge the [SPIRE values example](../../../../../deployments/helm/open-agentic-catalog/examples/spire-values.yaml) into the complete values you pass to the [deployment coordinator](../operations/maintenance.mdx). The default chart has no SPIRE dependency. The example selects your external issuer and sets the publication host to `authenticated`. Supply your complete host list under `configEnv`. For a private issuer CA, create the ConfigMap named by `auth.trustBundleConfigMap` in the release namespace, with the public CA certificate under `ca.pem`. The chart mounts it in the API pod and sets `CATALOG_AUTH_TRUST_BUNDLE_FILE` there.
+
+In the Go SDK, configure `Origin`, `RootCAs` and `Config.TokenProvider`. The [Go reader example](../../../../../test/interoperability/spire/reader.go) asks the local Workload API for the reporter's ID and the Catalog audience. It calls `GetResourceWithResponse` and `GetARDManifestWithResponse` and checks the returned identifiers. Its token provider returns an error if acquisition fails. Returning an empty token would make the request anonymous. Keep token contents out of logs. See the [SDK overview](../../../../../sdk/README.md#make-your-first-request) for the credential inputs in other languages.
+
+To check Control API access with `catalogctl`, run the following in Bash as the registered reporter, with `spire-agent` and `jq` on its path. Substitute the reporter's socket, SPIFFE ID, audience, Catalog URL and CA. The token stays in a private temporary file for the duration of the command.
+
+```bash
+(
+  set -eo pipefail
+  token_file=$(mktemp)
+  trap 'rm -f "$token_file"' EXIT
+  spire-agent api fetch jwt -socketPath /workload/api.sock \
+    -spiffeID spiffe://workloads.test/reporter -audience open-agentic-catalog -output json |
+    jq -er '.[0].svids | select(length == 1) | .[0].svid | strings | select(length > 0)' > "$token_file"
+  catalogctl remote capabilities --base-url https://catalog-a.test:8443 \
+    --token-file "$token_file" --ca-file /trust/ca.pem
+)
+```
+
+The command returns this Catalog's capabilities. Use the SDK to read the authenticated manifest. The CLI's `discovery manifest` and `discovery list` commands always access publications anonymously.
+
+| What the reporter sees | What to check |
+| --- | --- |
+| 401 from the private host | Check expiry, exact issuer and audience, then the service membership's subject and active state. Obtaining a token for the intended audience does not create an account. |
+| 403 after a successful `GET /api/v1/me` | Check the namespace Reader grant for the Resource, tenant-wide discovery permission for the manifest, the host's tenant, and any required OAuth scope. |
+| Reads continue during a provider outage, then a read returns 503 | An unexpired token with a cached key can still verify. A new signing key or expired verifier cache requires a working provider. Restore the discovery and JWKS endpoints and retry a still-valid token. |
+
+#### Run the example locally
+
+Follow the [SPIRE workload identity tutorial](../operations/spire-workload-identity.md) to inspect the workload registration and make the private and published reads yourself.
+
+From a Catalog checkout, use a local Linux Docker engine with Compose, the repository Go toolchain, Python 3.11 or later, OpenSSL and the GitHub CLI. Install the pinned SPIRE tools and pull the PostgreSQL image once. Run the qualification against its own disposable Catalog.
+
+```sh
+make spire-tools-install
+docker pull pgvector/pgvector:pg18@sha256:38681dc6eaf55308e2a4c6de392d131652dcfac70e1263e35cd9b5ea3fe39782
+make test-interoperability-spire
+```
+
+To exercise a Helm deployment, prepare the [Minikube prerequisites](../operations/deployment.mdx#maintained-local-minikube-verification) and run `make test-minikube-spire`. The test starts real SPIRE components in its own profile, verifies the SDK reads, and restores the ordinary issuer to check that the workload loses access.
+
+The Compose test reads both records, revokes the reporter's grant and suspends its membership. It also renews the short-lived token and rotates the signing authority. On exit, the runner removes its containers, volumes, temporary credentials and image. If the host stops during a run, use the printed run directory and the recovery instructions in `test/interoperability/spire/README.md` in your checkout.
+
+For an importing Catalog, see [renew a source bearer with SPIRE](../operations/federation.mdx#renew-a-source-bearer-with-spire). It uses a deployment writer to supply both the importing API and worker.
 
 ### Example: a client uses a discovered resource
 

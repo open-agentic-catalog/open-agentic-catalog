@@ -40,7 +40,7 @@ Use the API origin, such as `https://catalog.example.com`. Do not use the UI add
 
 Browsing needs no workspace. MCP use and A2A conversations require a trusted VS Code window and refuse virtual workspaces. Skill and Plugin installation require a writable filesystem workspace on Linux, Windows or macOS. Resource credentials and package tools are separate from Catalog authentication.
 
-For a complete password login and indexed discovery exercise across independent Catalogs, see **Deploy and operate > Two-Catalog federation tutorial** in the companion manual. It prepares the operator inputs and a reader connection before the editor steps.
+To find an entry imported from another Catalog, sign in to the importing Catalog with a **Control** connection. In **Catalog: Open Catalog**, open **Advanced filters**, choose **Indexed external metadata** and select **Search / refresh**. Open the result to check its version and source. Use your reader credentials even when the importing Catalog uses SPIRE to authenticate to its upstream. For a complete walkthrough, see **Deploy and operate > Two-Catalog federation tutorial** in the companion manual.
 
 <!-- manual-link: [Open the two-Catalog federation tutorial](../../documentation/src/content/docs/guides/two-catalog-federation.mdx) -->
 
@@ -142,6 +142,8 @@ OIDC sign-in shows native progress while waiting for the browser callback, withi
 Use **Catalog: Transport Settings** to reach the exact native setting for Catalog connections, package tools or Agent transport. Package tools expose Git/ORAS executable paths, a separate CA file and a 1,000-300,000 millisecond acquisition timeout. Agent settings expose separate CA/proxy inputs, a 1,000-120,000 millisecond request timeout and a 1,000-300,000 millisecond stream timeout. File selectors also permit validated absolute manual paths. Native MCP owns its own TLS and OAuth settings. Catalog, package and Agent trust inputs do not replace each other; there is no package proxy setting.
 
 Changing connections or signing out cancels an open token prompt or browser handoff. Start sign-in again for the intended connection. A canceled operation cannot store or send credentials to another connection.
+
+Use your personal Catalog identity in the editor. A SPIRE OIDC Discovery Provider publishes keys for workloads and cannot complete browser sign-in. The extension does not acquire or renew JWT-SVIDs from a workload socket.
 
 For OIDC, register a separate public client with your issuer. Configure Authorization Code with S256 PKCE, the Catalog audience and the extension redirect URI. Stable VS Code starts from `vscode://open-agentic-catalog.open-agentic-catalog/oidc` and can add a window-routing query through `asExternalUri`. Register the actual mapped redirect for your desktop or remote environment.
 
