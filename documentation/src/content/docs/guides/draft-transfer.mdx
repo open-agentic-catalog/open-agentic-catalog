@@ -5,7 +5,7 @@ description: Transfer editable Agent, MCP Server, Skill and Plugin content throu
 
 A reusable JSON file carries one Resource identity, one Version's representations and optional Listing metadata. It excludes destination IDs, users, permissions, approvals and releases.
 
-This tutorial uses a source Catalog and a separate destination Catalog. It covers both UI-to-CLI and CLI-to-UI transfer. Neither path invokes the resource.
+For UI-to-CLI or CLI-to-UI transfer, use a source Catalog and a separate destination Catalog. If your files are already in Git, start at [Deliver a draft from Git](#deliver-a-draft-from-git). That workflow needs only the destination Catalog.
 
 ## Prepare access and inputs
 
@@ -20,7 +20,7 @@ Use [the two-Catalog setup](two-catalog-federation.mdx#prepare-the-owned-environ
 | Task | Required access |
 | --- | --- |
 | Export selected source content | `resource.read` and `resource.read_content` in its Namespace. Enforced OAuth scopes also require `catalog.read`. |
-| Create a destination Resource | `resource.create`, plus the editing and read permissions below. |
+| Create a destination Resource | `resource.create` and its `namespace.read` companion, plus the editing and read permissions below. |
 | Save a Version or Listing | `resource.edit`, `resource.read`, `resource.read_content` and the registered `resource.read_history` companion. Enforced scopes require `catalog.read` and `catalog.write`. |
 | Choose a Publisher in the UI | Publisher read permission. An exact Publisher ID also works without browsing permission. |
 | Review and publish | Separate destination permissions and independent review. Follow [the publication guide](publishing.mdx#check-access-for-each-publishing-task). |
@@ -192,7 +192,7 @@ Use the original file, package inputs, destination options and receipt after an 
   --base-url "$DESTINATION_API" --login-file "$DESTINATION_LOGIN"
 ```
 
-Resume reuses captured command keys, targets, bodies and ETags. It does not choose a newer Listing revision or repeat the target lookup. A completed resume verifies retained records without new writes.
+Resume reuses captured command keys, targets, bodies and ETags. A completed resume checks the recorded revisions under current permissions. It creates no additional authoring revisions. Catalog audits the private VersionRevision read.
 
 A failed import can leave acknowledged Resources or Versions. Preserve the receipt and follow the reported correction or recovery action. Do not start another apply with a fresh receipt to recover that work.
 
@@ -210,6 +210,102 @@ In the UI, finish the existing partial-save flow before importing another file. 
 Follow [review and publication](publishing.mdx) for exact permissions, ETags and discovery activation. Source approvals, DNS evidence, releases and snapshot state do not travel with the file.
 
 The file is editable authoring input. Native documents, ARD discovery metadata and database backups retain their separate formats and purposes. File transfer does not synchronize Catalogs or copy their users and access policy.
+
+## Deliver a draft from Git
+
+Keep the draft in your resource repository. The operator selects a commit, previews its files offline, and sends the draft to the authenticated Control API. The helper reads committed bytes and executable modes directly from Git. Catalog needs no access to the repository. This walkthrough creates an Agent and a private Listing, adds a second Version, and identifies the revisions a reviewer should see.
+
+### Prepare a local example
+
+Use Bash on Linux with Git, Python 3.11 or later, jq and an installed [Catalog CLI](../contributing/build-and-release.md#download-release-packages). Run all blocks in the same shell from a trusted copy of the Catalog project. Set `CLI` to the absolute path to your verified executable. The example works with a temporary Git repository and makes no Git network calls.
+
+```bash wrap
+HELPER="$PWD/examples/git-draft-delivery/deliver.py"
+SAMPLES="$PWD/examples/native-import"
+work=$(mktemp -d)
+repo="$work/source"
+state="$work/private"
+source_url=https://git.example.org/team/resources.git
+git init -q --template= -b main "$repo"
+git -C "$repo" remote add origin "$source_url"
+git -C "$repo" config user.name "Catalog tutorial"
+git -C "$repo" config user.email "tutorial@example.invalid"
+git -C "$repo" config commit.gpgsign false
+mkdir -m 700 "$state"
+mkdir "$repo/resources"
+jq '.listing = {displayName: "Review helper", description: "Prepares review notes", visibility: "private"}' \
+  "$SAMPLES/drafts/agent.json" > "$repo/resources/agent.json"
+git -C "$repo" add resources/agent.json
+git -C "$repo" commit -qm 'Add review helper'
+first=$(git -C "$repo" rev-parse refs/heads/main)
+common=(--cli "$CLI" --repo "$repo" --file resources/agent.json)
+python3 -I "$HELPER" preview "${common[@]}" --commit "$first" \
+  --namespace-id 00000000-0000-7000-8000-000000000001 \
+  --publisher-id 00000000-0000-7000-8000-000000000002
+```
+
+Preview accepts example destination UUIDs. It does not check whether those records exist or whether the service account can edit them. For real delivery, pass the root of a trusted clone or bare repository. Select an operator-controlled branch and supply its exact, credential-free HTTP(S) origin URL. The draft path is relative to the repository root. The example origin above identifies only the local fixture.
+
+### Deliver a first and second Version
+
+Use a disposable Catalog with an existing Namespace and Publisher. Set the following shell variables before running the delivery commands.
+
+| Variable | Value |
+| --- | --- |
+| `CATALOG_URL` | The destination Control API origin. |
+| `NAMESPACE`, `PUBLISHER` | The actual destination Namespace and Publisher UUIDs. |
+| `TOKEN_FILE` | Absolute path to a private file containing only the service account's access token. |
+
+Grant the service account the [destination authoring permissions](#prepare-access-and-inputs). For OIDC, the [service-account tutorial](../operations/oidc-keycloak.md#give-a-service-account-access) shows how to obtain the token and identify its subject. Use the authoring grants above for delivery. If the API uses a private CA, add `--ca-file /absolute/path/to/ca.pem` to the `online` arguments. For a persistent deployment, keep the state directory on private storage outside the checkout.
+
+```bash wrap
+online=(--source "$source_url" --ref refs/heads/main --state-dir "$state"
+        --base-url "$CATALOG_URL" --token-file "$TOKEN_FILE")
+create=(--namespace-id "$NAMESPACE" --publisher-id "$PUBLISHER")
+python3 -I "$HELPER" apply "${common[@]}" "${online[@]}" --commit "$first" \
+  "${create[@]}"
+resource=$(jq -er '.items[0].steps[0].ack.id' "$state/$first/result.json")
+listing=$(jq -er '.items[0].steps[] | select(.path == "/api/v1/catalog-listings") | .ack.id' \
+  "$state/$first/result.json")
+
+draft="$repo/resources/agent.json"
+jq '.version = "0.2.0" | .representations[0].input.text |=
+    (fromjson | .version = "0.2.0" | tojson)' "$draft" > "$work/next.json"
+mv "$work/next.json" "$draft"
+git -C "$repo" add resources/agent.json
+git -C "$repo" commit -qm 'Add the next review helper Version'
+second=$(git -C "$repo" rev-parse refs/heads/main)
+python3 -I "$HELPER" apply "${common[@]}" "${online[@]}" --commit "$second" \
+  --resource-id "$resource" --listing-id "$listing" --publisher-id "$PUBLISHER"
+```
+
+The second delivery uses the Resource and Listing IDs acknowledged by the first. To deliver only the Agent content, use `--content-only` for preview, apply and resume. Omit the Publisher and Listing flags, the `listing` lookup and the reviewer handoff. Keep the Namespace flag for creation and the Resource flag for later Versions.
+
+For an inspected Skill, place the package directory beneath the draft file's directory in Git. Use the [inspected Skill example](#supply-an-inspected-skill-package) and pass the same `--package-directory 1=review-notes` on preview, apply and resume. Commit the Skill files first. Put that artifact commit, its repository and its directory into the immutable handoff. A later delivery commit can contain the draft referring to the earlier artifact. Preview checks the local package and does not contact the declared artifact repository.
+
+### Recover and hand off for review
+
+If an apply was interrupted, use the same arguments, replacing `apply` with `resume`. For example, this verifies the first delivery even after the second Version was saved:
+
+```bash wrap
+python3 -I "$HELPER" resume "${common[@]}" "${online[@]}" --commit "$first" \
+  "${create[@]}"
+```
+
+The helper retains the original inputs. The CLI owns the receipt, request keys, original preconditions and authorization checks. If a delivery failed after saving some steps, inspect its private result and use the [interrupted import procedure](#resume-an-interrupted-cli-import). Missing state or an expired replay window requires operator investigation. Keep the private directory until recovery is complete.
+
+The second delivery is now the current candidate. In a private shell, extract the two IDs the reviewer needs.
+
+```bash wrap
+jq -e '.items[0].steps | {
+  versionRevisionId: (map(select(.path | endswith("/versions")))[0].ack.revisionId),
+  listingRevisionId: (map(select(.path | endswith("/revisions")))[0].ack.id)
+} | select(.versionRevisionId and .listingRevisionId)' "$state/$second/result.json"
+```
+
+Share those IDs privately with the authorized contributor and reviewer. Keep the raw receipt with the operator. The contributor submits the current Listing candidate. The reviewer compares both IDs with the submission. If either differs, stop and inspect the candidate before deciding on it. Review, release and discovery activation remain separate Catalog operations.
+
+To automate this walkthrough, copy the two [Git draft delivery examples](../../../../../examples/git-draft-delivery/README.md) into the resource repository only after configuring its runner access. A team can use the terminal workflow entirely on its private network.
 
 ## Troubleshoot a transfer
 

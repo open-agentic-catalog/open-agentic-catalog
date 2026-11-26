@@ -1,0 +1,50 @@
+name: Preview a Catalog draft
+on:
+  pull_request:
+    paths:
+      - 'resources/agent.json'
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Get the reviewed helper from the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: automation/catalog
+          persist-credentials: false
+      - name: Install the verified Catalog CLI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/catalog-preview-cli"
+          mkdir -m 700 "$tools"
+          asset=catalogctl-0.1.2-linux-amd64.tar.gz
+          gh release download v0.1.2 -R open-agentic-catalog/open-agentic-catalog -p "$asset" -D "$tools"
+          (cd "$tools" && echo "d700a8ffe93e143b710e4a40a719e41b7c79614fa25cb6f1b0844c90ff64a005  $asset" | sha256sum -c - && tar -xzf "$asset")
+      - name: Check the proposed commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d "$RUNNER_TEMP/catalog-preview.XXXXXXXX")
+          trap 'rm -rf -- "$work"' EXIT
+          git init -q --bare "$work/source"
+          git -C "$work/source" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          AUTH_HEADER="Authorization: Basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          export AUTH_HEADER
+          git -C "$work/source" --config-env=http.extraHeader=AUTH_HEADER fetch --quiet --no-tags --depth=1 origin "refs/pull/$PR_NUMBER/head"
+          unset AUTH_HEADER GH_TOKEN
+          test "$(git -C "$work/source" rev-parse FETCH_HEAD)" = "$HEAD_SHA"
+          python3 -I automation/catalog/deliver.py preview --cli "$RUNNER_TEMP/catalog-preview-cli/catalogctl" \
+            --repo "$work/source" --commit "$HEAD_SHA" --file resources/agent.json \
+            --namespace-id 00000000-0000-7000-8000-000000000001

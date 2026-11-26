@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -213,8 +214,30 @@ func qualifyProcessDraftImport(ctx context.Context, t *testing.T, f processFixtu
 		t.Fatal("shared import lacks required exact revision read audits")
 	}
 	mu.Lock()
-	defer mu.Unlock()
 	if calls != 12 || replays != 4 || len(seen) != 8 {
+		mu.Unlock()
 		t.Fatal("cross-replica replay created duplicate commands")
+	}
+	drop, dropSuffix = true, "/revisions"
+	priorKeys, priorCalls, priorReplays := len(seen), calls, replays
+	mu.Unlock()
+	command := exec.CommandContext(ctx, "python3", "-B", "../git_draft_delivery/process.py", filepath.Join(f.directory, "catalogctl"), address, proxy.URL, namespace, publisher) // #nosec G204,G702 -- fixed local example test and owned fixture arguments.
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("Git draft delivery: %v\n%s", err, output)
+	}
+	final := counts()
+	for i, want := range []int{2, 3, 1, 2, 8} {
+		if final[i]-after[i] != want {
+			t.Fatalf("Git delivery changed stored effect %d by %d, expected %d", i, final[i]-after[i], want)
+		}
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	// Two Agent deliveries (4 + 2 writes) and one content-only Skill (2).
+	// One new Version command is refused for a duplicate label. Only the lost
+	// Listing response is replayed, using its original key.
+	if len(seen)-priorKeys != 9 || calls-priorCalls != 10 || replays-priorReplays != 1 {
+		t.Fatalf("Git delivery calls/keys/replays = %d/%d/%d", calls-priorCalls, len(seen)-priorKeys, replays-priorReplays)
 	}
 }

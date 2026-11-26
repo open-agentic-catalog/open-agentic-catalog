@@ -813,6 +813,11 @@ workflow-tools-install: ## Explicitly acquire the pinned actionlint executable i
 workflow-check: ## Validate GitHub Actions files with installed actionlint (no acquisition)
 	$(PYTHON) -B test/ci/tools.py actionlint-check
 
+.PHONY: git-draft-delivery-check
+git-draft-delivery-check: build workflow-check ## Test committed draft inputs and lint the two inactive Actions examples
+	.tools/ci/bin/actionlint -shellcheck=shellcheck examples/git-draft-delivery/preview.yml examples/git-draft-delivery/deliver.yml
+	$(PYTHON) -B -m unittest discover -s test/git_draft_delivery -p 'test_functional_*.py'
+
 .PHONY: workflow-local-tools-install workflow-local-list workflow-local-lint workflow-local-unit workflow-local-ui workflow-local-docs workflow-local-charts workflow-local-image workflow-local-security workflow-local-postgres
 
 workflow-local-tools-install: ## Install pinned act and its runner image for local workflow tests
@@ -900,7 +905,7 @@ yaml-check: api-yaml-check ## Lint current standalone YAML; syntax-check immutab
 
 python-lint: ## Check maintained Python with installed Ruff (version pinned in ruff.toml)
 	@command -v "$(RUFF)" >/dev/null 2>&1 || { printf '%s\n' 'Ruff is required. Install the version in ruff.toml and set RUFF=/path/to/ruff if needed; see documentation/src/content/docs/contributing/testing.md#python-linting.' >&2; exit 1; }
-	"$(RUFF)" check --config ruff.toml --no-cache --no-fix test extensions/vscode/tooling examples/langgraph examples/tutorials/local-oidc examples/mcp-scanner
+	"$(RUFF)" check --config ruff.toml --no-cache --no-fix test extensions/vscode/tooling examples/langgraph examples/tutorials/local-oidc examples/mcp-scanner examples/git-draft-delivery
 
 security: export PACKAGING_TRIVY = $(TRIVY)
 security: ## Scan called Go symbols, source dependencies, secrets, and deployment configuration

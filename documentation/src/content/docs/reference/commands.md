@@ -135,7 +135,7 @@ Both accept the preview flags plus `--base-url`, `--token-file`, `--ca-file` and
 
 Apply requires a new receipt in a private directory. Resume binds the API origin, server-resolved principal and exact whole-manifest input. All local validation and namespace permission checks precede the first write. Items run in manifest order; known dependencies must target earlier items. It reuses original command keys, stops outside the conservative replay window and never automatically retries a mutation.
 
-Completed reruns verify retained exact IDs without writes. If validation reports a blocked result, the import retains the Version and its validation evidence. It stops before creating a Listing.
+Completed reruns verify the recorded IDs under current access and make no further authoring requests that change Catalog state. If validation reports a blocked result, the import retains the Version and its validation evidence. It stops before creating a Listing.
 
 Reports contain an ordered `items` array and identify the stopped item with `currentKey`, when known. Completed, current and unattempted items remain distinct. Reports and receipts each have a 2 MiB ceiling. A batch is not atomic, and the CLI does not roll back committed drafts.
 
@@ -690,7 +690,7 @@ Choose a new Version label and keep any native version fields consistent before 
 | New Version with a new Listing | Version, Listing and Listing revision, three writes. |
 | New Version with an existing Listing | Version and Listing revision, two writes. |
 
-Creation requires `resource.create`. All plans require `resource.edit`, `resource.read` and `resource.read_content` in the destination Namespace. The registered `resource.edit` permission also requires `resource.read_history`. Automatic Listing lookup uses that history permission. An exact Listing avoids the collection request. Enforced OAuth scopes require `catalog.read` and `catalog.write`.
+Creation requires `resource.create`, whose registered companion is `namespace.read`. All plans require `resource.edit`, `resource.read` and `resource.read_content` in the destination Namespace. The registered `resource.edit` permission also requires `resource.read_history`. Automatic Listing lookup uses that history permission. An exact Listing avoids the collection request. Enforced OAuth scopes require `catalog.read` and `catalog.write`.
 
 Apply captures an existing Listing's strong ETag before writes. Resume preserves that ETag, exact targets, input checksums and original command keys. It does not repeat the Listing lookup or select a newer ETag. A changed ready Listing command is refused. An uncertain command replays its original request within the existing replay window.
 
@@ -701,7 +701,7 @@ Apply captures an existing Listing's strong ETag before writes. Resume preserves
   --base-url "$CATALOG_URL" --token-file "$TOKEN_FILE"
 ```
 
-Use the original flags, file, package inputs and private receipt. A completed resume verifies exact retained records without writes. A blocked 201 response retains its IDs and validation evidence. It stops before Listing preparation. Preserve partial progress after failure; there is no automatic retry or rollback.
+Use the original flags, file, package inputs and private receipt. A completed resume checks the recorded revisions under current access. It creates no further authoring revisions. Catalog audits the private VersionRevision read. A blocked 201 response retains its IDs and validation evidence. It stops before Listing preparation. Preserve partial progress after failure; there is no automatic retry or rollback.
 
 URL-only content is pending server retrieval, not locally validated content. Normal admission retrieves selected URLs through the hardened fetcher. Plugin archives retain their expected checksum; different bytes cannot replace the exported archive. Editable Plugin preparation needs separate packaging and an HTTPS archive reference before apply. The CLI does not construct or host a Plugin archive.
 

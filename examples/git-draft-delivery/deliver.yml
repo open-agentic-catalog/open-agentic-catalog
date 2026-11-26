@@ -1,0 +1,55 @@
+name: Deliver a Catalog draft
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'resources/agent.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalog-draft-agent
+  cancel-in-progress: false
+
+jobs:
+  deliver:
+    if: github.repository == vars.CATALOG_DRAFT_REPOSITORY && github.ref == 'refs/heads/main' && !github.event.deleted
+    runs-on:
+      group: catalog-draft-delivery
+    steps:
+      - name: Deliver the protected push or recover its original attempt
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_REPOSITORY: ${{ vars.CATALOG_DRAFT_REPOSITORY }}
+          COMMIT: ${{ github.event.after }}
+          TOOL_DIR: /opt/oac
+          STATE_DIR: /var/lib/catalog-drafts/agent
+          TOKEN_FILE: /run/secrets/catalog-author
+        run: |
+          set -euo pipefail
+          repo=$(mktemp -d "$RUNNER_TEMP/catalog-objects.XXXXXXXX")
+          trap 'rm -rf -- "$repo"' EXIT
+          source="$GITHUB_SERVER_URL/$APPROVED_REPOSITORY.git"
+          : "${CATALOG_URL:?Configure CATALOG_URL on the delivery runner}"
+          args=(--namespace-id "${CATALOG_NAMESPACE_ID:?Configure CATALOG_NAMESPACE_ID on the delivery runner}")
+          if [[ -n "${CATALOG_RESOURCE_ID:-}" ]]; then args+=(--resource-id "$CATALOG_RESOURCE_ID"); fi
+          if [[ -n "${CATALOG_PUBLISHER_ID:-}" ]]; then args+=(--publisher-id "$CATALOG_PUBLISHER_ID"); fi
+          if [[ -n "${CATALOG_LISTING_ID:-}" ]]; then args+=(--listing-id "$CATALOG_LISTING_ID"); fi
+          action=resume
+          if [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]; then
+            action=apply
+            git init -q --bare "$repo"
+            git -C "$repo" remote add origin "$source"
+            AUTH_HEADER="Authorization: Basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+            export AUTH_HEADER
+            git -C "$repo" --config-env=http.extraHeader=AUTH_HEADER fetch --quiet --no-tags --depth=1 origin "$COMMIT"
+            unset AUTH_HEADER
+            args+=(--push-event "$GITHUB_EVENT_PATH")
+          fi
+          unset GH_TOKEN
+          python3 -I "$TOOL_DIR/deliver.py" "$action" --cli "$TOOL_DIR/catalogctl" \
+            --repo "$repo" --source "$source" --ref refs/heads/main --commit "$COMMIT" \
+            --file resources/agent.json --state-dir "$STATE_DIR" \
+            --base-url "$CATALOG_URL" --token-file "$TOKEN_FILE" "${args[@]}"

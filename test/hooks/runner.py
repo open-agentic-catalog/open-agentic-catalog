@@ -45,7 +45,7 @@ MARKDOWN_EXCLUDES = ("schemas/upstream/", "samples/upstream/", "specs/", "output
                      "test/sdk/rust/consumer/target/", "examples/rust-catalog-report/target/",
                      "extensions/vscode/dist/")
 PYTHON_ROOTS = ("test/", "extensions/vscode/tooling/", "examples/langgraph/", "examples/tutorials/local-oidc/",
-                "examples/mcp-scanner/")
+                "examples/mcp-scanner/", "examples/git-draft-delivery/")
 TOOL_PATHS = {"ruff": ".tools/dev/bin/ruff", "shellcheck": ".tools/ci/bin/shellcheck",
               "hadolint": ".tools/ci/bin/hadolint", "actionlint": ".tools/ci/bin/actionlint",
               "markdownlint": ".tools/ci/markdown/node_modules/.bin/markdownlint"}

@@ -21,6 +21,11 @@
     "route": "guides/agentfield"
   },
   {
+    "source": "examples/git-draft-delivery/README.md",
+    "route": "guides/git-draft-delivery",
+    "projection": true
+  },
+  {
     "source": "examples/langgraph/README.md",
     "route": "guides/langgraph-agent",
     "projection": true

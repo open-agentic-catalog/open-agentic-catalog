@@ -295,6 +295,8 @@ func TestContainerIgnoreContract(t *testing.T) {
 		"!test/functional/fixture/",
 		"!test/functional/fixture/**",
 		"!examples/",
+		"!examples/git-draft-delivery/",
+		"!examples/git-draft-delivery/README.md",
 		"!examples/langgraph/",
 		"!examples/langgraph/README.md",
 		"!examples/rust-catalog-report/",
