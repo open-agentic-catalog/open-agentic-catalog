@@ -92,7 +92,7 @@ func (h *harness) secondaryCatalog() (*harness, error) {
 		return nil, err
 	}
 	secrets.cursorKey = key
-	peer := &harness{options: h.options, ctx: h.ctx, temporary: directory, minikubeHome: h.minikubeHome, kubeconfig: h.kubeconfig, profile: h.profile,
+	peer := &harness{options: h.options, ctx: h.ctx, forwardLifetime: h.forwardLifetime, temporary: directory, minikubeHome: h.minikubeHome, kubeconfig: h.kubeconfig, profile: h.profile,
 		deploymentTool: filepath.Join(h.temporary, "catalog-deploy"), suffix: h.suffix, application: h.application, fixture: h.fixture, postgres: h.postgres, secrets: secrets, catalogScope: catalogPeerNamespace, peerTLS: h.peerTLS,
 		report: runReport{Nodes: h.report.Nodes, Images: h.report.Images, Placements: make(map[string][]podPlacementReport)}}
 	return peer, nil

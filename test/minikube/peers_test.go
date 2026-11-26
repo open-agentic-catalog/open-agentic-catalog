@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -10,10 +11,15 @@ import (
 )
 
 func TestIndependentCatalogNamespaceAndInputs(t *testing.T) {
-	primary := &harness{temporary: t.TempDir(), application: "catalog:test", options: options{scenario: "peers"}, secrets: fixtureSecrets{ownerPassword: "primary-owner", apiPassword: "primary-api", workerPassword: "primary-worker", cursorKey: "primary-cursor"}}
+	setup, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	primary := &harness{ctx: setup, forwardLifetime: t.Context(), temporary: t.TempDir(), application: "catalog:test", options: options{scenario: "peers"}, secrets: fixtureSecrets{ownerPassword: "primary-owner", apiPassword: "primary-api", workerPassword: "primary-worker", cursorKey: "primary-cursor"}}
 	secondary, err := primary.secondaryCatalog()
 	if err != nil {
 		t.Fatal(err)
+	}
+	if secondary.ctx != primary.ctx || secondary.forwardLifetime != primary.forwardLifetime {
+		t.Fatal("secondary Catalog must inherit both the setup and port-forward lifetimes")
 	}
 	if secondary.deploymentTool != filepath.Join(primary.temporary, "catalog-deploy") {
 		t.Fatal("secondary Catalog lost its owned deployment executable")
