@@ -18,7 +18,7 @@ From the repository root, with Docker/Compose, Go, Python 3 and curl available, 
 make test-backup-restore
 ```
 
-The target builds Catalog and fixture images, populates a temporary database, and restores a logical backup into a second PostgreSQL instance. It verifies both tenants before starting the API. Using its normal database role, the API creates a new namespace and reads it back after a restart. The other tenant receives a 404. The worker resumes a queued Job using its own role, and the receiver verifies signatures on events from before and after recovery. The original database stays stopped. Backup tools run inside containers, so no existing Catalog or host PostgreSQL installation is needed. Keep source files unchanged throughout the run.
+The target builds Catalog and fixture images, populates a temporary database, and restores a logical backup into a second PostgreSQL instance. It verifies both tenants before starting the API. Using its normal database role, the API creates a new namespace and reads it back after a restart. The other tenant receives a 404. The worker resumes the queued synchronization Job using its own role. Its result must identify a new complete snapshot containing the expected source entry. The receiver verifies signatures on events from before and after recovery. The original database stays stopped. Backup tools run inside containers, so no existing Catalog or host PostgreSQL installation is needed. Keep source files unchanged throughout the run.
 
 This opt-in test is separate from `make test-functional`. It accepts no existing database and does not use persistent development Compose data. It checks a logical backup round trip. It does not qualify managed snapshots, WAL archives or point-in-time recovery.
 
@@ -170,7 +170,7 @@ The Compose drill uses these command forms on separate source and destination in
 
 The [local test](#test-backup-and-restore-locally) uses synthetic published Agent, MCP and Skill records, two tenants, indexed observations, feedback, snapshots and completed commands. It includes live and cleared feedback, queued work and retained webhook keys and events. All-table comparison does not mean every lifecycle variant is populated. Optional semantic state has separate qualification. Choose deployment backup retention and drill frequency independently.
 
-The fixture also restores one inspected, unpublished Plugin, one saved search and one saved resource reference. Plugin documents and inventory must match the original reads, with the archive server stopped. Both saved items must retain their exact contents, revisions, timestamps and owner-only access. Plugin revision reads create audit evidence. The fixture checks those reads after the unchanged-table and exact-replay checks. The test does not back up archive bytes or qualify availability of deployment-owned external packages.
+The fixture also restores an inspected, unpublished Plugin, a saved search, a saved resource reference and an acknowledged Listing follow. Plugin documents and inventory must match the original reads, with the archive server stopped. The personal items must retain their contents, revisions, timestamps and owner-only access. The owner must still see the followed release as unchanged, with the same release ID and disposition revision. Plugin revision reads create audit evidence. The fixture checks those reads after the unchanged-table and exact-replay checks. The test does not back up archive bytes or qualify availability of deployment-owned external packages.
 
 ### Retained Catalog state
 

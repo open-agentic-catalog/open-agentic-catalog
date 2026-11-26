@@ -252,7 +252,7 @@ if response.status != 200:
 exact_bytes = response.data
 ```
 
-Supply the UUID of a readable retained artifact as `artifact_id`. The override is local to the current context, including concurrent async tasks. Exceeding a bound refuses the result; the SDK never returns a truncated body. Binary/file operations return bytes, not a temporary filename.
+Use the representation's `artifactId` for `artifact_id`. It contains the 64 lowercase hexadecimal digits of the retained document's SHA-256 digest. The override is local to the current context, including concurrent async tasks. Exceeding a bound refuses the result. Binary and file operations return the complete bytes in memory.
 
 ## Commands and pages
 

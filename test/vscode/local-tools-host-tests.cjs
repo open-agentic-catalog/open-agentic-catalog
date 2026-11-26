@@ -105,7 +105,6 @@ exports.run = async (api) => {
           )),
       );
     };
-    await vscode.commands.executeCommand("openAgenticCatalog.refreshTools");
     await vscode.commands.executeCommand("openAgenticCatalog.tools.focus");
     const row = `[...document.querySelectorAll('.monaco-list-row')].find(r=>r.textContent.includes(${JSON.stringify(name)})&&r.textContent.includes(${JSON.stringify(root)}))`;
     await ui.until(`!!(${row})`);
@@ -125,6 +124,10 @@ exports.run = async (api) => {
       await chooseMenu("Owned: Inspect Catalog tool selection");
       await wait(() => captureCalled, "native context arguments");
       const confirmed = await new o.lib.SkillStore(root).get(name);
+      assert.ok(
+        captured,
+        "The context menu must deliver the selected Skill row",
+      );
       assert.equal(captured.store.workspace, root);
       assert.equal(captured.receipt.name, name);
       assert.equal(
@@ -152,6 +155,10 @@ exports.run = async (api) => {
           { ...chat().get("pluginLocations", {}), [path]: true },
           vscode.ConfigurationTarget.Global,
         );
+      // This fixture installed the package outside VS Code. Refresh after the
+      // write, before selecting its row. Refreshing again while opening a menu
+      // can invalidate the row handle the editor passes to the command.
+      await vscode.commands.executeCommand("openAgenticCatalog.refreshTools");
       await vscode.commands.executeCommand("notifications.clearAll");
       await action(
         a.plan.name,

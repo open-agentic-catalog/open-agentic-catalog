@@ -338,7 +338,7 @@ test("stale feedback edits preserve an administrator response and recover on ref
   ).toHaveCount(0);
 });
 
-test("editing addressed feedback and administrator reopen remove preserve state and clear private text", async ({
+test("a moderator can reopen and remove edited feedback and revisit the cleared case", async ({
   page,
   catalog,
 }) => {
@@ -403,9 +403,20 @@ test("editing addressed feedback and administrator reopen remove preserve state 
   );
   await page.getByText("Respond or manage feedback", { exact: true }).click();
   await page
+    .getByRole("textbox", {
+      name: "Moderator response (optional)",
+      exact: true,
+    })
+    .fill("Reviewed the corrected feedback");
+  await page
     .getByRole("button", { name: "Address feedback", exact: true })
     .click();
   await confirmCommand(page);
+  const savedReply = page
+    .getByRole("paragraph", { includeHidden: true })
+    .filter({ hasText: /^Reviewed the corrected feedback$/ });
+  await revealControl(savedReply);
+  await expect(savedReply).toBeVisible();
   await revealControl(
     page.getByText("Respond or manage feedback", { exact: true }),
   );
@@ -443,6 +454,7 @@ test("editing addressed feedback and administrator reopen remove preserve state 
     page.getByText("Comment and response have been cleared.", { exact: true }),
   ).toBeVisible();
   const removed = await catalog.admin<{
+    revision: number;
     state: string;
     comment?: string;
     response?: string;
@@ -450,9 +462,49 @@ test("editing addressed feedback and administrator reopen remove preserve state 
   expect(removed.data.state).toBe("removed");
   expect(removed.data.comment || "").toBe("");
   expect(removed.data.response || "").toBe("");
-  await page.reload();
+  await page
+    .getByRole("link", { name: "Open feedback case", exact: true })
+    .click();
+  await expect(page).toHaveURL(
+    `${catalog.origin}${catalog.basePath}/feedback/${created.data.id}`,
+  );
+  const record = page.getByRole("article").filter({
+    has: page.getByRole("heading", {
+      name: "Documentation correction Removed",
+      exact: true,
+    }),
+  });
+  await expect(record).toBeVisible();
+  const [current] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "GET" &&
+        new URL(response.url()).pathname ===
+          `${catalog.basePath}/_catalog${path}`,
+    ),
+    page.reload(),
+  ]);
+  expect(current.status()).toBe(200);
   await expect(
-    page.getByText("Corrected owned feedback", { exact: true }),
+    record.getByText("Comment and response have been cleared.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await record.getByText("Identifiers and revision", { exact: true }).click();
+  await expect(
+    record.getByText(created.data.id, { exact: true }),
+  ).toBeVisible();
+  await expect(record.getByText(resourceId, { exact: true })).toBeVisible();
+  await expect(
+    record.getByText(String(removed.data.revision), { exact: true }),
+  ).toBeVisible();
+  await expect(record).not.toContainText("Corrected owned feedback");
+  await expect(record).not.toContainText("Reviewed the corrected feedback");
+  await expect(
+    record.getByText("Edit or withdraw your feedback", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    record.getByText("Respond or manage feedback", { exact: true }),
   ).toHaveCount(0);
 });
 

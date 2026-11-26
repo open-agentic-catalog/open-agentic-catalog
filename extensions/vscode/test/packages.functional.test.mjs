@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import fs, { mkdtemp, readFile, rm } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { listenFixture } from "../../../test/vscode/listen.mjs";
@@ -9,6 +10,55 @@ import {
   fixtureWait as registryEvent,
 } from "../../../test/vscode/wait.mjs";
 const { packageProcess } = await import(process.env.CATALOG_VSCODE_LIB);
+test("a package tool may finish with its temporary entries gone while the disk monitor still checks the remaining tree", async (t) => {
+  const work = await mkdtemp(join(tmpdir(), "oac-package-scan-"));
+  const signalFile = join(work, "scan-started");
+  const file = join(work, "fetch.lock");
+  const directory = join(work, "incoming");
+  const child =
+    'const fs = require("node:fs"); const done = () => { if (fs.existsSync("scan-started")) process.exit(0); }; setInterval(done, 20); done();';
+  const run = () =>
+    packageProcess(
+      process.execPath,
+      ["-e", child],
+      work,
+      {},
+      AbortSignal.timeout(10000),
+    );
+  const list = fs.readdir;
+  // Force the same interleaving as Git renaming a lock or removing a temporary directory.
+  const hook = t.mock.method(fs, "readdir", async (path, options) => {
+    const entries = await list(path, options);
+    if (path === work && entries.some((entry) => entry.name === "fetch.lock")) {
+      await fs.unlink(file);
+      await fs.rmdir(directory);
+      await fs.writeFile(signalFile, "");
+      // Visit fetch.lock and incoming before checking zz-oversized on every filesystem.
+      entries.sort((a, b) => a.name.localeCompare(b.name, "en"));
+    }
+    return entries;
+  });
+  syncBuiltinESMExports();
+  try {
+    const start = async () => {
+      await fs.mkdir(directory);
+      await fs.writeFile(file, "");
+      return run();
+    };
+    await start();
+    await fs.unlink(signalFile);
+    // A disappearing entry must not end the scan before a persistent oversized sibling.
+    const oversized = join(work, "zz-oversized");
+    await fs.writeFile(oversized, "");
+    await fs.truncate(oversized, 96 * 1024 ** 2 + 1);
+    await assert.rejects(start(), { code: "package_disk_limit" });
+  } finally {
+    hook.mock.restore();
+    syncBuiltinESMExports();
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
 test("real child process uses literal arguments, bounds output and cancels without raw stderr", async (t) => {
   const work = await mkdtemp(join(tmpdir(), "oac-package-process-"));
   const rootRecord = join(work, "owned-parent.json"),

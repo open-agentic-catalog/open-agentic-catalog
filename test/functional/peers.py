@@ -641,8 +641,12 @@ class Peers:
             {"version": "2.0.0", "representations": [self.plugin_representation("a-plugin-v2")]}, 201)[0]
         self.publish_item(plugin)
         self.snapshot(self.publisher_client, PUBLIC_A)
+        published = registry_members(self.public)
+        assert [entry["version"] for entry in published if entry["identifier"] == plugin_identifier] == ["2.0.0"], "ARD List did not replace Plugin v1 with v2"
+        self.check_indexed_reader(source["id"], sealed)
         changed_plugin = self.synchronize(source)
-        self.check_index(changed_plugin, registry_members(self.public), ids, source)
+        self.check_index(changed_plugin, published, ids, source)
+        self.check_indexed_reader(source["id"], changed_plugin)
         previous = next(x for x in sealed if x["identifier"] == plugin_identifier)
         current = next(x for x in changed_plugin if x["identifier"] == plugin_identifier)
         assert current["normalizedEntryDigest"] != previous["normalizedEntryDigest"], "Plugin update reused the previous content"
@@ -660,8 +664,10 @@ class Peers:
         published = registry_members(self.public)
         assert all(entry["identifier"] != plugin_identifier for entry in published), "retired Plugin still published by A"
         remaining = ids - {plugin_identifier}
+        self.check_indexed_reader(source["id"], changed_plugin)
         remaining_index = self.synchronize(source)
         self.check_index(remaining_index, published, remaining, source)
+        self.check_indexed_reader(source["id"], [entry for entry in changed_plugin if entry["identifier"] != plugin_identifier])
         self.check_version_history(source["id"], plugin_identifier, [superseded, ("2.0.0", current["id"], "withdrawn")])
         for observation in (previous, current):
             raw, _ = self.b.request("GET", "/api/v1/observations/" + observation["id"] + "/raw", decode_body=False)
@@ -804,13 +810,15 @@ class Peers:
         versions = sorted((row["version"], row["id"], row["freshness"]) for row in page["items"] if row["identifier"] == identifier)
         assert versions == expected, "peer observation IDs, versions or withdrawal state differ from the expected history"
 
-    def check_outage_readers(self, source_id, indexed, *, peer_online):
+    def check_indexed_reader(self, source_id, indexed):
         before = self.stats()
         reader = Client(self.b.base_url, "local-reader")
         page, _ = reader.request("POST", "/api/v1/catalog/search", {"origins": ["indexed"], "tags": ["peers"], "limit": 20})
         check_indexed_search(page, indexed, source_id)
         self.assert_contacts(before, PUBLIC_A, 0)
 
+    def check_outage_readers(self, source_id, indexed, *, peer_online):
+        self.check_indexed_reader(source_id, indexed)
         query = {"query": {"text": "peer"}, "federation": "auto", "pageSize": 100}
         live = {item["identifier"] for item in indexed} if peer_online else set()
         for client, expected, partial, contacts in (

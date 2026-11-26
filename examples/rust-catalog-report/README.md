@@ -75,7 +75,7 @@ Status: Complete (2 pages, 12 releases).
 | Web Application Testing | skill | source-8a1541c4 | <assigned UUID> | urn:air:demo.catalog.example.com:demo:webapp-testing | Apache-2.0 |
 ```
 
-Search the same Catalog for testing resources:
+Find testing Skills in the same Catalog:
 
 ```sh
 cargo run --frozen --manifest-path examples/rust-catalog-report/Cargo.toml -- \
@@ -84,7 +84,9 @@ cargo run --frozen --manifest-path examples/rust-catalog-report/Cargo.toml -- \
   --allow-loopback-http --query testing --kind skill
 ```
 
-The curated query includes `Web Application Testing`. Omit both filters to search all four kinds. `--kind` accepts one of `agent`, `mcp_server`, `skill` or `plugin`; `--query` accepts at most 500 UTF-8 bytes.
+On the fresh curated Catalog, the report shows `Complete (1 page, 1 release)` and the same `Web Application Testing` release UUID as the full inventory. Remove `--kind skill` to also see the `Web Testing Toolkit` Plugin. Omit both filters to list all twelve releases.
+
+`--kind` accepts `agent`, `mcp_server`, `skill` or `plugin`. `--query` accepts at most 500 UTF-8 bytes.
 
 ## Read the result and exit status
 

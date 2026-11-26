@@ -195,7 +195,7 @@ Interrupt only the owned fixture with Ctrl-C. Restarting serves the same prepare
 
 Open the UI's `/catalog` and select Reader. Search/Browse shows twelve published curated resources, three per kind. Draft/pending examples stay outside discovery. Resource details include documentation links, complete evidence and manual handoff guidance.
 
-Use the [Rust Catalog report](../../../../../examples/rust-catalog-report/README.md) for a read-only Markdown inventory of the same published releases. Its guide covers the Reader token file, optional `testing` query and complete/incomplete output.
+Use the [Rust Catalog report](../../../../../examples/rust-catalog-report/README.md) to save the Reader's inventory as Markdown. On a fresh curated Catalog, the tutorial's `--query testing --kind skill` example returns just the `Web Application Testing` Skill.
 
 Catalog demo owns eleven retained Resources (nine published plus the two workflow controls); IDE plugins owns three published Plugins. Choose Administrator and **Manage content > Namespaces** to inspect allocations. Namespaces are authorization boundaries. Descriptive tags grant no access.
 
@@ -227,6 +227,8 @@ The file and relative assets are easy to expand: copy this complete sample tree,
 A Plugin-free receipt needs no archive/trust and can explicitly add its first Plugin at the selected origin. Source comments, resource/profile ordering and manifest revision labels cause no mutation when selected inputs are unchanged. Removed, renamed or edited prior entries are refused.
 
 Use ordinary version/governance APIs for changes to already loaded resources, not edits to seed-owned definitions. Prepare added Plugin paths and restart archive/API/worker before extension; `demo-up` does those steps explicitly. No YAML-selected image, command, acquisition or runtime executes.
+
+Even when you add only an Agent, the loader checks the Plugin archives already in the curated set. If it reports `archive preflight failed`, check the archive service, its certificate and the prepared files. Retry with `make demo-up DEMO_EXTEND=true` using the same project, manifest, archive inputs and receipt.
 
 | Starting receipt | Result after selecting curated and explicit extension | Published / draft / pending |
 | --- | --- | --- |

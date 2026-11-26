@@ -67,7 +67,10 @@ export function packageTools(value: unknown): PackageTools {
   if (v.caFile !== undefined) result.caFile = executable(v.caFile, "");
   return result;
 }
-async function diskSize(directory: string): Promise<number> {
+async function diskSize(
+  directory: string,
+  toolRunning = false,
+): Promise<number> {
   let total = 0,
     entries = 0;
   const visit = async (path: string) => {
@@ -75,11 +78,17 @@ async function diskSize(directory: string): Promise<number> {
       if (++entries > 10000 || entry.isSymbolicLink())
         return packageFail("package_disk_limit");
       const child = join(path, entry.name);
-      if (entry.isDirectory()) await visit(child);
-      else {
-        const info = await lstat(child);
-        if (!info.isFile()) return packageFail();
-        total += info.size;
+      try {
+        if (entry.isDirectory()) await visit(child);
+        else {
+          const info = await lstat(child);
+          if (!info.isFile()) return packageFail();
+          total += info.size;
+        }
+      } catch (error) {
+        // A running Git or OCI command can remove a temporary entry after readdir.
+        if (!toolRunning || (error as NodeJS.ErrnoException).code !== "ENOENT")
+          throw error;
       }
       if (total > 96 * 1024 ** 2) return packageFail("package_disk_limit");
     }
@@ -126,7 +135,7 @@ export async function packageProcess(
     signal.addEventListener("abort", cancel, { once: true });
     const monitor = setInterval(() => {
       if (checking) return;
-      checking = diskSize(work)
+      checking = diskSize(work, true)
         .catch(() => stop("package_disk_limit"))
         .finally(() => {
           checking = undefined;

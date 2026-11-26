@@ -39,6 +39,7 @@ class Admission(unittest.TestCase):
             mutate(changed["matrix"])
             invalid.append(changed)
         for mutate in (lambda rows: rows.pop(), lambda rows: rows[0]["cases"].pop("unpublication"),
+                       lambda rows: rows[1]["cases"].pop("republish-after-withdrawal"),
                        lambda rows: rows[0]["cases"].update(inventory=False)):
             changed = copy.deepcopy(expected)
             mutate(changed["ard"])

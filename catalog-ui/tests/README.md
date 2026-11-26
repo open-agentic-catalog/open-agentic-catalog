@@ -487,6 +487,8 @@ When an action changes, update its operation classification and owning browser/c
 
 ## Private feedback qualification
 
+A moderator can follow a removed case from the inbox and reload its detail page. The browser checks the case ID, Resource ID, current revision and **Removed** state. The old comment, moderator reply and editing controls must stay absent.
+
 `src/views/feedback.test.tsx` covers lazy private reads, role/scope hints, contextual creation, own editing/withdrawal, administrator response/removal and bounded filters/paging. Two-row units additionally prove independent edit/response/new-submission drafts, declined close/filter/refresh/paging/navigation, accepted editor-only clearing and same-key reread retention. Fixtures increment revisions on successive mutations instead of manufacturing stale successful writes. `tests/browser/feedback.spec.ts` exercises the real reader/admin workflow, native discard cancellation/acceptance, two independent response drafts and retired-release Resource entry point. The backend HTTP and PostgreSQL suites independently enforce ownership and concurrency; UI hints are not authorization.
 
 The packaged Compose fixture adds one private-feedback handoff through the real UI and PostgreSQL after its initial root checks. It uses a genuinely published seeded release and checks cancelled submission, exact context, closed text-free receipts, a moderator without Resource-read permission, API restart/readback and another owner's exact-read refusal. Its temporary moderation grant is revoked and checked before later authorization journeys. This supplements the existing packaged API transition matrix rather than repeating it.

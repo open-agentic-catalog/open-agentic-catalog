@@ -197,9 +197,9 @@ class Operators:
         empty = read("list", "--filter", "displayName = 'no-such-owned-publication-entry'", "--page-size", "1")["data"]
         assert empty == {"items": [], "total": 0}, "anonymous empty selection was not a successful page"
 
-    def source_comparison(self, source_id, before_id):
+    def source_comparison(self, source_id, before_id, after_id):
         current, _ = self.api.request("GET", "/api/v1/federation/sources/" + source_id)
-        after_id = current["lastCompleteSnapshotId"]
+        assert current["lastCompleteSnapshotId"] == after_id, "source does not serve the retry Job's snapshot"
         assert before_id != after_id, "operator comparison did not retain two synchronizations"
         path = f"/api/v1/federation/snapshots/{before_id}/comparison?otherSnapshotId={after_id}&limit=100"
         flags = ("--before-snapshot-id", before_id, "--after-snapshot-id", after_id, "--limit", "100")
@@ -285,16 +285,34 @@ class Operators:
         failed = wait_job(self.api, pending["job"]["id"], {"failed", "dead_letter"})
         assert (failed["state"] == "failed" and failed["attempt"] == 1 and failed["attemptLimit"] == 7
                 and failed["failureClass"] == "authentication" and failed["notBefore"] == scheduled["notBefore"]), "terminal hinted response acquired a retry or lost its configured budget"
+        source_after_failure, _ = self.api.request("GET", "/api/v1/federation/sources/" + source["id"])
+        assert source_after_failure["lastCompleteSnapshotId"] == first_snapshot_id, "upstream refusal displaced the last complete snapshot"
         assert self.remote("job", "--id", failed["id"], token="local-admin")["state"] == failed["state"], "failed Job retrieval did not succeed"
         origin.request("POST", "/control", {"mode": "initial"})
-        retried, _ = mutate(self.api, "POST", "/api/v1/jobs/" + failed["id"] + ":retry", {"reason": "Qualify retained operator retry intent"}, 202)
+        retry_path = "/api/v1/jobs/" + failed["id"] + ":retry"
+        retry_body = {"reason": "Qualify retained operator retry intent"}
+        retry_headers = {"Idempotency-Key": key("operator-retry")}
+        retried, headers = self.api.request("POST", retry_path, retry_body, (202,), retry_headers)
+        location = header(headers, "Location")
+        assert location == "/api/v1/jobs/" + retried["id"] and retried["state"] == "queued", "retry did not identify the queued replacement"
         assert retried["parentJobId"] == failed["id"] and retried["id"] != failed["id"] and retried["attemptLimit"] == failed["attemptLimit"], "retry lost parent linkage or attempt limit"
         recovered = wait_job(self.api, retried["id"], {"succeeded"})
         assert recovered["attempt"] == 1 and recovered["attemptLimit"] == 7 and not recovered.get("failureClass") and not recovered.get("safeError"), "replacement Job did not recover cleanly"
+        previous_api, _ = self.api.request("GET", "/api/v1/service-information")
+        self.compose("restart", "--timeout", "20", "api")
+        self.wait(lambda: self.api.request("GET", "/readyz", retry_unavailable=True)[0])
+        current_api, _ = self.api.request("GET", "/api/v1/service-information")
+        assert previous_api["instanceId"] != current_api["instanceId"], "retry replay still points to the original API process"
+        replay, headers = self.api.request("POST", retry_path, retry_body, (202,), retry_headers)
+        assert replay == retried and header(headers, "Idempotency-Replayed") == "true" and header(headers, "Location") == location, "API restart lost the original retry acceptance"
+        assert self.api.request("GET", location)[0] == recovered, "replayed Location lost the completed Job"
+        children, _ = self.api.request("GET", "/api/v1/jobs?parentJobId=" + failed["id"] + "&limit=2")
+        assert [child["id"] for child in children["items"]] == [retried["id"]] and not children.get("nextCursor"), "retry created a second replacement Job"
         retained, _ = self.api.request("GET", "/api/v1/jobs/" + failed["id"])
         assert retained == failed, "successful retry rewrote its terminal parent"
-        audit_once(self.api, "job.retried", "job", failed["id"])
-        self.source_comparison(source["id"], first_snapshot_id)
+        event = audit_once(self.api, "job.retried", "job", failed["id"])
+        assert event["details"]["facts"]["replacementJobId"] == retried["id"], "retry audit names another replacement Job"
+        self.source_comparison(source["id"], first_snapshot_id, recovered["result"]["snapshotId"])
 
     def orphan(self):
         body = {"slug": "repair-" + self.suffix, "displayName": "Owned orphan retry"}

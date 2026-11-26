@@ -111,3 +111,133 @@ for (const mount of ["root", "subpath"]) {
     ).toBeVisible();
   });
 }
+
+test("subpath: a stale acknowledgement preserves the follow until its owner confirms the new release revision", async ({
+  page,
+  catalog,
+  network,
+}) => {
+  const target = catalog.receipt.items.find((item) => item.releaseId);
+  if (!target?.releaseId)
+    throw new Error("A published local release is required");
+  const items = "/api/v1/personal/items";
+  const follow = {
+    type: "follow",
+    listingId: target.listingId,
+    label: "Watch release changes",
+  };
+  const reader = "local-reader";
+  const created = await catalog.admin<components["schemas"]["PersonalReceipt"]>(
+    "POST",
+    items,
+    follow,
+    undefined,
+    reader,
+  );
+  const itemPath = items + "/" + created.data.id;
+  const readItem = () =>
+    catalog.admin<components["schemas"]["PersonalItem"]>(
+      "GET",
+      itemPath,
+      undefined,
+      undefined,
+      reader,
+    );
+  const original = await readItem();
+  expect(original.data.revision).toBe(1);
+  expect(original.etag).toBeTruthy();
+  const releasePath = "/api/v1/listing-releases/" + target.releaseId;
+  const release = await catalog.admin<{ revision: number }>("GET", releasePath);
+  const observation = (revision: number) => ({
+    releaseId: target.releaseId,
+    revision,
+  });
+  const dialog = page.getByRole("dialog");
+  const prepare = async (revision: number) => {
+    await page.getByRole("button", { name: "Check current release" }).click();
+    await expect(
+      page.getByText("Not yet acknowledged", { exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Acknowledge current release" })
+      .click();
+    await expect(
+      dialog.getByText("Displayed release", { exact: true }).locator("+ dd"),
+    ).toHaveText(target.releaseId!);
+    await expect(
+      dialog.getByText("Release revision", { exact: true }).locator("+ dd"),
+    ).toHaveText(String(revision));
+  };
+  const patch = () =>
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "PATCH" &&
+        new URL(response.url()).pathname ===
+          catalog.basePath + "/_catalog" + itemPath,
+    );
+  await login(page, catalog, reader, "/saved-items/" + created.data.id);
+  await prepare(release.data.revision);
+
+  await catalog.admin(
+    "POST",
+    releasePath + ":deprecate",
+    { reason: "Deprecate after the reader prepares acknowledgement" },
+    release.etag,
+  );
+  network.expectFailure("PATCH", "/_catalog" + itemPath, 412);
+  const [refused] = await Promise.all([
+    patch(),
+    dialog.getByRole("button", { name: "Confirm", exact: true }).click(),
+  ]);
+  expect(refused.status()).toBe(412);
+  expect(refused.request().postDataJSON()).toEqual({
+    ...follow,
+    observed: observation(release.data.revision),
+  });
+  const refusedHeaders = refused.request().headers();
+  expect(refusedHeaders["if-match"]).toBe(original.etag);
+  expect(refusedHeaders["idempotency-key"]).toBeTruthy();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "The record changed. Your input is retained.",
+  );
+  await expect(
+    dialog.getByRole("button", { name: /confirm|retry/i }),
+  ).toHaveCount(0);
+  const afterRefusal = await readItem();
+  expect(afterRefusal.data).toEqual(original.data);
+  expect(afterRefusal.etag).toBe(original.etag);
+  const current = observation(release.data.revision + 1);
+  const resolved = await catalog.admin(
+    "POST",
+    itemPath + "/resolve",
+    {},
+    undefined,
+    reader,
+  );
+  expect(resolved.data).toMatchObject({
+    status: "available",
+    change: "unacknowledged",
+    current,
+  });
+
+  await dialog.getByRole("button", { name: "Back to form" }).click();
+  await page.reload();
+  await prepare(current.revision);
+  const success = await confirmPersonalCommand(page, patch(), 200);
+  expect(success.request().postDataJSON()).toEqual({
+    ...follow,
+    observed: current,
+  });
+  const freshHeaders = success.request().headers();
+  expect(freshHeaders["if-match"]).toBe(original.etag);
+  expect(freshHeaders["idempotency-key"]).toBeTruthy();
+  expect(freshHeaders["idempotency-key"]).not.toBe(
+    refusedHeaders["idempotency-key"],
+  );
+  expect((await readItem()).data.revision).toBe(original.data.revision + 1);
+  await page.reload();
+  await page.getByRole("button", { name: "Check current release" }).click();
+  await expect(
+    page.getByText("No change since acknowledgement", { exact: true }),
+  ).toBeVisible();
+});

@@ -322,6 +322,13 @@ async def ard_client(stack, http, origin, protocol):
     return client
 
 
+async def require_search_refusal(client, args, code):
+    result = (await client.call_tool("search", args)).model_dump(by_alias=True, exclude_none=True)
+    require(result.get("isError") is True and "structuredContent" not in result
+            and len(result["content"]) == 1 and result["content"][0].get("type") == "text"
+            and result["content"][0]["text"].startswith(code + ":"), "expected ARD Search refusal " + code)
+
+
 async def ard_checks():
     global PHASE
     rows = []
@@ -354,14 +361,18 @@ async def ard_checks():
             for token, status in (("", 401), (Path("/catalog/other-tenant-reader-token").read_text(), 403)):
                 denied = await denial_http.post("https://localhost:9555/ard/v1/mcp", headers={"Authorization": "Bearer " + token} if token else {}, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
                 require(denied.status_code == status, "ARD host authority: expected " + str(status) + ", got " + str(denied.status_code))
-            # Anonymous access stays anonymous even with an invalid bearer.
-            anonymous_http = await stack.enter_async_context(httpx2.AsyncClient(base_url=anonymous_origin, verify=ssl.create_default_context(cafile=CA), trust_env=False, timeout=20, headers={"Authorization": "Bearer invalid"}))
+            anonymous_http = await stack.enter_async_context(httpx2.AsyncClient(base_url=anonymous_origin, verify=ssl.create_default_context(cafile=CA), trust_env=False, timeout=20))
             anonymous = await ard_client(stack, anonymous_http, anonymous_origin, protocol)
             _, public_cursor = await publication_pages(anonymous, anonymous_http, query, public)
-            anonymous_clients.append((anonymous, public_cursor))
-            # The reader can find this release only on the authenticated host,
-            # even when using the very same bearer and query on the public host.
+            anonymous_clients.append((anonymous, anonymous_http, public_cursor))
+            # Neither a reader's valid token nor an unrecognized bearer changes
+            # which releases the anonymous host publishes.
             public_reader = await ard_client(stack, http, anonymous_origin, protocol)
+            denial_http.headers["Authorization"] = "Bearer unissued-mcp-fixture-token"
+            public_unrecognized = await ard_client(stack, denial_http, anonymous_origin, protocol)
+            page, meta = ard_envelope(await public_unrecognized.call_tool("search", dict(query, pageSize=100)))
+            require(meta["partial"] is False and not page.get("pageToken") and len(page["results"]) == len(public)
+                    and {(r["identifier"], r["version"]) for r in page["results"]} == public, "unrecognized bearer changed the public inventory")
             tenant_query = dict(query={"text": EXPECTED["tenantListing"]}, federation="none", pageSize=2)
             for reader, matches in ((client, expected - public), (public_reader, set())):
                 page, meta = ard_envelope(await reader.call_tool("search", tenant_query))
@@ -394,18 +405,30 @@ async def ard_checks():
         require(await peers() == before_referrals, "referral listing contacted a peer")
         await api("/api/v1/publication:unpublish", dict(host="localhost", reason="Qualify current ARD MCP publication authority"))
         for client, row in zip(clients, rows, strict=True):
-            refused = (await client.call_tool("search", dict(query=dict(text="demo"), federation="none"))).model_dump(by_alias=True, exclude_none=True)
-            require(refused.get("isError") is True and "structuredContent" not in refused and refused["content"][0]["text"].startswith("publication_unavailable:"), "unpublished ARD fell back to Control")
+            await require_search_refusal(client, query, "publication_unavailable")
             row["cases"]["unpublication"] = True
         selected = next(r for r in EXPECTED["releases"] if (r["identifier"], r["version"]) in public)
         release_path = "/api/v1/listing-releases/" + selected["releaseId"]
         _, etag = await api(release_path)
         await api(release_path + ":revoke", dict(reason="Qualify ARD MCP safety withdrawal"), etag=etag)
-        for (client, cursor), row in zip(anonymous_clients, rows, strict=True):
+        for (client, _, cursor), row in zip(anonymous_clients, rows, strict=True):
             for args in (query, dict(query, pageToken=cursor)):
-                refused = (await client.call_tool("search", args)).model_dump(by_alias=True, exclude_none=True)
-                require(refused.get("isError") is True and "structuredContent" not in refused and refused["content"][0]["text"].startswith("publication_unavailable:"), "withdrawn ARD publication remained readable")
+                await require_search_refusal(client, args, "publication_unavailable")
             row["cases"]["safety-withdrawal"] = True
+
+        host = "127.0.0.1"
+        candidate, etag = await api("/api/v1/publication/snapshots", dict(host=host), status=201)
+        active, _ = await api("/api/v1/publication/snapshots/" + candidate["id"] + ":activate",
+                              dict(host=host, reason="Republish the remaining public releases"), etag=etag)
+        require(active["id"] == candidate["id"] and active["state"] == "active", "replacement publication did not activate")
+        remaining = public - {(selected["identifier"], selected["version"])}
+        before = await peers()
+        for (client, http, cursor), authenticated, row in zip(anonymous_clients, clients, rows, strict=True):
+            await require_search_refusal(client, dict(query, pageToken=cursor), "invalid_arguments")
+            await publication_pages(client, http, query, remaining)
+            await require_search_refusal(authenticated, query, "publication_unavailable")
+            row["cases"]["republish-after-withdrawal"] = True
+        require(await peers() == before, "local republication search contacted a peer")
     return rows
 
 

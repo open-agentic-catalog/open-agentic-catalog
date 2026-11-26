@@ -6,6 +6,7 @@ must already exist. Cleanup removes only this random project's resources.
 
 import argparse
 from collections import Counter
+import hashlib
 import importlib.util
 import json
 import os
@@ -24,6 +25,9 @@ import uuid
 import local
 
 ROOT = Path(__file__).resolve().parents[2]
+RELEVANCE_SPEC = importlib.util.spec_from_file_location("semantic_evaluation", ROOT / "test/search-relevance/evaluation.py")
+evaluation = importlib.util.module_from_spec(RELEVANCE_SPEC)
+RELEVANCE_SPEC.loader.exec_module(evaluation)
 PERF_SPEC = importlib.util.spec_from_file_location("semantic_performance", ROOT / "test/performance/runner.py")
 performance = importlib.util.module_from_spec(PERF_SPEC)
 PERF_SPEC.loader.exec_module(performance)
@@ -126,6 +130,50 @@ def require_facets(facets, field, expected):
     counts = {bucket["value"]: bucket["count"] for bucket in buckets}
     if set(facets) != {field} or len(counts) != len(buckets) or counts != expected or facets[field].get("otherCount", 0) != 0:
         raise RuntimeError("semantic facet counts disagree with fixture")
+
+
+def check_snapshot_reindex(binary, remote_env, origin, compose, environment, snapshot, published, control_job_id):
+    """Follow one CLI receipt through the worker to its exact persisted public inputs."""
+    entries = snapshot["ard"]["entries"]
+    release_ids = {item["releaseId"] for item in published} | {"registry:self"}
+    if len(entries) != len(release_ids) or {e["metadata"]["catalogReleaseId"] for e in entries} != release_ids:
+        raise RuntimeError("selected snapshot does not contain the expected public releases and registry entry")
+    members = {}
+    for ordinal, entry in enumerate(entries, 1):
+        text = evaluation.projection({"name": entry.get("displayName") or entry["identifier"], "description": entry.get("description", ""),
+                                      "tags": entry.get("tags", []), "representativeQueries": entry.get("representativeQueries", [])})
+        members[f"entry:{ordinal:010d}"] = "sha256:" + hashlib.sha256(text.encode()).hexdigest()
+
+    args = [binary, "remote", "reindex", "--snapshot-id", snapshot["id"], "--reason", "Qualify public snapshot",
+            "--idempotency-key", "semantic-public-reindex"]
+    accepted = json.loads(command(args, remote_env))
+    job = accepted["data"]
+    job_id = str(uuid.UUID(job["id"]))
+    tenant_id = str(uuid.UUID(snapshot["tenantId"]))
+    if not accepted["meta"]["requestId"] or job["kind"] != "semantic.reindex" or job["tenantId"] != tenant_id:
+        raise RuntimeError("CLI returned an invalid public reindex receipt")
+    completed = wait_until(lambda: request(origin, "/api/v1/jobs/" + job_id)[0],
+                           lambda value: value["state"] in {"succeeded", "failed", "cancelled", "dead_letter"})
+    if completed["state"] != "succeeded":
+        raise RuntimeError(f"public reindex Job {job_id} ended in {completed['state']}")
+    if completed.get("result") != {"type": "semantic_index", "generationId": job_id, "members": len(entries)}:
+        raise RuntimeError("public reindex Job result does not match the selected snapshot")
+    if json.loads(command(args, remote_env))["data"] != job:
+        raise RuntimeError("CLI replay after completion changed the accepted public reindex Job")
+
+    sql = f"""SELECT json_build_object('scope', g.scope, 'source', g.source_generation, 'state', g.state,
+                  'members', (SELECT json_object_agg(m.item_key, m.input_digest) FROM semantic_members m
+                              WHERE m.tenant_id = g.tenant_id AND m.generation_id = g.id))
+              FROM semantic_generations g WHERE g.tenant_id = '{tenant_id}' AND g.id = '{job_id}'"""
+    stored = command(compose + ["exec", "-T", "postgres", "psql", "-XAt", "-v", "ON_ERROR_STOP=1",
+                                "-U", "catalog", "-d", "catalog", "-c", sql], environment).strip()
+    if not stored or json.loads(stored) != {"scope": "public:" + snapshot["id"], "source": str(snapshot["generation"]),
+                                            "state": "ready", "members": members}:
+        raise RuntimeError("PostgreSQL public reindex generation or member digests differ from the sealed snapshot")
+    indexing = request(origin, "/api/v1/capabilities")[0]["search"]["indexing"]
+    if indexing["jobId"] != control_job_id or indexing["state"] != "ready" or indexing["indexed"] != len(published) or indexing["failed"]:
+        raise RuntimeError("public reindex replaced or changed the ready private index")
+    return {"jobId": job_id, "snapshotId": snapshot["id"], "members": len(members), "controlJobId": control_job_id}
 
 
 def scale_traversal(fetch):
@@ -348,15 +396,16 @@ def qualify(coverage=None, restore_prepare=False, restore=False):
                 raise RuntimeError("reindex replay changed")
             wait_until(lambda: request(origin, "/api/v1/jobs/" + job["id"])[0], lambda value: value["state"] == "succeeded")
             report["checks"].append("admin-reindex-replay-authorization")
-            public_job, _ = request(origin, "/api/v1/catalog:reindex", {"reason": "Qualify public snapshot", "snapshotId": demo["snapshotId"]}, key="semantic-public-reindex", expected=202)
-            wait_until(lambda: request(origin, "/api/v1/jobs/" + public_job["id"])[0], lambda value: value["state"] == "succeeded")
-            # Browser rebuilds finish before capturing the public continuation:
-            # a rebuild changes its index generation, independently of outage.
             snapshot_path = "/api/v1/publication/snapshots/" + demo["snapshotId"] + "?host=127.0.0.1"
             snapshot_before, snapshot_headers = request(origin, snapshot_path)
             snapshot_etag = snapshot_headers.get("Etag")
             if not snapshot_etag or snapshot_etag != snapshot_before["etag"]:
                 raise RuntimeError("snapshot ETag missing or inconsistent")
+            remote_env = {**environment, "CATALOG_REMOTE_BASE_URL": origin, "CATALOG_REMOTE_TOKEN": "local-admin"}
+            report["publicReindex"] = check_snapshot_reindex(binary, remote_env, origin, compose, environment, snapshot_before, published, job["id"])
+            report["checks"].append("cli-public-reindex-replay-and-stored-members")
+            # Browser rebuilds finish before capturing the public continuation:
+            # a rebuild changes its index generation, independently of outage.
             browser_hybrid = json.loads(command(["node", "test/embeddings/browser.mjs", directory, origin, "hybrid", demo["snapshotId"]], environment))
             for browser_job in browser_hybrid["jobs"]:
                 completed = wait_until(lambda job_id=browser_job["id"]: request(origin, "/api/v1/jobs/" + job_id)[0], lambda value: value["state"] == "succeeded")
@@ -388,7 +437,6 @@ def qualify(coverage=None, restore_prepare=False, restore=False):
                 raise RuntimeError("public facet retrieval mismatch")
             require_facets(public_facets["facets"], "type", Counter(entry["type"] for entry in snapshot_before["ard"]["entries"] if entry["identifier"] in expected))
             report["checks"].append("public-search-facets-continuation")
-            remote_env = {**environment, "CATALOG_REMOTE_BASE_URL": origin, "CATALOG_REMOTE_TOKEN": "local-admin"}
             remote = json.loads(command([binary, "remote", "search", "--text", query["text"]], remote_env))
             if control_page(remote["data"], 3, 3) != expected or remote["data"].get("nextCursor"):
                 raise RuntimeError("remote CLI dropped retrieval metadata")

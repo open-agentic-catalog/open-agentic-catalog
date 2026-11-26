@@ -355,6 +355,55 @@ func TestTypeScriptARDExample(t *testing.T) {
 			t.Fatalf("incorrect partial summary: %#v", summary)
 		}
 	}
+	t.Run("replace credential between private pages", func(t *testing.T) {
+		replacement := filepath.Join(directory, "replacement-token")
+		must(t, os.WriteFile(replacement, []byte("ard-no-scope"), 0600))
+		var next string
+		mu.Lock()
+		handlers["rotation"] = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token := r.URL.Query().Get("pageToken")
+			auth := r.Header.Get("Authorization")
+			if requests == 1 {
+				if token != "" || auth != "Bearer ard-discovery-secret" {
+					t.Error("expected initial credential and no continuation")
+				}
+				first := httptest.NewRecorder()
+				handlers["private"].ServeHTTP(first, r)
+				var page struct {
+					PageToken string `json:"pageToken"`
+				}
+				if first.Code != http.StatusOK || json.Unmarshal(first.Body.Bytes(), &page) != nil || page.PageToken == "" {
+					t.Error("private first page did not provide a continuation")
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				next = page.PageToken
+				if err := os.Rename(replacement, filepath.Join(directory, "token")); err != nil {
+					t.Errorf("replace fixture credential: %v", err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				for key, values := range first.Header() {
+					w.Header()[key] = values
+				}
+				w.WriteHeader(first.Code)
+				_, _ = w.Write(first.Body.Bytes())
+				return
+			}
+			if requests != 2 || token != next || auth != "Bearer ard-no-scope" {
+				t.Error("expected only the issued continuation with the replacement credential")
+			}
+			handlers["private"].ServeHTTP(w, r)
+		})
+		mu.Unlock()
+		lines, exit := run(t, "rotation", "ard-discovery-secret", true)
+		checkFirstPageOutput(t, lines, "http_error")
+		mu.Lock()
+		defer mu.Unlock()
+		if exit != 1 || lines[1]["status"] != float64(http.StatusForbidden) || requests != 2 {
+			t.Fatalf("after credential replacement: exit %d, HTTP %v, requests %d", exit, lines[1]["status"], requests)
+		}
+	})
 	t.Run("budget", func(t *testing.T) {
 		lines, exit := run(t, "anonymous", "", true, "--max-pages", "1")
 		checkFirstPageOutput(t, lines, "page_limit")

@@ -188,6 +188,7 @@ def qualify(go, work, env, archive):
     # Reuse the existing suite with the SDK import and safe error wording.
     # Keep its independent schema, workflow and negative assertions intact.
     # Application dependencies remain in this separate test module.
+    extracted = go_archive.extract(archive, SDK, work)
     consumer = work / "compatibility"
     shutil.copytree(COMPAT / "go", consumer, ignore=shutil.ignore_patterns("generated"))
     shutil.copytree(ROOT / "internal/adapter/testdata/upstream", consumer / "testdata/upstream")
@@ -199,13 +200,12 @@ def qualify(go, work, env, archive):
     for source in consumer.glob("*.go"):
         source.write_text(source.read_text().replace(MODULE + "/test/clientcompat/go/generated", SDK_MODULE).replace("Catalog request failed", "Catalog SDK: request_or_decode_failed"))
     shutil.copyfile(HERE / "consumer_functional_test.go.txt", consumer / "sdk_functional_test.go")
-    run([go, "mod", "edit", "-require=" + SDK_MODULE + "@v0.0.0", "-replace=" + SDK_MODULE + "=" + str(SDK)], consumer, env)
+    run([go, "mod", "edit", "-require=" + SDK_MODULE + "@v0.0.0", "-replace=" + SDK_MODULE + "=" + str(extracted)], consumer, env)
     required_go_tests(go, ["-race", "-shuffle=on", "-count=1", "-timeout=90s", "./..."], consumer, env)
     required_go_tests(go, ["-tags=functional", "-race", "-shuffle=on", "-count=1", "-timeout=90s", "./..."], consumer, env)
     run([go, "vet", "-tags=functional", "./..."], consumer, env)
     with tempfile.TemporaryDirectory(prefix="catalog-sdk-go-consumer-") as directory:
         external = Path(directory)
-        extracted = go_archive.extract(archive, SDK, external)
         (external / "go.mod").write_text("module sdk-consumer.example/test\n\ngo 1.27.3\n")
         shutil.copyfile(SDK / "go.sum", external / "go.sum")
         shutil.copyfile(HERE / "external_test.go.txt", external / "consumer_test.go")
