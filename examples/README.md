@@ -11,6 +11,7 @@ Use the manual's [integration example chooser](../documentation/src/content/docs
 | [rust-catalog-report/](rust-catalog-report/README.md) | Standalone Rust SDK CLI that searches authorized local releases, verifies exact records and prints a bounded Markdown inventory. |
 | [publication-report/](publication-report/README.md) | Standalone Go SDK HTTPS receiver with a durable PostgreSQL inbox, current publication-state report and periodic reconciliation. |
 | [typescript-ard-list/](typescript-ard-list/README.md) | Standalone Node client using the TypeScript SDK for published-only ARD List, bounded metadata output and explicit complete or incomplete traversal. |
+| [git-draft-delivery/](git-draft-delivery/README.md) | Deliver one committed draft from a terminal or a protected push. Resume an interrupted import using private receipts. |
 | [native-import/](native-import/README.md) | Copyable Agent Card, standalone Skill document and manifest for offline preview and explicit draft creation through the existing CLI. |
 | [tutorials/local-oidc/](tutorials/local-oidc/README.md) | Local password, OIDC and two-Catalog tutorial inputs; explicit preparation creates separate private state outside the checkout. |
 | [webhookreceiver/](webhookreceiver/README.md) | Go signature-verification helper and HTTP handler outline. The README explains the durable acceptance, CloudEvents validation and deduplication the receiving application must implement. |

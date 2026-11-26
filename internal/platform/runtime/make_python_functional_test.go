@@ -46,7 +46,12 @@ func TestMakePythonLint(t *testing.T) {
 			if (err == nil) != (status == 0) {
 				t.Fatalf("tool exit %d: err=%v output=%s", status, err, output)
 			}
-			if got := string(readFormattingFixture(t, directory, "arguments")); got != "check\n--config\nruff.toml\n--no-cache\n--no-fix\ntest\nextensions/vscode/tooling\nexamples/langgraph\nexamples/tutorials/local-oidc\nexamples/mcp-scanner\n" {
+			wantArgs := []string{
+				"check", "--config", "ruff.toml", "--no-cache", "--no-fix",
+				"test", "extensions/vscode/tooling", "examples/langgraph",
+				"examples/tutorials/local-oidc", "examples/mcp-scanner", "examples/git-draft-delivery",
+			}
+			if got := string(readFormattingFixture(t, directory, "arguments")); got != strings.Join(wantArgs, "\n")+"\n" {
 				t.Fatalf("unexpected Ruff arguments: %q", got)
 			}
 			if got := string(readFormattingFixture(t, directory, "test/example.py")); got != source {

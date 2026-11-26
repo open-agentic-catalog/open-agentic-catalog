@@ -59,6 +59,7 @@ export default defineConfig({
         { label: 'VS Code client', slug: 'guides/vscode', attrs: { 'data-nav-icon': 'link' } },
         { label: 'LangGraph discovery assistant', slug: 'guides/langgraph-agent', attrs: { 'data-nav-icon': 'link' } },
         { label: 'Rust Catalog report', slug: 'guides/rust-catalog-report', attrs: { 'data-nav-icon': 'link' } },
+        { label: 'Git draft delivery', slug: 'guides/git-draft-delivery', attrs: { 'data-nav-icon': 'link' } },
         { label: 'Go webhook publication report', slug: 'guides/go-publication-report', attrs: { 'data-nav-icon': 'link' } },
         { label: 'TypeScript published discovery', slug: 'guides/typescript-ard-list', attrs: { 'data-nav-icon': 'link' } },
         { label: 'Catalog MCP server', slug: 'guides/mcp-server', attrs: { 'data-nav-icon': 'link' } },

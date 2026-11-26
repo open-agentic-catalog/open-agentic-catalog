@@ -19,7 +19,7 @@ class StagedSelectionTests(unittest.TestCase):
         expected = {
             "test/a.py": "ruff", "extensions/vscode/tooling/a.py": "ruff",
             "examples/langgraph/app.py": "ruff", "examples/tutorials/local-oidc/service-read.py": "ruff",
-            "examples/mcp-scanner/worker.py": "ruff",
+            "examples/mcp-scanner/worker.py": "ruff", "examples/git-draft-delivery/deliver.py": "ruff",
             "test/hooks/pre-commit": "shellcheck", "test/functional/restore.sh": "shellcheck",
             "test/functional/pitr_archive.sh": "shellcheck", "deployments/container/licenses.sh": "shellcheck",
             "README.md": "markdownlint", "todo/with [brackets]\nand spaces.md": "markdownlint",

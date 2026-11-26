@@ -14,6 +14,8 @@ The manual's sidebar starts with Get started (including the existing-Catalog rea
 
 **Build integrations > SDKs** contains the [overview](../sdk/README.md), [Go](../sdk/go/README.md), [Python](../sdk/python/README.md), [JavaScript/TypeScript](../sdk/typescript/README.md) and [Rust](../sdk/rust/README.md) guides. The content map publishes these source READMEs at `sdk/overview/`, `sdk/go/`, `sdk/python/`, `sdk/typescript/` and `sdk/rust/`. The [client integration guide](src/content/docs/guides/integrating.mdx) retains shared workflows and complete examples.
 
+**Build integrations > Git draft delivery** publishes the [example guide](../examples/git-draft-delivery/README.md). It covers trusted workflow setup and private receipt recovery. The [draft transfer tutorial](src/content/docs/guides/draft-transfer.mdx#deliver-a-draft-from-git) runs the same commands locally.
+
 **Build integrations > LangGraph discovery assistant** publishes the [Python example](../examples/langgraph/README.md). It uses the Python SDK and a local tool-calling model to find governed releases. The guide explains setup, permissions, bounds and separate scripted and real-model checks.
 
 **Build integrations > Rust Catalog report** publishes the [standalone Rust example](../examples/rust-catalog-report/README.md). It searches authorized local releases, verifies exact records and prints a bounded Markdown inventory. The guide covers credentials, private trust, filters, complete/partial output and a curated-sample query.

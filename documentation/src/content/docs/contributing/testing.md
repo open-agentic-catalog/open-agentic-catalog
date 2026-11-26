@@ -136,6 +136,8 @@ Unit and functional describe the execution boundary. Generated properties, mutat
 
 ## Live tenant settings
 
+For [Git draft delivery](../../../../../examples/git-draft-delivery/README.md), run `make git-draft-delivery-check` for Git input selection, real CLI preview and workflow lint. Run `make test-process-postgres` to exercise draft creation, lost-response recovery, current access and independent review with two API processes. Both gates run locally.
+
 Use `make test-process-postgres` to qualify settings across two actual APIs and two worker consumers. The fixture checks committed policy, current-authority replay, concurrent saves, dependency failure/recovery and planned process replacement. Settings edits must not restart a process or rewrite an admitted Job budget.
 
 `make test-integration` owns exact-role RLS, audit rollback, shared/exclusive locking and selection fairness. Its bounded plan check excludes 35 paused sources before a 32-source limit. Timing diagnostics have no host-sensitive threshold.
@@ -206,7 +208,7 @@ Install ShellCheck, markdownlint, Hadolint and the Docker Compose plugin. The [s
 | Go static analysis | `lint` | Go vet, pinned Staticcheck and golangci-lint; compiles supported test variants and includes architecture, module, license, shell and dead-code prerequisites. Compilation alone does not execute tagged database or deployment tests. |
 | Go dependencies | `module-check`, `license-check` | Module integrity and tidy drift; dependency licenses against the maintained allowlist and exact test-only Rapid exception. Both are included in `lint`. |
 | Package boundaries | `architecture-check` | Checks domain ownership, provider imports and outbound HTTP construction in application Go source, including generated bindings and the top-level `samples` package. Skips Go `testdata` directories and embedded sample assets. Included in `lint`. |
-| Shell and Python | `shell-check`, `python-lint` | ShellCheck for maintained shell workflows; pinned Ruff for Python under `test/`, `extensions/vscode/tooling/`, the LangGraph and MCP Scanner examples, and local OIDC tutorial helpers. Both run through `check`; Python lint is separate from `verify`. Packaging tests compare tracked and new non-ignored shell, Python and container recipes with the Make selections and optional hook lists. Missing ownership or list drift fails verification. Copied upstream sources and generated compatibility clients are excluded from first-party style checks; Python SDK lint has its separate SDK gate. |
+| Shell and Python | `shell-check`, `python-lint` | ShellCheck covers maintained shell workflows. Pinned Ruff checks the [maintained Python sources](#python-linting), including the Git draft delivery helper. Both run through `check`; Python lint is separate from `verify`. Packaging tests compare tracked and new non-ignored shell, Python and container recipes with the Make selections and optional hook lists. Missing ownership or list drift fails verification. Copied upstream sources and generated compatibility clients are excluded from first-party style checks; Python SDK lint has its separate SDK gate. |
 | Markdown and documentation contracts | `docs-check` | Markdown/MDX lint plus repository documentation and workflow-default contracts. Included in `check`; site builds use `docs-site-check` separately. |
 | JSON, YAML, containers and Compose | `json-check`, `yaml-check`, `container-check`, `compose-check` | Strict JSON/JSON-LD syntax checks, YAML lint, Hadolint on first-party container recipes, and Compose model parsing. Packaging tests compare container lint selection with tracked and new non-ignored recipes; the compatibility Dockerfile is checked as an exact copy of the canonical Containerfile. Included in `check`; model parsing does not start containers. Helm templates use the Helm gates. |
 | OpenAPI and API-tooling JavaScript | `api-check` | Specification/example checks, YAML checks, installed Redocly rules and ESLint for the validation tooling. Included in `check`; see [API validation](#api-validation). |
@@ -398,7 +400,7 @@ The security target separately scans every root uv.lock package plus the pinned 
 
 ## Python linting
 
-`make python-lint` runs read-only [Ruff](https://docs.astral.sh/ruff/) 0.17.4 checks on maintained Python under `test/`, `extensions/vscode/tooling/`, `examples/langgraph/`, `examples/tutorials/local-oidc/` and `examples/mcp-scanner/`. It is included in `make check`, not `make verify`, Go builds or the default test suite. Install the shared pinned dev group with `make dev-tools-install`. The [build guide](build-and-release.md#shared-development-tools) documents uv 0.13.7 bootstrap, supported installed Python and exact environment/lock boundaries. Make prefers the owned `.tools/dev` executables automatically:
+`make python-lint` runs read-only [Ruff](https://docs.astral.sh/ruff/) 0.17.4 checks on maintained Python under `test/`, `extensions/vscode/tooling/`, `examples/git-draft-delivery/`, `examples/langgraph/`, `examples/mcp-scanner/` and `examples/tutorials/local-oidc/`. It is included in `make check`, not `make verify`, Go builds or the default test suite. Install the shared pinned dev group with `make dev-tools-install`. The [build guide](build-and-release.md#shared-development-tools) documents uv 0.13.7 bootstrap, supported installed Python and exact environment/lock boundaries. Make prefers the owned `.tools/dev` executables automatically:
 
 ```sh
 make dev-tools-install
@@ -420,7 +422,7 @@ After a pin or rule change, inspect the file inventory with the installed Ruff e
 
 ```sh
 .tools/dev/bin/ruff check --config ruff.toml --no-cache --show-files \
-  test extensions/vscode/tooling examples/langgraph examples/tutorials/local-oidc examples/mcp-scanner
+  test extensions/vscode/tooling examples/langgraph examples/tutorials/local-oidc examples/mcp-scanner examples/git-draft-delivery
 ```
 
 Substitute your explicit `RUFF` override if you use another executable. Compare this list with the maintained Python inventory. Test temporary valid code and invalid cases with the selected executable. Include syntax errors, undefined names, unused imports and the selected correctness rules. Verify exclusions, nested configuration isolation, version mismatch rejection and unchanged source.

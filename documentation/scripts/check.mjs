@@ -95,6 +95,8 @@ function inspect(base) {
   // Assert links in page content, not only the sidebar. Unregistered README
   // references otherwise degrade to plain text while the build still succeeds.
   for (const [route, targets, phrases] of [
+    ['guides/draft-transfer', ['guides/git-draft-delivery/'], []],
+    ['guides/git-draft-delivery', ['guides/draft-transfer/#deliver-a-draft-from-git'], []],
     ['operations/security', ['operations/database-roles/#identity-realm-administration'], ['These discovery checks do not apply when another active realm remains.', 'Publication activation and rollback require at least one active realm']],
     ['operations/docker', [], ['Remove or replace the development CATALOG_PUBLIC_BASE_URL in $CATALOG_INPUTS/runtime.env.', 'catalog_owner config validate --config /config/config.json --role migration']],
     ...['architecture/catalog-ui', 'reference/api-conventions'].map(route => [route, ['architecture/persistence/#000046---publisher-search-ordering'], ['PostgreSQL Publisher inserts, updates and deletes invalidate tenant Search generations']]),
