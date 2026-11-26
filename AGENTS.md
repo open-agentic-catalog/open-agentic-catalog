@@ -260,17 +260,19 @@ Domain packages must not import HTTP handlers, SQL implementation details, stora
 
 ## Repository distribution boundary
 
-Development and agent verification run locally. The project repository is `https://github.com/open-agentic-catalog/open-agentic-catalog`. The maintainer alone handles external publication and data uploads. Agents must never publish or upload project data to external services, including private services.
-
-- Do not create hosted repositories or configure Git remotes for this project. Do not push branches or tags.
-- Do not publish source, packages, images, charts, documentation or releases to external services.
-- Do not dispatch hosted CI jobs or submit signatures or attestations to registries or transparency logs.
-- Do not upload source, logs, artifacts, dependency inventories, SBOMs, scan reports or project telemetry to external services.
-- Inspect commands for automatic uploads or telemetry before running them. Disable external submissions, or leave the command unrun if it has no local-only mode. Report the resulting verification limit. The maintainer performs any required external submission.
-- External research, source inspection, searches and dependency, tool, model and image downloads are allowed. These permissions do not authorize uploads of project data.
-- Local builds, packages, tests, commits when requested, and disposable local Catalog publication tests remain allowed. Prepare artifacts and instructions locally for the maintainer.
+The project repository is `https://github.com/open-agentic-catalog/open-agentic-catalog`. Build and verify artifacts locally. Do not create hosted repositories or configure Git remotes for this project. Disposable local Catalog publication tests are allowed.
 
 Document tested prerequisites and compatibility, not LTS, maintenance duration or SLA promises. Standard-profile review is part of ordinary updates, not a formal ownership/cadence gate. Project source uses [Apache License 2.0](LICENSE). Preserve third-party attribution and licenses.
+
+### External network use during development and testing
+
+Public downloads and web research are allowed. Agents may fetch dependencies, tools, models, images, charts, public datasets and documentation, and search the web using public terms. This includes read-only requests to registries and release APIs to locate or download those materials. Keep private project content out of web searches.
+
+Run integration tests against local fixtures or locally deployed peers. Do not use a third party's hosted API as a test target without explicit approval, even for a read-only request or a synthetic query.
+
+Do not upload files, logs, reports, telemetry, Catalog data or credentials to external services without explicit approval. This includes private services, dependency inventories, SBOMs and submissions to transparency logs. Inspect commands for automatic submissions and disable them for local checks. If a check requires an external submission, report that limit.
+
+Use `gh` for GitHub operations. Read-only inspection is allowed. Pushing branches or tags, editing issues, posting comments, dispatching workflows and publishing artifacts require the user's authorization for that action.
 
 ## Documentation and tracking
 
@@ -278,7 +280,7 @@ Document tested prerequisites and compatibility, not LTS, maintenance duration o
 
 - Reader guides, references and runbooks are maintained in `documentation/src/content/docs/`. Register pages in `documentation/content-map.json`; keep generated Starlight projections, build output, npm dependencies and raw evidence out of commits and site inclusion. Architecture and ADRs are authored in `documentation/src/content/docs/architecture/`; `CONTEXT.md` summarizes current implementation. Use reviewed local notes only when provided. Keep raw logs and generated reports under ignored `output/`. There is no separate `docs/` tree.
 
-  For site/content changes run `make docs-site-check` in addition to the existing source gates; test built-site search, navigation and responsive behavior after theme, plugin or tooling changes. Keep site publication and hosted CI/CD operations maintainer-only under the distribution boundary above.
+  For site/content changes run `make docs-site-check` in addition to the existing source gates; test built-site search, navigation and responsive behavior after theme, plugin or tooling changes. Follow the [external network rules](#external-network-use-during-development-and-testing) for site publication and hosted CI/CD.
 
 - Follow the writing style in `documentation/src/content/docs/contributing/documentation.mdx` for all project prose, including HTML, API descriptions, command help and comments. Write current facts and direct instructions, not conversation history, approval narratives or work-session journals. Keep session-specific permissions and test history in task responses or records, not workflow comments or usage guides. Keep planning in the tracker. Update the optional local handoff only when it is present. Retain dates only when chronology matters; preserve technical roles, security requirements and unresolved failures.
 - Let ordinary application UI prose use the available layout width and wrap naturally. Do not add arbitrary character/column caps or manual line breaks. Source-formatting line width is not a presentation rule. Preserve meaningful supplied paragraphs, data/code formatting and usable container bounds. Documentation-site reading measures are a separate concern.
@@ -431,4 +433,4 @@ Before editing, inspect the current branch, `git status --short`, and relevant d
 
 Use `rg` and `rg --files` for repository searches. Prefer patch-based, reviewable edits over whole-file rewrites. Never use destructive Git commands, broad cleanup, migration mutation, `make compose-reset`, volume deletion, or removal of local object data without confirming the exact disposable target and authorization.
 
-Do not stage or commit unless explicitly authorized. Use signed conventional commits and never mention AI. Use the `gh` CLI exclusively for read-only GitHub operations. Git remotes, pushes and external publication remain maintainer-only under the distribution boundary above.
+Do not stage or commit unless explicitly authorized. Use signed conventional commits and never mention AI. Follow the [repository distribution boundary](#repository-distribution-boundary) for Git remotes, GitHub operations and external publication.
