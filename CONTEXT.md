@@ -372,6 +372,8 @@ Explicit adoption creates local governed work retaining origin evidence; validat
 
 The optional [Agent Finder publication gate](test/interoperability/agentfinder/README.md) checks exact pinned metadata through owned HTTPS and real API/worker/PostgreSQL. All 1,718 entries remain unsupported administrative evidence, excluded from reader Search. The fixture's explicit AI Catalog transport is admitted; generic JSON refusal remains visible. No hosted Agent Finder, Copilot or searchable transfer is implied.
 
+The optional [Desvela and Nevermined replay](test/interoperability/publication-replay/README.md) checks two privately held ARD publications. Indexed Search projects four of five Desvela entries and one of 158 Nevermined entries. All entries remain available through authorized raw evidence reads, including two Nevermined entries with JSON-LD expansion findings.
+
 ## Standards and retained representations
 
 Profiles are immutable vendored inputs bound by `schemas/checksums.txt`, retained commits and licenses. Builds/tests do not track upstream `main`; ignored `specs/` checkouts are research only.

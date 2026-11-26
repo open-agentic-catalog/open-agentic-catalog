@@ -16,6 +16,14 @@ import agentfinder_runner as campaign
 import agentfinder_tools as tools
 
 
+class CatalogPaginationTest(unittest.TestCase):
+    def test_complete_inventory_still_requires_the_server_to_honor_the_page_size(self):
+        client = Mock()
+        client.request.return_value = ({"items": [{"id": str(i)} for i in range(101)]}, {})
+        with self.assertRaisesRegex(AssertionError, "exceeded the requested limit"):
+            campaign.Catalog.pages(client, "/api/v1/observations")
+
+
 class AgentFinderPreflightTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -198,6 +206,35 @@ class AgentFinderEvidenceTests(unittest.TestCase):
             self.assertIn(["docker", "image", "rm", "owned:fixture"], calls)
             self.assertEqual(report["cleanup"], "failed")
             self.assertIn("synthetic auxiliary timeout", report["cleanupError"])
+
+    def test_interrupted_container_create_can_finish_during_teardown(self):
+        project = "owned-project"
+        compose = ["docker", "compose", "-p", project]
+        down = compose + ["down", "--volumes", "--remove-orphans"]
+        client = project + "-client"
+        calls = []
+
+        def execute(arguments, **_options):
+            calls.append(arguments)
+            if arguments == down and calls.count(down) == 1:
+                raise RuntimeError("network still has a container")
+            if arguments[:3] == ["docker", "container", "ls"] and ["docker", "rm", "-f", "late-id"] not in calls:
+                self.assertIn("label=com.docker.compose.project=" + project, arguments)
+                return Result(0, "late-id", "")
+            if arguments == ["docker", "inspect", "--format", "{{.Name}}", "late-id"]:
+                return Result(0, "/" + client, "")
+            return Result(0, "", "")
+
+        with tempfile.TemporaryDirectory() as name:
+            private = Path(name) / "private"
+            private.mkdir()
+            report = {"clientName": client}
+            with patch.object(campaign, "run", side_effect=execute):
+                campaign.cleanup_owned(compose, {}, project, (), private, report)
+            self.assertEqual(calls.count(down), 2)
+            self.assertIn(["docker", "rm", "-f", "late-id"], calls)
+            self.assertEqual(report["cleanup"], "complete")
+            self.assertFalse(private.exists())
 
     def test_cleanup_attempts_remaining_steps_after_teardown_or_image_failure(self):
         compose = ["docker", "compose", "-p", "owned-project"]
