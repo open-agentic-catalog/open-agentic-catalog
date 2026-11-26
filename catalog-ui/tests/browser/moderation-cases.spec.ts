@@ -1,6 +1,9 @@
 import { openDisclosure, revealControl } from "./editor-disclosure";
 // Owned API/browser cases; explicit read faults and lost replies after real committed writes.
 import { test, expect, login, confirmCommand } from "./fixtures";
+import { tabTo, visibleFocus } from "./keyboard";
+import { doubleText } from "./text-layout";
+import type { Locator } from "@playwright/test";
 import { required } from "../required";
 import { text } from "./json";
 import AxeBuilder from "@axe-core/playwright";
@@ -255,6 +258,237 @@ test.describe("exact moderation cases", () => {
     expect(current.data).not.toHaveProperty("principalKey");
     expect(current.data).not.toHaveProperty("submittedBy");
   });
+});
+
+test("a moderator loses access to an open feedback case and reads the current reply after access returns", async ({
+  page,
+  catalog,
+  network,
+}) => {
+  // The reader keeps feedback.own throughout. This case belongs to someone else.
+  const reader = await catalog.admin<{ membershipId: string }>(
+    "GET",
+    "/api/v1/me",
+    undefined,
+    undefined,
+    "local-reader",
+  );
+  const role = await catalog.admin<{ id: string }>(
+    "POST",
+    "/api/v1/access/roles",
+    {
+      name: "Temporary feedback moderator",
+      permissions: ["feedback.moderate"],
+      reason: "Moderate a private feedback case",
+    },
+  );
+  const grant = () =>
+    catalog.admin<{ id: string }>("POST", "/api/v1/access/assignments", {
+      membershipId: reader.data.membershipId,
+      roleDefinitionId: role.data.id,
+      reason: "Assign temporary moderation",
+    });
+  const assignment = await grant();
+  const comment = "The installation guide is missing a prerequisite.";
+  const reply = "The prerequisite is documented in the setup guide.";
+  const updatedReply = "The prerequisite is now included in the example.";
+  const created = await catalog.admin<{ id: string }>(
+    "POST",
+    "/api/v1/feedback",
+    {
+      resourceId: required(catalog.receipt.items[0]).resourceId,
+      category: "documentation",
+      comment,
+    },
+  );
+  const path = `/api/v1/feedback/${created.data.id}`;
+  const proxyPath = `${catalog.basePath}/_catalog${path}`;
+  const waitForCaseRead = () =>
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "GET" &&
+        new URL(response.url()).pathname === proxyPath,
+    );
+  // Keyboard scrolling must expose the focused control below the sticky header.
+  const expectUncovered = async (control: Locator) => {
+    await expect
+      .poll(() =>
+        control.evaluate((node) => {
+          const box = node.getBoundingClientRect();
+          return node.contains(
+            document.elementFromPoint(
+              box.left + box.width / 2,
+              box.top + box.height / 2,
+            ),
+          );
+        }),
+      )
+      .toBe(true);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      "The feedback page fits the viewport without horizontal scrolling",
+    ).toBe(true);
+  };
+  const feedbackWrites: string[] = [];
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (
+      request.method() !== "GET" &&
+      pathname.startsWith(`${catalog.basePath}/_catalog/api/v1/feedback`)
+    )
+      feedbackWrites.push(`${request.method()} ${pathname}`);
+  });
+  await page.setViewportSize({ width: 320, height: 640 });
+  await login(page, catalog, "local-reader", `/feedback/${created.data.id}`);
+  await expect(page.getByText(comment, { exact: true })).toBeVisible();
+  const disclosure = page.getByText("Respond or manage feedback", {
+    exact: true,
+  });
+  await tabTo(page, disclosure);
+  await page.keyboard.press("Enter");
+  const editor = page.getByRole("textbox", {
+    name: "Moderator response (optional)",
+    exact: true,
+  });
+  await page.keyboard.press("Tab");
+  await visibleFocus(editor);
+  await expectUncovered(editor);
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await page.keyboard.type(reply);
+  const address = page.getByRole("button", {
+    name: "Address feedback",
+    exact: true,
+  });
+  await tabTo(page, address);
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await visibleFocus(address);
+  await expect(editor).toHaveValue(reply);
+  expect(feedbackWrites).toEqual([]);
+  await page.keyboard.press("Enter");
+  const confirm = dialog.getByRole("button", { name: "Confirm", exact: true });
+  await tabTo(page, confirm, "Tab", dialog);
+  await expectUncovered(confirm);
+  await page.keyboard.press("Enter");
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByText(reply, { exact: true }).and(page.locator("p")),
+  ).toBeVisible();
+  await page.reload();
+  await tabTo(page, disclosure);
+  await page.keyboard.press("Enter");
+  await expect(editor).toHaveValue(reply);
+  const saved = await catalog.admin<components["schemas"]["Feedback"]>(
+    "GET",
+    path,
+  );
+  expect(saved.data).toMatchObject({
+    id: created.data.id,
+    state: "addressed",
+    comment,
+    response: reply,
+    revision: 2,
+  });
+
+  await catalog.admin(
+    "POST",
+    `/api/v1/access/assignments/${assignment.data.id}:revoke`,
+    {
+      reason: "Withdraw moderation while this case is open",
+    },
+    assignment.etag,
+  );
+  await tabTo(
+    page,
+    page.getByRole("button", { name: "Read current feedback", exact: true }),
+    "Shift+Tab",
+  );
+  network.expectFailure("GET", proxyPath, 404);
+  const [denied] = await Promise.all([
+    waitForCaseRead(),
+    page.keyboard.press("Enter"),
+  ]);
+  expect(denied.status()).toBe(404);
+  expect(await denied.json()).toMatchObject({ code: "NOT_FOUND" });
+  await expect(page.getByRole("alert")).toContainText("NOT_FOUND");
+  const expectPrivateContentCleared = async () => {
+    await expect(page.getByText(comment, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(reply, { exact: true })).toHaveCount(0);
+    await expect(editor).toHaveCount(0);
+  };
+  await expectPrivateContentCleared();
+  await page.reload();
+  await expect(page.getByRole("alert")).toContainText(
+    "Feedback case reads require feedback.moderate",
+  );
+  await expectPrivateContentCleared();
+
+  await catalog.admin(
+    "POST",
+    path + ":address",
+    { response: updatedReply },
+    saved.etag,
+  );
+  await grant();
+  // The first read after the grant is restored fails. The keyboard retry reaches the real API.
+  network.expectFailure("GET", proxyPath, 503);
+  await page.route(
+    catalog.origin + proxyPath,
+    (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/problem+json",
+        json: {
+          status: 503,
+          code: "DEPENDENCY_UNAVAILABLE",
+          title: "Temporarily unavailable",
+        },
+      }),
+    { times: 1 },
+  );
+  await page.reload();
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("DEPENDENCY_UNAVAILABLE");
+  await expectPrivateContentCleared();
+  await doubleText(page);
+  const retry = alert.getByRole("button", { name: "Reload", exact: true });
+  await tabTo(page, retry);
+  await expectUncovered(retry);
+  const [restored] = await Promise.all([
+    waitForCaseRead(),
+    page.keyboard.press("Enter"),
+  ]);
+  expect(restored.status()).toBe(200);
+  expect(await restored.json()).toMatchObject({
+    id: created.data.id,
+    state: "addressed",
+    comment,
+    response: updatedReply,
+    revision: 3,
+  });
+  await expect(page.getByText(comment, { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(updatedReply, { exact: true }).and(page.locator("p")),
+  ).toBeVisible();
+  await expect(alert).toHaveCount(0);
+  await page.keyboard.press("Tab");
+  await expect(
+    page
+      .getByRole("region", { name: "Feedback inbox records" })
+      .locator(":focus"),
+    "Tab continues in the case after its Reload button disappears",
+  ).toHaveCount(1);
+  await tabTo(page, disclosure);
+  await page.keyboard.press("Enter");
+  await tabTo(page, editor);
+  await expect(editor).toHaveValue(updatedReply);
+  await expect(page.getByText(reply, { exact: true })).toHaveCount(0);
+  expect(feedbackWrites).toEqual([`POST ${proxyPath}:address`]);
 });
 
 for (const variant of ["root", "subpath"]) {
