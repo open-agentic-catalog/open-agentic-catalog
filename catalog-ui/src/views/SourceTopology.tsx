@@ -4,6 +4,7 @@ import { result } from "../api/client";
 import { permits } from "../api/permissions";
 import { MetadataEditor } from "./MetadataEditor";
 import { topologyShape } from "./federation-inputs";
+import { useRemovableInputRows } from "./editor-row-keys";
 import { Field, ReadState, useRead, type WorkspaceProps } from "./workspace";
 import * as checks from "./responses";
 
@@ -20,6 +21,7 @@ export function SourceTopology(props: Props) {
   );
 }
 function CurrentTopology(props: Props) {
+  const assignments = useRemovableInputRows();
   const [hosts, setHosts] = useState<{ host: string; mode: string }[]>([]);
   const canChoose = permits(props.access, "publication.read", "catalog.read");
   const [choices, setChoices] = useState(false);
@@ -68,7 +70,10 @@ function CurrentTopology(props: Props) {
               <p>No discovery audience assignments.</p>
             )}
             {(data.discoveryAssignments ?? []).map((assignment, index) => (
-              <fieldset key={index}>
+              <fieldset
+                key={assignments.key(index)}
+                ref={assignments.rowRef(index)}
+              >
                 <legend>Discovery assignment {index + 1}</legend>
                 <Field label={`Discovery host ${index + 1}`}>
                   <input
@@ -149,6 +154,7 @@ function CurrentTopology(props: Props) {
                       !window.confirm("Remove this discovery assignment?")
                     )
                       return;
+                    assignments.remove(index);
                     update({
                       ...data,
                       discoveryAssignments: data.discoveryAssignments!.filter(
@@ -162,6 +168,7 @@ function CurrentTopology(props: Props) {
               </fieldset>
             ))}
             <button
+              ref={assignments.add}
               type="button"
               disabled={(data.discoveryAssignments?.length ?? 0) >= 16}
               onClick={() =>

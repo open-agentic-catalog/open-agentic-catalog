@@ -11,7 +11,7 @@ import {
 } from "react";
 import type { RepresentationDraft } from "./representations";
 import { Field } from "./workspace";
-import { useEditorRowKeys } from "./editor-row-keys";
+import { useEditorRowKeys, useRemovableInputRows } from "./editor-row-keys";
 import { reportInvalidFields } from "./authoring";
 import { LocalPreview } from "./NativeStarter";
 import { CodeBlock } from "./CodeBlock";
@@ -154,12 +154,17 @@ function StringRows({
   rows: string[];
   onChange: (next: string[]) => void;
 }) {
+  const inputs = useRemovableInputRows();
   return (
     <fieldset className="workspace-panel workspace-fields">
       <legend>{label}</legend>
       <p>Add one argument per row. Preserve spaces and literal placeholders.</p>
       {rows.map((value, index) => (
-        <div key={index} className="workspace-fields">
+        <div
+          key={inputs.key(index)}
+          ref={inputs.rowRef(index)}
+          className="workspace-fields"
+        >
           <TextField
             label={`Argument ${index + 1}`}
             value={value}
@@ -169,13 +174,20 @@ function StringRows({
           />
           <button
             type="button"
-            onClick={() => onChange(rows.filter((_, at) => at !== index))}
+            onClick={() => {
+              inputs.remove(index);
+              onChange(rows.filter((_, at) => at !== index));
+            }}
           >
             {controlIcons.remove} Remove argument {index + 1}
           </button>
         </div>
       ))}
-      <button type="button" onClick={() => onChange([...rows, ""])}>
+      <button
+        ref={inputs.add}
+        type="button"
+        onClick={() => onChange([...rows, ""])}
+      >
         {controlIcons.add} Add argument
       </button>
     </fieldset>
@@ -193,6 +205,7 @@ function Pairs({
   const [error, setError] = useState("");
   const order = useRef<string[]>([]);
   const rows = ordered(value, order.current);
+  const inputs = useRemovableInputRows();
   const update = (index: number, key: string, text: string) => {
     if (rows.some(([name], at) => at !== index && name === key)) {
       setError("Use a different name for each entry.");
@@ -210,7 +223,11 @@ function Pairs({
     <fieldset className="workspace-panel workspace-fields">
       <legend>{label}</legend>
       {rows.map(([key, text], index) => (
-        <div key={index} className="workspace-fields">
+        <div
+          key={inputs.key(index)}
+          ref={inputs.rowRef(index)}
+          className="workspace-fields"
+        >
           <TextField
             label={`${label} ${index + 1} name`}
             value={key}
@@ -223,9 +240,12 @@ function Pairs({
           />
           <button
             type="button"
-            onClick={() =>
-              onChange(Object.fromEntries(rows.filter((_, at) => at !== index)))
-            }
+            onClick={() => {
+              inputs.remove(index);
+              onChange(
+                Object.fromEntries(rows.filter((_, at) => at !== index)),
+              );
+            }}
           >
             {controlIcons.remove} Remove {label} {index + 1}
           </button>
@@ -233,6 +253,7 @@ function Pairs({
       ))}
       {error && <p role="alert">{error}</p>}
       <button
+        ref={inputs.add}
         type="button"
         onClick={() => {
           if (Object.hasOwn(value, "")) {

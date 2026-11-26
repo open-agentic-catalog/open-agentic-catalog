@@ -328,9 +328,17 @@ class TransportFunctional(unittest.TestCase):
                     self.assertEqual(caught.exception.code, "invalid_configuration")
             provider.assert_not_called()
             self.assertEqual(server.calls, [])
-            for config in (Config(origin=origin), Config(origin=f"https://127.0.0.1:{port}", ca_file=str(cert))):
-                with self.assertRaises(SDKError):
-                    Client(config).raw_sync("GET", "/version")
+            for reason, config in (
+                ("untrusted CA", Config(origin=origin)),
+                ("hostname mismatch", Config(origin=f"https://127.0.0.1:{port}", ca_file=str(cert))),
+            ):
+                with self.subTest(reason=reason):
+                    client = Client(config)
+                    with self.assertRaises(SDKError) as caught:
+                        client.raw_sync("GET", "/version")
+                    self.assertEqual(caught.exception.code, "transport_failed")
+                    self.assertIsNone(caught.exception.status)
+                    self.assertEqual(server.calls, [])
             c = Client(Config(origin=origin, ca_file=str(cert), token_provider=provider))
             self.assertEqual(ServiceApi(c).get_version_sync_with_http_info().data.version, "0.1.0")
             self.assertEqual(asyncio.run(ServiceApi(c).get_version_with_http_info()).data.version, "0.1.0")
