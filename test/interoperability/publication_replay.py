@@ -38,6 +38,17 @@ class CapturePrerequisiteError(ValueError):
     """The original publication is unavailable for qualification."""
 
 
+def replay_route(path, headers, mode):
+    """Classify an anonymous GET using the HTTP server's case-insensitive headers."""
+    if any(name in headers for name in ("Authorization", "Cookie", "Proxy-Authorization", "X-Api-Key")):
+        return "unexpected"
+    if path == PATH:
+        return "manifest"
+    if path == "/.well-known/ai-catalog.json" and mode in ("malformed", "outage"):
+        return "fallback"
+    return "unexpected"
+
+
 def read_capture(value, pin):
     variable, size, digest = pin
     if not value or not Path(value).is_file():

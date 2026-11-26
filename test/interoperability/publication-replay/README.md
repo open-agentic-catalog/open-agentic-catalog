@@ -45,6 +45,8 @@ Each publisher has a separate report under `output/interoperability/publication-
 
 Both inspections select `ard-0.91-aa3e598` and classify the publication as Hybrid. All entries omit a version. Each healthy inspection reads the manifest once. Catalog derives `https://registry.desvela.dev/search` and `https://api.live.nevermined.app/api/v1/ard/search/search` from the advertised Registry URLs. Neither inspection establishes List support. The replay does not call those services, resolve offers, fetch artifacts or make payments.
 
+The replay fails if the fixture receives an `Authorization`, `Cookie`, `Proxy-Authorization` or `X-Api-Key` header, even on a fallback request. Unexpected-request diagnostics record only the test phase and HTTP method.
+
 The campaign checks reader Search and audited original evidence separately. It pages the complete administrative inventory and downloads each entry before and after restarting the API and worker. Each download must have its own audit record with the same request ID, reader, observation, digest and byte count. It also checks that a summary-only reader and another tenant cannot read the raw evidence, that the snapshot and its occurrences survive in PostgreSQL, and that importing creates no local release.
 
 After a successful repeat, the publisher separately returns HTTP 503, times out, serves malformed JSON, and exceeds the configured 2 MiB limit. Each failure must preserve the previous complete snapshot and searchable entries. A successful retry or new synchronization must recover the unchanged publication. On a 503 or malformed document, Catalog can also try the same origin's predecessor well-known path. The fixture records and refuses that fallback. No second publication is served.

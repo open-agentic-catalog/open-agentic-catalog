@@ -15,7 +15,7 @@ from urllib.parse import urlencode
 from agentfinder_contract import TENANT, check_raw, digest
 from agentfinder_runner import Catalog, ORIGIN, PREFIX
 from peer_catalog import sync_attempt, wait_for
-from publication_replay import EXERCISE_PHASES, FEEDS, KINDS, PATH, PROFILE, REGISTRY, check_read_audits, inventory, read_capture
+from publication_replay import EXERCISE_PHASES, FEEDS, KINDS, PATH, PROFILE, REGISTRY, check_read_audits, inventory, read_capture, replay_route
 
 FIXTURE = Path("/fixture")
 RESULT = Path("/result/checkpoint.json")
@@ -31,15 +31,16 @@ def publisher(raw, media_type):
             pass
 
         def do_GET(self):
-            if self.path == "/.well-known/ai-catalog.json" and state["mode"] in ("malformed", "outage") and not (self.headers.get("Authorization") or self.headers.get("Cookie")):
-                state["refusedFallback"][state["mode"]] += 1
-                self.send_error(404)
-                return
-            if self.path != PATH or self.headers.get("Authorization") or self.headers.get("Cookie"):
-                state["unexpected"].append((state["mode"], self.command, self.path[:200]))
-                self.send_error(404)
-                return
             mode = state["mode"]
+            route = replay_route(self.path, self.headers, mode)
+            if route == "fallback":
+                state["refusedFallback"][mode] += 1
+                self.send_error(404)
+                return
+            if route == "unexpected":
+                state["unexpected"].append((mode, self.command))
+                self.send_error(404)
+                return
             state["requests"][mode] += 1
             if mode == "timeout":
                 closing.wait(8)
@@ -64,7 +65,7 @@ def publisher(raw, media_type):
 
         def send_error(self, code, *args):
             if code == 501:  # BaseHTTPRequestHandler refused a method besides GET.
-                state["unexpected"].append((state["mode"], self.command, self.path[:200]))
+                state["unexpected"].append((state["mode"], self.command))
             super().send_error(code, *args)
 
     with ThreadingHTTPServer(("0.0.0.0", 8443), Handler) as server:

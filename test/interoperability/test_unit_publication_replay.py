@@ -1,6 +1,7 @@
 """Small synthetic controls; publisher data is unnecessary for unit testing."""
 
 from hashlib import sha256
+from http.client import HTTPMessage
 import json
 from pathlib import Path
 import tempfile
@@ -8,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 import publication_replay_runner as runner
-from publication_replay import A2A, REGISTRY, check_read_audits, inventory, read_capture
+from publication_replay import A2A, PATH, REGISTRY, check_read_audits, inventory, read_capture, replay_route
 
 
 class PublicationInputsTest(unittest.TestCase):
@@ -64,6 +65,25 @@ class PublicationInputsTest(unittest.TestCase):
                        {"version": ""}, {"type": A2A}):
             with self.subTest(change=change), self.assertRaises(AssertionError):
                 inventory(encoded(dict(registry, **change)), feed)
+
+
+class PublicationRequestTest(unittest.TestCase):
+    def test_only_anonymous_requests_can_read_the_manifest_or_count_as_a_fallback(self):
+        headers = HTTPMessage()
+        headers["Accept"] = "application/json"
+        fallback = "/.well-known/ai-catalog.json"
+        for mode in ("healthy", "malformed", "outage", "timeout", "oversize"):
+            self.assertEqual(replay_route(PATH, headers, mode), "manifest")
+            expected = "fallback" if mode in ("malformed", "outage") else "unexpected"
+            self.assertEqual(replay_route(fallback, headers, mode), expected)
+        self.assertEqual(replay_route(PATH + "?q=private", headers, "healthy"), "unexpected")
+        for path in (PATH, fallback):
+            for name in ("authorization", "Cookie", "proxy-Authorization", "X-API-Key"):
+                for value in ("synthetic", ""):
+                    with self.subTest(path=path, name=name, value=value):
+                        credential = HTTPMessage()
+                        credential[name] = value
+                        self.assertEqual(replay_route(path, credential, "outage"), "unexpected")
 
 
 class EvidenceAuditTest(unittest.TestCase):
