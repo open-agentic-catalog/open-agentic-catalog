@@ -327,6 +327,13 @@ make version-bump PART=patch
 
 Bumps require a clean actual Git checkout and the pinned installed bump tool. The bump updates `VERSION`, the Go SDK requirement in each example, Python/npm/Cargo SDK metadata and extension release metadata. No command commits, creates tags or pushes.
 
+After a version bump, run `make ui-visual`. The two light API reference screenshots display OpenAPI `info.version`. If only the version changed, run these commands from the repository root to update those baselines and check all screenshots again.
+
+```sh
+(cd catalog-ui && node scripts/browser-test.mjs --visual --grep 'visual: API (endpoint sections|definition index)' --update-snapshots=changed)
+make ui-visual
+```
+
 The derived metadata includes these files:
 
 | Consumer | Files changed by a version bump |
