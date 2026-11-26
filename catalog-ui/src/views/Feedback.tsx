@@ -209,6 +209,7 @@ function FeedbackCases(props: WorkspaceProps & { own?: boolean }) {
   const [listPolicy, setListPolicy] = useState(policyKey);
   if (listPolicy !== policyKey) {
     setListPolicy(policyKey);
+    setKnownResources([]);
     setCriteria(emptyCriteria);
     setCursor("");
   }
@@ -409,7 +410,7 @@ function ResourceFilter(
   },
 ) {
   const resources = useRead(
-    props.cursor,
+    JSON.stringify([props.cursor, props.access]),
     async (signal) =>
       result(
         await props.client.api.GET("/api/v1/resources", {
@@ -526,14 +527,16 @@ function FeedbackPanel(
   }
   const currentPolicy = JSON.stringify(props.access);
   const [pagePolicy, setPagePolicy] = useState(currentPolicy);
+  const canRead = props.readAllowed !== false;
+  const selection = JSON.stringify(
+    props.caseId
+      ? [props.caseId]
+      : [props.resourceId, category, state, order, cursor, pagePolicy],
+  );
   const page = useRead(
-    JSON.stringify(
-      props.caseId
-        ? [props.caseId]
-        : [props.resourceId, category, state, order, cursor, pagePolicy],
-    ),
+    JSON.stringify([selection, canRead]),
     async (signal) =>
-      props.readAllowed === false
+      !canRead
         ? { items: [] }
         : props.caseId
           ? {
@@ -578,6 +581,38 @@ function FeedbackPanel(
     props.onFailure,
     !props.caseId,
   );
+  // Same-selection drafts stay mounted across a lost read. After a refusal,
+  // previously read server fields stay hidden until a fresh GET succeeds.
+  const [last, setLast] = useState({
+    selection,
+    data: page.data,
+    withheld: false,
+  });
+  const sameSelection = last.selection === selection;
+  const status = page.problem?.status;
+  const withheld =
+    !canRead ||
+    status === 401 ||
+    status === 403 ||
+    status === 404 ||
+    (sameSelection &&
+      last.withheld &&
+      (page.busy || !!page.error || !page.data));
+  const current = withheld ? undefined : page.data;
+  if (
+    !sameSelection ||
+    last.withheld !== withheld ||
+    (current && last.data !== current)
+  ) {
+    setLast({
+      selection,
+      withheld,
+      data: current ?? (sameSelection ? last.data : undefined),
+    });
+  }
+  const rows =
+    current?.items ??
+    (withheld && sameSelection ? last.data?.items : undefined);
   const discardPage = () => {
     if (!confirmDiscard()) return false;
     setGeneration((g) => g + 1);
@@ -867,15 +902,15 @@ function FeedbackPanel(
         </button>
       )}
       <ReadState {...page} refresh={refresh} />
-      {page.data && (
+      {rows && (
         <>
-          {(page.busy || page.error) && (
+          {current && (page.busy || page.error) && (
             <p role="status">
               Last loaded feedback is shown until the current page is read
               successfully.
             </p>
           )}
-          {page.data.items.length === 0 && (
+          {current?.items.length === 0 && (
             <p>
               {props.inventory &&
               !props.inbox &&
@@ -886,32 +921,34 @@ function FeedbackPanel(
                 : "No feedback matches these filters."}
             </p>
           )}
-          {page.data.items.map((item) =>
+          {rows.map((item) =>
             props.inventory && !props.caseId ? (
               <div className="case-summary" key={item.id}>
                 <details className="workspace-advanced">
                   <summary>
-                    {props.readAllowed === false
-                      ? "Retained feedback draft"
-                      : categories[item.category]}{" "}
-                    ·{" "}
-                    <StatusLabel
-                      state={item.state}
-                      tone={item.state === "open" ? "info" : "neutral"}
-                    />{" "}
-                    · {recent ? "Updated " : ""}
-                    <DateValue
-                      value={recent ? item.updatedAt : item.createdAt}
-                    />
-                    {props.readAllowed !== false &&
-                    item.state !== "withdrawn" &&
-                    item.state !== "removed"
-                      ? ` — ${feedbackPreview(item, recent)}`
-                      : ""}
+                    {!current ? (
+                      "Retained feedback draft"
+                    ) : (
+                      <>
+                        {categories[item.category]} ·{" "}
+                        <StatusLabel
+                          state={item.state}
+                          tone={item.state === "open" ? "info" : "neutral"}
+                        />{" "}
+                        · {recent ? "Updated " : ""}
+                        <DateValue
+                          value={recent ? item.updatedAt : item.createdAt}
+                        />
+                        {item.state !== "withdrawn" && item.state !== "removed"
+                          ? ` — ${feedbackPreview(item, recent)}`
+                          : ""}
+                      </>
+                    )}
                   </summary>
                   <FeedbackItem
                     key={`${item.id}/${item.revision}/${generation}`}
                     {...props}
+                    readAllowed={!!current}
                     item={item}
                     write={write}
                     knownResource={props.knownResources?.find(
@@ -924,7 +961,7 @@ function FeedbackPanel(
                     }}
                   />
                 </details>
-                {props.caseRoot && props.readAllowed !== false && (
+                {props.caseRoot && current && (
                   <a
                     href={`${props.caseRoot}/${encodeURIComponent(item.id)}`}
                     onClick={(event) => props.openCase?.(event, item.id)}
@@ -938,6 +975,7 @@ function FeedbackPanel(
               <FeedbackItem
                 key={`${item.id}/${item.revision}/${generation}`}
                 {...props}
+                readAllowed={!!current}
                 item={item}
                 write={write}
                 knownResource={props.knownResources?.find(
@@ -957,7 +995,7 @@ function FeedbackPanel(
         <Pager
           label="Feedback cases pagination"
           cursor={cursor}
-          nextCursor={page.data?.nextCursor}
+          nextCursor={current?.nextCursor}
           busy={page.busy || props.readAllowed === false}
           onPage={(next) => {
             if (props.readAllowed === false || !discardPage()) return false;
@@ -1140,10 +1178,12 @@ function FeedbackItem(
         </>
       )}
       {terminal ? (
-        <>
-          <p>Comment and response have been cleared.</p>
-          {identifiers}
-        </>
+        props.readAllowed !== false && (
+          <>
+            <p>Comment and response have been cleared.</p>
+            {identifiers}
+          </>
+        )
       ) : (
         <>
           {props.readAllowed !== false && (
@@ -1183,6 +1223,7 @@ function FeedbackItem(
                 key={editGeneration}
                 title="Save feedback changes"
                 editable={ownEditor && props.readAllowed !== false}
+                readable={props.readAllowed !== false}
                 item={item}
                 prepare={(category, comment) =>
                   props.prepare(
@@ -1245,7 +1286,8 @@ function FeedbackItem(
               </button>
             </details>
           )}
-          {(admin || (admittedAdmin && response !== (item.response || ""))) && (
+          {((admin && props.readAllowed !== false) ||
+            (admittedAdmin && response !== (item.response || ""))) && (
             <details>
               <summary
                 onClick={(event) => {
@@ -1283,12 +1325,13 @@ function FeedbackItem(
                     {controlIcons["message"]}
                     Address feedback
                   </button>
-                  {item.state === "addressed" && (
-                    <button onClick={() => act("reopen")}>
-                      {controlIcons["refresh"]}
-                      Reopen feedback
-                    </button>
-                  )}
+                  {props.readAllowed !== false &&
+                    item.state === "addressed" && (
+                      <button onClick={() => act("reopen")}>
+                        {controlIcons["refresh"]}
+                        Reopen feedback
+                      </button>
+                    )}
                   <button className="danger" onClick={() => act("remove")}>
                     {controlIcons["remove"]} Remove feedback
                   </button>
@@ -1306,9 +1349,11 @@ function FeedbackItem(
 function FeedbackResourceLinks(
   props: WorkspaceProps & { item: Item; knownResource?: Resource | undefined },
 ) {
-  const [open, setOpen] = useState(false);
+  const policy = JSON.stringify([props.item.resourceId, props.access]);
+  const [requested, setRequested] = useState("");
+  const open = requested === policy;
   const read = useRead(
-    `${props.item.resourceId}/${open}`,
+    JSON.stringify([policy, open]),
     async (signal) =>
       !open
         ? undefined
@@ -1369,7 +1414,7 @@ function FeedbackResourceLinks(
       )}
       {!metadata &&
         availablePermission(props.access, "resource.read", "catalog.read") && (
-          <button onClick={() => setOpen(true)} disabled={open}>
+          <button onClick={() => setRequested(policy)} disabled={open}>
             {controlIcons["book"]}
             Read resource context
           </button>
@@ -1386,8 +1431,10 @@ function FeedbackForm({
   item,
   prepare,
   editable = true,
+  readable = true,
 }: {
   editable?: boolean;
+  readable?: boolean;
   title: string;
   item?: Item;
   prepare: (category: Category, comment: string) => void;
@@ -1396,18 +1443,12 @@ function FeedbackForm({
     item?.category || "problem",
   );
   const [comment, setComment] = useState(item?.comment || "");
-  useUnsaved(
-    category !== (item?.category || "problem") ||
-      comment !== (item?.comment || ""),
-  );
+  const categoryChanged = category !== (item?.category || "problem");
+  const commentChanged = comment !== (item?.comment || "");
+  useUnsaved(categoryChanged || commentChanged);
   const characters = Array.from(comment).length;
   const valid = !!comment.trim() && characters <= 4000;
-  if (
-    !editable &&
-    category === (item?.category || "problem") &&
-    comment === (item?.comment || "")
-  )
-    return null;
+  if (!editable && !categoryChanged && !commentChanged) return null;
   return (
     <form
       className="workspace-form"
@@ -1418,27 +1459,33 @@ function FeedbackForm({
     >
       <RequiredFields>
         <fieldset className="workspace-fields" disabled={!editable}>
-          <Field label="Category">
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as Category)}
-            >
-              {Object.entries(categories).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Feedback comment">
-            <textarea
-              required
-              value={comment}
-              maxLength={8000}
-              onChange={(e) => setComment(e.target.value)}
-            />
-          </Field>
-          <p>{characters} / 4,000 characters. Plain text only.</p>
+          {(readable || categoryChanged) && (
+            <Field label="Category">
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as Category)}
+              >
+                {Object.entries(categories).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+          {(readable || commentChanged) && (
+            <>
+              <Field label="Feedback comment">
+                <textarea
+                  required
+                  value={comment}
+                  maxLength={8000}
+                  onChange={(e) => setComment(e.target.value)}
+                />
+              </Field>
+              <p>{characters} / 4,000 characters. Plain text only.</p>
+            </>
+          )}
         </fieldset>
         <div className="form-actions">
           <button

@@ -173,12 +173,33 @@ func TestARDMCPCompleteSparseOutputAndBudget(t *testing.T) {
 	text := content.Text
 	var raw json.RawMessage
 	encoded, err := json.Marshal(result.StructuredContent)
-	if err != nil || json.Unmarshal(encoded, &raw) != nil || string(raw) != text || !strings.Contains(text, `9007199254740993`) || !strings.Contains(text, `"false":false`) || !strings.Contains(text, `"pageToken":"exact-page-token"`) {
+	if err != nil || json.Unmarshal(encoded, &raw) != nil || string(raw) != text {
 		t.Fatal(text, err)
 	}
 	var got publication.SearchResponse
-	if json.Unmarshal(raw, &got) != nil || len(got.Results) != 1 || got.Results[0].Type != "" || got.Results[0].DisplayName != "" || !reflect.DeepEqual(got.Referrals, response.Referrals) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if decoder.Decode(&got) != nil || len(got.Results) != 1 || got.Results[0].Type != "" || got.Results[0].DisplayName != "" || got.PageToken != "exact-page-token" || !reflect.DeepEqual(got.Referrals, response.Referrals) {
 		t.Fatal(got)
+	}
+	entry := got.Results[0]
+	if !reflect.DeepEqual(entry.Metadata, map[string]any{"literal": json.Number("9007199254740993"), "false": false}) {
+		t.Fatalf("published scalar metadata changed: %v", entry.Metadata)
+	}
+	for _, field := range []struct {
+		name string
+		raw  json.RawMessage
+		want map[string]any
+	}{
+		{"data", entry.Data, map[string]any{"quoted": `<native>&"`, "unknown": []any{false, nil}}},
+		{"trustManifest", entry.TrustManifest, map[string]any{"identity": "example.com", "framework": map[string]any{"opaque": json.Number("9007199254740993")}}},
+	} {
+		var value map[string]any
+		d := json.NewDecoder(bytes.NewReader(field.raw))
+		d.UseNumber()
+		if err := d.Decode(&value); err != nil || !reflect.DeepEqual(value, field.want) {
+			t.Errorf("%s = %v, %v; want %v", field.name, value, err, field.want)
+		}
 	}
 	for _, limit := range []int{1024, len(text)} {
 		oversized := response

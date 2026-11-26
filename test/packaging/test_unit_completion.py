@@ -2,6 +2,8 @@
 import io
 import json
 from pathlib import Path
+import sys
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -12,6 +14,40 @@ import completion
 class CompletionUnits(unittest.TestCase):
     def events(self, *rows):
         return "\n".join(json.dumps(row) for row in rows)
+
+    def test_native_discovery_requires_cases_from_each_selected_module(self):
+        fixture = (
+            "import unittest\n"
+            "class Owner(unittest.TestCase):\n"
+            "    def test_value(self): pass\n"
+        )
+        modules = {
+            "test_unit_outer": "test_unit_outer.py",
+            "completion_nested.test_unit_outer": "completion_nested/test_unit_outer.py",
+            "completion_nested.test_unit_other": "completion_nested/test_unit_other.py",
+        }
+        for empty in (None, *modules):
+            with self.subTest(empty=empty), TemporaryDirectory() as tmp, \
+                 patch.dict(sys.modules), patch.object(sys, "path", sys.path.copy()):
+                root = Path(tmp)
+                (root / "completion_nested").mkdir()
+                (root / "completion_nested/__init__.py").touch()
+                # Native discovery skips directories that are not Python packages.
+                (root / "unselected").mkdir()
+                (root / "unselected/test_unit_unused.py").touch()
+                for name, path in modules.items():
+                    (root / path).write_text("" if name == empty else fixture)
+                if empty:
+                    with self.assertRaises(RuntimeError) as error:
+                        completion.python_suite(root, "test_unit_*.py")
+                    self.assertEqual(str(error.exception), f"A required test file has no cases: {empty}")
+                else:
+                    suite, count = completion.python_suite(root, "test_unit_*.py")
+                    self.assertEqual(count, len(modules))
+                    self.assertCountEqual(
+                        [case.id() for case in completion.cases(suite)],
+                        [f"{name}.Owner.test_value" for name in modules],
+                    )
 
     def test_each_required_go_name_needs_start_success_and_package_completion(self):
         rows = [{"Action": action, "Package": "fixture", **({"Test": name} if name else {})}

@@ -566,6 +566,51 @@ func TestLivePagingPreservesEqualScoreVisitOrderAndVersionPresence(t *testing.T)
 	})
 }
 
+func TestLivePagingCountsDistinctAIRIdentitiesAcrossPublisherSpellings(t *testing.T) {
+	manager, _, outbound, _ := newLivePagingFixture(t, 2, "peer")
+	original := livePagingEntry("alpha", 60)
+	preferred := strings.Replace(livePagingEntry("alpha", 90), "remote.example", "REMOTE.example", 1)
+	// The description also ranks this spelling first for Control's local lexical score.
+	preferred = strings.TrimSuffix(preferred, "}") + `,"description":"agent","vendor":{"sequence":9007199254740993}}`
+	distinct := livePagingEntry("Alpha", 40)
+	outbound.respond = func(_ context.Context, request fetcher.Request) (fetcher.Result, error) {
+		switch token := livePagingToken(t, request); token {
+		case "":
+			return livePagingPage(t, "continue", original, preferred), nil
+		case "continue":
+			return livePagingPage(t, "", distinct), nil
+		default:
+			t.Fatalf("unexpected token %q", token)
+			return fetcher.Result{}, nil
+		}
+	}
+	t.Run("public ARD", func(t *testing.T) {
+		before := len(outbound.requests)
+		result, err := manager.LiveSearch(livePagingContext(t), LiveSearchRequest{
+			Text: "agent", PageSize: 2, DiscoveryHost: "catalog.example.com", Audience: AudienceAnonymous,
+		})
+		if err != nil || result.Partial || len(result.Results) != 2 || len(outbound.requests)-before != 2 {
+			t.Fatalf("results=%+v requests=%d err=%v", result, len(outbound.requests)-before, err)
+		}
+		if result.Results[0].Identifier != "urn:air:REMOTE.example:agent:alpha" || string(result.Results[0].Entry) != preferred || string(result.Results[1].Entry) != distinct {
+			t.Fatalf("original evidence or case-sensitive resource name lost: %+v", result.Results)
+		}
+	})
+	t.Run("Control", func(t *testing.T) {
+		before := len(outbound.requests)
+		page, err := manager.SearchLiveCatalog(livePagingContext(t), catalog.FederatedCatalogSearchRequest{
+			Query: catalog.SearchQuery{Text: "agent"}, Limit: 2, IncludeLive: true,
+		})
+		if err != nil || page.Partial || len(page.Live) != 2 || len(outbound.requests)-before != 2 {
+			t.Fatalf("page=%+v requests=%d err=%v", page, len(outbound.requests)-before, err)
+		}
+		if page.Live[0].Identifier != "urn:air:remote.example:agent:alpha" || string(page.Live[0].Live.Entry) != preferred ||
+			page.Live[1].Identifier != "urn:air:remote.example:agent:Alpha" || string(page.Live[1].Live.Entry) != distinct {
+			t.Fatalf("canonical result or original peer evidence lost: %+v", page.Live)
+		}
+	})
+}
+
 func TestLivePagingTokensAreRequestLocalAndAuditRemainsOneAction(t *testing.T) {
 	manager, store, outbound, sources := newLivePagingFixture(t, 3, "a", "b")
 	sources[1].TenantID = "00000000-0000-7000-8000-000000000002"

@@ -169,7 +169,9 @@ class RunnerUnits(unittest.TestCase):
         altered = runner.diagnostic_template(source)
         self.assertIn("return nil, safeError(err)", altered)
         self.assertIn("safeResponseError(err, rsp)", altered)
-        self.assertIn("{{genResponseUnmarshal .}}", altered)
+        self.assertIn('{{if ne .Method "HEAD"}}{{genResponseUnmarshal .}}{{end}}', altered)
+        with self.assertRaisesRegex(RuntimeError, "response-body template changed"):
+            runner.diagnostic_template(source.replace("{{genResponseUnmarshal .}}", ""))
         with self.assertRaisesRegex(RuntimeError, "template changed"):
             runner.diagnostic_template("incompatible template")
 

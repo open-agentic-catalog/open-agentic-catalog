@@ -84,7 +84,7 @@ func (s *Server) publicDiscovery(w http.ResponseWriter, r *http.Request, route s
 		}
 		raw, err := io.ReadAll(r.Body)
 		if err != nil {
-			problem(w, 413, "request_too_large")
+			requestBodyProblem(w, err)
 			return
 		}
 		var input struct {

@@ -205,6 +205,46 @@ class ARDUnits(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("PRIMARY-PRIVATE", repr(client))
         self.assertNotIn("PEER-PRIVATE", repr(client))
 
+    async def test_same_origin_referral_requires_a_distinct_search_path(self):
+        peer = "https://primary.example.test/partners/search"
+        requests = []
+
+        def handle(request):
+            url = str(request.url)
+            requests.append((url, request.headers.get("authorization")))
+            if url == PRIMARY:
+                return reply({"results": [], "referrals": [referral(peer)]})
+            return reply({"results": [row("urn:air:fixture.test:skills:peer-only")]})
+
+        def configured(referral_url):
+            return ard.ARDClient(
+                ard.Settings(
+                    primary=ard.Service(
+                        search_url=PRIMARY, explore_url=EXPLORE, token_env="ARD_PRIMARY"
+                    ),
+                    referral=ard.Service(search_url=referral_url, token_env="ARD_PEER"),
+                    disclose_to_referral=True,
+                ),
+                httpx.MockTransport(handle),
+            )
+
+        with patch.dict(
+            os.environ, {"ARD_PRIMARY": "primary-test", "ARD_PEER": "peer-test"}
+        ):
+            with self.assertRaisesRegex(ard.ARDError, "^invalid_configuration$"):
+                configured(PRIMARY)
+            self.assertEqual(requests, [])
+
+            result = await configured(peer).search("web")
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(
+            [(item["identifier"], item["responder"]) for item in result["results"]],
+            [("urn:air:fixture.test:skills:peer-only", peer)],
+        )
+        self.assertEqual(
+            requests, [(PRIMARY, "Bearer primary-test"), (peer, "Bearer peer-test")]
+        )
+
     async def test_configured_referral_without_disclosure_never_gets_a_request(self):
         seen = []
 

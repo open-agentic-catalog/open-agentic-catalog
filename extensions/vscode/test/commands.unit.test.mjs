@@ -243,7 +243,7 @@ async function activateCommands(t) {
     },
     secrets,
   });
-  return { api, saved, secrets };
+  return { api, saved, secrets, directory };
 }
 
 test("confirming removal cannot delete the bookmark that moved into the selected row", async (t) => {
@@ -298,6 +298,205 @@ test("confirming removal cannot delete the bookmark that moved into the selected
   assert.deepEqual(errors, []);
   assert.deepEqual(api.browsing().bookmarks, []);
 });
+
+test("Connect uses the definition displayed in the picker and preserves a newer selection", async (t) => {
+  const { api, secrets } = await activateCommands(t);
+  await api.select("second");
+  await api.authenticate("reader");
+  await api.test();
+  const { window } = globalThis.catalogCommandFixture.vscode;
+  const connect = commands.get("openAgenticCatalog.connect");
+  const get = t.mock.method(secrets, "get");
+  t.after(() => delete window.showQuickPick);
+  const first = configuration[0];
+  async function pick(change, id) {
+    const opened = deferred();
+    const answer = deferred();
+    window.showQuickPick = (items) => {
+      opened.resolve(items);
+      return answer.promise;
+    };
+    const pending = connect();
+    const items = await opened.promise;
+    await change();
+    answer.resolve(items.find((item) => item.id === id));
+    await pending;
+  }
+  await pick(() => {
+    configuration[0] = { ...first, origin: "https://replacement.example" };
+  }, "first");
+  assert.match(errors.pop(), /connection_changed/u);
+  assert.equal(get.mock.callCount(), 0);
+  assert.equal(api.snapshot()?.identity.subject, "reader");
+  configuration[0] = first;
+
+  await pick(() => api.select("second"), "first");
+  assert.match(errors.pop(), /connection_changed/u);
+  assert.match(status.tooltip, /https:\/\/second\.example/u);
+  const beforeCancel = get.mock.callCount();
+  await pick(() => {}, undefined);
+  assert.equal(get.mock.callCount(), beforeCancel);
+  assert.deepEqual(errors, []);
+  await pick(() => {
+    configuration[1] = { ...configuration[1], label: "Renamed elsewhere" };
+  }, "first");
+  assert.match(status.tooltip, /https:\/\/first\.example/u);
+  assert.deepEqual(errors, []);
+});
+
+test("Skill recovery stays with the chosen open workspace through confirmation", async (t) => {
+  const { directory } = await activateCommands(t);
+  const { window, workspace } = globalThis.catalogCommandFixture.vscode;
+  const { SkillStore } = await import(
+    new URL("install.js", pathToFileURL(process.env.CATALOG_VSCODE_LIB))
+  );
+  const recovered = [];
+  t.mock.method(SkillStore.prototype, "recover", async function (guard) {
+    guard();
+    recovered.push(this.workspace);
+  });
+  const folder = (name) => ({
+    name,
+    uri: { scheme: "file", fsPath: join(directory, name) },
+  });
+  const first = folder("first"),
+    second = folder("second");
+  workspace.isTrusted = true;
+  workspace.workspaceFolders = [first, second];
+  t.after(() => {
+    delete workspace.workspaceFolders;
+    delete workspace.isTrusted;
+    delete window.showQuickPick;
+  });
+  const confirmation = t.mock.method(
+    window,
+    "showWarningMessage",
+    async () => undefined,
+  );
+  const recover = commands.get("openAgenticCatalog.recoverSkill");
+  const opened = deferred(),
+    answer = deferred();
+  window.showQuickPick = (items) => {
+    opened.resolve(items);
+    return answer.promise;
+  };
+  const pending = recover();
+  const choices = await opened.promise;
+  workspace.workspaceFolders = [second];
+  answer.resolve(choices.find((item) => item.label === first.uri.fsPath));
+  await pending;
+  assert.equal(confirmation.mock.callCount(), 0);
+  assert.match(errors.pop(), /selection_changed/u);
+  assert.deepEqual(recovered, []);
+
+  window.showQuickPick = async () => {
+    workspace.isTrusted = false;
+    return undefined;
+  };
+  await recover();
+  assert.deepEqual(errors, []);
+  assert.equal(confirmation.mock.callCount(), 0);
+  workspace.isTrusted = true;
+
+  window.showQuickPick = async (items) => items[0];
+  confirmation.mock.mockImplementationOnce(
+    async (_message, options, approve) => {
+      assert.equal(
+        options.detail,
+        `Workspace: ${JSON.stringify(second.uri.fsPath)}`,
+      );
+      workspace.workspaceFolders = [first];
+      return approve;
+    },
+  );
+  await recover();
+  assert.match(errors.pop(), /selection_changed/u);
+  assert.deepEqual(recovered, []);
+  confirmation.mock.mockImplementationOnce(
+    async (_message, _options, approve) => approve,
+  );
+  await recover();
+  assert.deepEqual(recovered, [first.uri.fsPath]);
+  assert.deepEqual(errors, []);
+});
+
+for (const kind of ["Skill", "Plugin"]) {
+  test(`Remove ${kind} discards a selection or receipt from a closed workspace`, async (t) => {
+    const { directory } = await activateCommands(t);
+    const { window, workspace } = globalThis.catalogCommandFixture.vscode;
+    const { SkillStore, receiptSummary } = await import(
+      new URL("install.js", pathToFileURL(process.env.CATALOG_VSCODE_LIB))
+    );
+    const folder = {
+      name: "tools",
+      uri: { scheme: "file", fsPath: join(directory, "tools") },
+    };
+    const receipt = {
+      name: "sample",
+      identity: "one",
+      binding: "a",
+      files: [],
+    };
+    workspace.isTrusted = true;
+    t.after(() => {
+      delete workspace.isTrusted;
+      delete workspace.workspaceFolders;
+      delete window.showQuickPick;
+    });
+    t.mock.method(SkillStore.prototype, "scan", async () => ({
+      items: [receiptSummary(receipt)],
+      issues: [],
+    }));
+    let phase;
+    const read = t.mock.method(SkillStore.prototype, "get", async () => {
+      if (phase === "receipt") workspace.workspaceFolders = [];
+      return receipt;
+    });
+    const remove = t.mock.method(
+      SkillStore.prototype,
+      "remove",
+      async () => {},
+    );
+    const confirm = t.mock.method(
+      window,
+      "showWarningMessage",
+      async (_message, _options, approve) => {
+        if (phase === "confirmation") workspace.workspaceFolders = [];
+        return approve;
+      },
+    );
+    const command = commands.get("openAgenticCatalog.remove" + kind);
+    window.showQuickPick = async (items) => {
+      assert.equal(items.length, 1);
+      if (phase === "picker") workspace.workspaceFolders = [];
+      return items[0];
+    };
+    for (phase of ["picker", "receipt", "confirmation", "still open"]) {
+      read.mock.resetCalls();
+      confirm.mock.resetCalls();
+      workspace.workspaceFolders = [folder];
+      await command();
+      assert.equal(read.mock.callCount(), phase === "picker" ? 0 : 1);
+      assert.equal(
+        confirm.mock.callCount(),
+        ["picker", "receipt"].includes(phase) ? 0 : 1,
+      );
+      assert.equal(remove.mock.callCount(), phase === "still open" ? 1 : 0);
+      if (phase === "still open") {
+        assert.deepEqual(errors, []);
+        const removal = remove.mock.calls[0];
+        const [name, guard, confirmed] = removal.arguments;
+        assert.equal(removal.this.workspace, folder.uri.fsPath);
+        assert.equal(removal.this.kind, kind.toLowerCase());
+        assert.equal(name, receipt.name);
+        assert.deepEqual(confirmed, receipt);
+        guard();
+        workspace.workspaceFolders = [];
+        assert.throws(guard, { code: "selection_changed" });
+      } else assert.match(errors.pop(), /selection_changed/u);
+    }
+  });
+}
 
 test("a failed configuration reload cannot clear a newer selection of the same connection", async (t) => {
   const { api, secrets } = await activateCommands(t);

@@ -111,8 +111,11 @@ func ResolveARDTerm(term string, queryContext any) (string, error) {
 		// A compact IRI can have periods in its prefix. Dots after the
 		// colon delimit paths; ordinary metadata keys retain literal colons.
 		if _, known := canonicalARDTerms[ardNamespace+leading]; !known {
-			name, tail, found := strings.Cut(term[colon+1:], ".")
-			leading, remainder, path = term[:colon+1]+name, tail, found
+			// Without a following path separator, the colon may belong to a
+			// literal metadata key underneath a plain or dotted context alias.
+			if name, tail, found := strings.Cut(term[colon+1:], "."); found {
+				leading, remainder, path = term[:colon+1]+name, tail, true
+			}
 		}
 	}
 	if !path {

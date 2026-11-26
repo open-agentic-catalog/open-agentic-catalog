@@ -161,7 +161,7 @@ def installed():
 
 
 def diagnostic_template(source):
-    """Change only error returns, through oapi-codegen's supported templates."""
+    """Preserve safe errors and bodyless HEAD outcomes in generated clients."""
     if "return nil, err" not in source:
         raise RuntimeError("Generator error-return template changed; review the override")
     source = source.replace("return nil, err", "return nil, safeError(err)").replace("return err\n", "return safeError(err)\n")
@@ -170,6 +170,11 @@ def diagnostic_template(source):
     signature = "func Parse{{genResponseTypeName $opid | ucFirst}}(rsp *http.Response) (*{{genResponseTypeName $opid}}, error) {"
     if signature in source:
         source = source.replace(signature, "func Parse{{genResponseTypeName $opid | ucFirst}}(rsp *http.Response) (result *{{genResponseTypeName $opid}}, err error) {\n    defer func() { err = safeResponseError(err, rsp) }()")
+        # HEAD exposes response status and headers even for HTTP refusals.
+        unmarshal = "{{genResponseUnmarshal .}}"
+        if source.count(unmarshal) != 1:
+            raise RuntimeError("Generator response-body template changed; review the override")
+        source = source.replace(unmarshal, '{{if ne .Method "HEAD"}}' + unmarshal + "{{end}}")
     return source
 
 

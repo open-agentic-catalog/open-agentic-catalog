@@ -234,13 +234,13 @@ fn provider_config(origin: &str) -> Config {
 }
 ```
 
-For anonymous ARD reads, leave both credential fields unset. Use `get_ard_manifest` or the other generated ARD operations. A configured discovery host and an active publication are still required. HTTP 404 can mean that the selected host has no active publication. A declared HTTP 304 returns `data: None`, with its status, headers and raw bytes preserved.
+For anonymous ARD reads, leave both credential fields unset. Use `get_ard_manifest` or the other generated ARD operations. A configured discovery host and an active publication are still required. HTTP 404 can mean that the selected host has no active publication. A declared HTTP 304 returns `data: None`, with its status, headers and raw bytes preserved. On a HEAD or 304 response, `Content-Length` can describe the full GET representation. The SDK applies its response-byte budget to the body it receives.
 
 ## Read results and handle errors
 
 Successful typed calls return `Response<T>` with `status`, `headers`, `raw_body` and optional `data`. Headers preserve ETag, request ID, Retry-After and command-replay metadata. Read raw bytes when exact evidence matters. Typed serialization can change JSON formatting, date spelling or URL normalization.
 
-Generated methods return `ApiOpError::Api` for HTTP refusals and successful responses that cannot be decoded. JSON decoding rejects invalid UTF-8 instead of replacing bytes. Its explicit fields retain bounded raw evidence and a typed error when available. Control problem details and ARD errors use their own generated types. `ApiOpError::Transport` reports a safe `Error` code when no complete bounded result is available.
+Generated methods return `ApiOpError::Api` for HTTP refusals and successful responses that cannot be decoded. JSON decoding rejects invalid UTF-8 instead of replacing bytes. Its explicit fields retain bounded raw evidence and a typed error when available. An empty HEAD refusal retains its HTTP status and headers with `typed: None` and `parse_error: None`. Control problem details and ARD errors use their own generated types. `ApiOpError::Transport` reports a safe `Error` code when no complete bounded result is available.
 
 `Client::raw` returns every HTTP status without classifying it as an error. Inspect `status` yourself. Its `json` helper decodes the retained body without replacing it. Configuration, client, response and error formatting omit credentials, headers, private bodies and dependency causes. Do not log those explicit fields indiscriminately.
 

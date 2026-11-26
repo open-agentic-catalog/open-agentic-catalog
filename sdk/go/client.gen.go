@@ -62508,40 +62508,6 @@ func ParseHeadARDMCPOAuthMetadataResponse(rsp *http.Response) (result *HeadARDMC
 	}
 
 	switch {
-	case rsp.StatusCode == 200:
-		break // No content-type
-
-	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 403:
-		var dest MCPErrorResponseJSONApplicationJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 403:
-		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSON403 = &dest
-
-	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 404:
-		var dest MCPErrorResponseJSONApplicationJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 404:
-		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSON404 = &dest
-
-	}
-
-	switch {
 	case rsp.StatusCode == 403:
 		var headers HeadARDMCPOAuthMetadataResponse403Headers
 		if values := rsp.Header.Values("Allow"); len(values) > 0 {
@@ -63003,40 +62969,6 @@ func ParseHeadCatalogMCPOAuthMetadataResponse(rsp *http.Response) (result *HeadC
 	response := &HeadCatalogMCPOAuthMetadataResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 200:
-		break // No content-type
-
-	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 403:
-		var dest MCPErrorResponseJSONApplicationJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 403:
-		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSON403 = &dest
-
-	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 404:
-		var dest MCPErrorResponseJSONApplicationJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 404:
-		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSON404 = &dest
-
 	}
 
 	switch {

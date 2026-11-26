@@ -157,6 +157,14 @@ export async function editConnection(
   const originalRaw = raw.find(
     (value) => (value as Connection).id === original?.id,
   );
+  // The selected definition may already have changed while its picker was open.
+  if (
+    original &&
+    (!originalRaw ||
+      JSON.stringify(connections([originalRaw])[0]) !==
+        JSON.stringify(original))
+  )
+    throw new ClientError("connection_changed");
   const draft: Record<string, string> = {
     id: original?.id ?? "",
     label: original?.label ?? "",

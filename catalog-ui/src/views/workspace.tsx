@@ -40,6 +40,13 @@ export function commandSummary(rows: readonly (readonly [string, string])[]) {
   return rows.map(([label, value]) => ({ label, value }));
 }
 
+const loadingRead = {
+  data: undefined,
+  error: "",
+  problem: undefined,
+  busy: true,
+};
+
 /** Load on key changes or explicit refresh, discarding obsolete results.
  * The caller includes all request-changing inputs in key and bounds its API
  * query. Changing callback identity alone must not refetch private evidence. */
@@ -49,13 +56,15 @@ export function useRead<T>(
   onFailure: (e: unknown) => void,
   retainDataOnRefresh = false,
 ) {
-  const [data, setData] = useState<T>();
-  const [error, setError] = useState("");
-  const [problem, setProblem] = useState<APIError>();
-  const [busy, setBusy] = useState(true);
+  const [read, setRead] = useState<{
+    key: string;
+    data: T | undefined;
+    error: string;
+    problem: APIError | undefined;
+    busy: boolean;
+  }>({ key, ...loadingRead });
   const [revision, setRevision] = useState(0);
   // Keep current callbacks without making inline functions effect dependencies.
-  const previousKey = useRef(key);
   const loader = useRef(load);
   loader.current = load;
   const failure = useRef(onFailure);
@@ -63,29 +72,30 @@ export function useRead<T>(
   useEffect(() => {
     const controller = new AbortController();
     let current = true;
-    if (!retainDataOnRefresh || previousKey.current !== key) setData(undefined);
-    previousKey.current = key;
-    setError("");
-    setProblem(undefined);
-    setBusy(true);
+    setRead((previous) => ({
+      ...loadingRead,
+      key,
+      data:
+        retainDataOnRefresh && previous.key === key ? previous.data : undefined,
+    }));
     loader
       .current(controller.signal)
       .then((value) => {
-        if (current) setData(value);
+        if (current) setRead({ ...loadingRead, key, data: value, busy: false });
       })
       .catch((e) => {
         if (current) {
-          setProblem(e instanceof APIError ? e : undefined);
-          setError(
-            e instanceof APIError
-              ? e.message
-              : "This page could not be loaded.",
-          );
+          setRead((previous) => ({
+            ...previous,
+            busy: false,
+            problem: e instanceof APIError ? e : undefined,
+            error:
+              e instanceof APIError
+                ? e.message
+                : "This page could not be loaded.",
+          }));
           failure.current(e);
         }
-      })
-      .finally(() => {
-        if (current) setBusy(false);
       });
     return () => {
       // Abort saves work; the current flag also fences loaders that ignore it.
@@ -93,6 +103,8 @@ export function useRead<T>(
       controller.abort();
     };
   }, [key, revision, retainDataOnRefresh]);
+  // A new key can render before its loading effect runs.
+  const { data, error, problem, busy } = read.key === key ? read : loadingRead;
   return {
     data,
     error,

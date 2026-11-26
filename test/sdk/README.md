@@ -77,7 +77,7 @@ Installation acquires the pinned generator, module dependencies and analyzers. I
 
 ## Generated diagnostics
 
-The supported oapi-codegen template override changes only diagnostic handling. It sanitizes generated request/editor/marshaler failures and complete response-parser failures. This includes error returns emitted by the generator's response-unmarshal helper. Do not edit `client.gen.go` by hand.
+The oapi-codegen templates sanitize request construction, editor, marshaling and response-parser errors. A HEAD response has no content to decode. Its generated parser reads the status and declared headers, including on HTTP errors. Do not edit `client.gen.go` by hand.
 
 The original API schema, models, operation inventory, response alternatives and raw methods remain intact. Independent schema and four-kind workflow assertions run from the existing compatibility suite against the SDK's generated types. Its standalone `client-go-*` targets still qualify the unchanged generator independently.
 
@@ -181,7 +181,7 @@ Successful checks retain the qualified npm tarball and its hash manifest under `
 
 The same gate qualifies [the standalone ARD List client](../../examples/typescript-ard-list/README.md) on all three pinned Node runtimes. It copies the actual `.mts` application beside the clean consumer's installed tarball. Type checking uses installed declarations. No SDK source link or additional runtime dependency enters that consumer.
 
-The example's isolated tests live under `typescript/ard-example/`. They use injected Fetch and temporary token files without listeners or subprocesses. The runner selects them explicitly after package installation. Their coverage report measures the example separately from SDK coverage.
+The example's isolated tests live under `typescript/ard-example/`. They use injected Fetch and temporary token files without listeners or subprocesses. The runner selects them explicitly after package installation. The SDK and example unit runs each require Node to report executed lines for the exact entry module selected for that run.
 
 `typescript_ard_functional_test.go.txt` extends the composed Catalog fixture with active anonymous/authenticated publications and an unpublished draft. It runs the actual Node entrypoint through owned HTTPS. Native cases cover paging, audience access, page budgets, expired continuations and activation of a different generation. The private-host case replaces the token file between pages. The next request uses the replacement, receives HTTP 403 and the command reports the first page as a partial result. Local malformed-response controls cover decoding and runtime field validation. Both unit and process cases preserve incomplete output on failure. The fixture refuses private, entry and runtime requests.
 

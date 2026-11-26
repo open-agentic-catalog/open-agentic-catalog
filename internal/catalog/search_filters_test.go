@@ -3,11 +3,58 @@ package catalog
 import (
 	"context"
 	"errors"
-	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
+	"github.com/open-agentic-catalog/open-agentic-catalog/test/identityfixture"
 )
+
+func TestMemorySearchProbesMatchFilteredIdentitiesBeyondTheFirstPage(t *testing.T) {
+	repo := NewMemoryRepository()
+	seedCollectionCatalog(t, repo)
+	for id, revision := range repo.listingRevisions {
+		revision.License = "MIT"
+		if revision.DisplayName == "D hidden" {
+			revision.Tags, revision.License = []string{"visible"}, "Apache-2.0"
+		}
+		repo.listingRevisions[id] = revision
+	}
+	reader := identityfixture.WithActor(t.Context(), identity.Actor{TenantID: guardrailTenantID, Subject: "reader", Roles: []identity.Role{identity.RoleReader}})
+	ctx, _, err := identity.WithCollectionContext(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const prefix = "urn:air:catalog.example.com:default:collection-"
+	query := SearchQuery{Tags: []string{"visible"}, License: "MIT"}
+	first, err := repo.SearchCatalog(ctx, guardrailTenantID, CatalogSearchRepositoryRequest{Query: query, Limit: 1})
+	if err != nil || first.Generation == "" || first.Total != 2 || !first.HasMore || len(first.Items) != 1 || first.Items[0].Resource.CanonicalIdentifier != prefix+"1" {
+		t.Fatalf("first filtered page = %+v, %v", first, err)
+	}
+	after := CatalogSearchPosition{DisplayName: "b visible", ResultID: "local:" + first.Items[0].Release.ID}
+	next, err := repo.SearchCatalog(ctx, guardrailTenantID, CatalogSearchRepositoryRequest{Query: query, ExpectedGeneration: first.Generation, After: &after, Limit: 1})
+	if err != nil || next.Total != 2 || next.HasMore || len(next.Items) != 1 || next.Items[0].Resource.CanonicalIdentifier != prefix+"2" {
+		t.Fatalf("terminal filtered page = %+v, %v", next, err)
+	}
+
+	// A live duplicate can be shadowed by a matching release on any page.
+	// One sibling fails just the tag, the other just the license.
+	offPage := IndexedIdentity{Identifier: prefix + "2", Version: "1.0.0", VersionPresent: true}
+	probes := []IndexedIdentity{
+		{Identifier: prefix + "0", Version: "1.0.0", VersionPresent: true},
+		{Identifier: prefix + "3", Version: "1.0.0", VersionPresent: true},
+		{Identifier: offPage.Identifier},
+		{Identifier: offPage.Identifier, Version: "2.0.0", VersionPresent: true},
+		offPage,
+	}
+	result, err := repo.SearchCatalog(ctx, guardrailTenantID, CatalogSearchRepositoryRequest{Query: query, ExpectedGeneration: first.Generation, IdentityProbes: probes})
+	if err != nil || result.Generation != first.Generation || !slices.Equal(result.Matches, []IndexedIdentity{offPage}) || len(result.Items) != 0 {
+		t.Fatalf("identities that suppress live results = %+v, %v", result, err)
+	}
+}
 
 func TestSearchProvenanceValidationAndBinding(t *testing.T) {
 	const namespace = "00000000-0000-7000-8000-00000000000a"

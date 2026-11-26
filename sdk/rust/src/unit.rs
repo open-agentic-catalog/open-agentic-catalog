@@ -347,14 +347,32 @@ async fn credential_deadline_failure_and_invalid_output_prevent_transmission() {
 
 #[tokio::test]
 async fn empty_results_errors_and_exact_raw_bytes_remain_inspectable() {
-    let transport = Scripted::new(vec![reply(304,b""), reply(503,br#"{"type":"about:blank","title":"Unavailable","status":503,"code":"DEPENDENCY_UNAVAILABLE","detail":"secret-body","requestId":"unit-request"}"#), reply(200,b"not JSON secret"), reply(200,&[0,255,10])]);
+    let mut unchanged = reply(304, b"").unwrap();
+    unchanged
+        .headers
+        .insert("content-length", HeaderValue::from_static("65536"));
+    let transport = Scripted::new(vec![Ok(unchanged), reply(503,br#"{"type":"about:blank","title":"Unavailable","status":503,"code":"DEPENDENCY_UNAVAILABLE","detail":"secret-body","requestId":"unit-request"}"#), reply(200,b"not JSON secret"), reply(200,&[0,255,10])]);
     let client = client(transport.clone());
     let result = client
+        .with_limits(Limits {
+            response_bytes: 32,
+            ..Limits::default()
+        })
+        .unwrap()
         .get_ard_manifest(Some("\"etag\""), None::<&str>)
         .await
         .unwrap();
     assert_eq!(result.status, 304);
     assert!(result.data.is_none());
+    assert!(result.raw_body.is_empty());
+    assert_eq!(result.headers["content-length"], "65536");
+    {
+        let requests = transport.requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method(), "GET");
+        assert_eq!(requests[0].url().path(), "/.well-known/ard.json");
+        assert_eq!(requests[0].headers()["if-none-match"], "\"etag\"");
+    }
     let error = client
         .get_current_access(None::<&str>, None, None::<&str>)
         .await

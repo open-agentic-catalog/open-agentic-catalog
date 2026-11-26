@@ -160,11 +160,12 @@ async function setup(t, packageCredentials) {
     async (value) => f.previews.push(value),
     packageCredentials,
   );
+  const mcpSelections = new Map();
   const skills = new CatalogSkills(
     browser,
     session,
     {
-      selections: { selections: new Map() },
+      selections: { selections: mcpSelections },
       onDidChangeSelections: () => ({ dispose() {} }),
     },
     plugins,
@@ -176,7 +177,7 @@ async function setup(t, packageCredentials) {
     plugins.dispose();
     await rm(root, { recursive: true, force: true });
   });
-  return { root, plugins, skills, browser, session };
+  return { root, plugins, skills, browser, session, mcpSelections };
 }
 async function installed(root, kind, replacement = false) {
   const store = new SkillStore(root, kind);
@@ -688,4 +689,61 @@ test("unsupported and excess roots and unsafe receipt directories are explicit r
       (row) => row.issue === "unsafe_installation_path",
     ),
   );
+});
+
+test("My Tools shows current folders and MCP selections when a receipt scan finishes", async (t) => {
+  const { root, mcpSelections } = await setup(t);
+  const departed = f.folders[0];
+  const kept = { name: departed.name, uri: uri(join(root, "kept")) };
+  const virtual = (name) => ({
+    name,
+    uri: { scheme: "untitled", fsPath: name },
+  });
+  f.folders = [departed, kept, virtual("Old virtual folder")];
+  mcpSelections.set("old", { recipe: { name: "Old server" } });
+  const entered = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  t.mock.method(SkillStore.prototype, "scan", async function () {
+    if (this.kind === "plugin" && this.workspace === root) {
+      entered.resolve();
+      await release.promise;
+    }
+    return {
+      items: [{ name: `installed-${this.kind}` }],
+      issues: [{ code: "receipt_unavailable", entry: '"damaged.json"' }],
+    };
+  });
+  const pending = f.provider.getChildren();
+  await entered.promise;
+  f.folders = [kept, virtual("Current virtual folder")];
+  mcpSelections.clear();
+  mcpSelections.set("current", { recipe: { name: "Current server" } });
+  release.resolve();
+  const rows = await pending;
+  assert.deepEqual(
+    rows
+      .filter((row) => "mcp" in row)
+      .map((row) => f.provider.getTreeItem(row).label),
+    ["Current server"],
+  );
+  const receipts = rows.filter((row) => row.receipt);
+  assert.deepEqual(
+    receipts.map((row) => f.provider.getTreeItem(row).description).sort(),
+    [
+      `Plugin · installed disabled · ${kept.uri.fsPath}`,
+      `Skill · installed · ${kept.uri.fsPath}`,
+    ],
+  );
+  const issues = rows.filter((row) => row.issue);
+  for (const kind of ["skill", "plugin"]) {
+    assert.deepEqual(
+      issues
+        .filter((row) => row.kind === kind)
+        .map((row) => [row.workspace, row.issue]),
+      [
+        [kept.uri.fsPath, "receipt_unavailable"],
+        ["Current virtual folder", "filesystem_workspace_required"],
+      ],
+    );
+  }
 });

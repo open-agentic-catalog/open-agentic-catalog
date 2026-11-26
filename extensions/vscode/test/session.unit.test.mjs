@@ -32,7 +32,7 @@ const me = {
   permissions: ["resource.read"],
   availablePermissions: ["resource.read"],
 };
-function fixture(fetcher) {
+function fixture(fetcher, credentialAccess) {
   const saved = new Map();
   const secrets = {
     get: async (k) => saved.get(k),
@@ -44,15 +44,20 @@ function fixture(fetcher) {
     },
   };
   let closed = 0;
-  const session = new Session(secrets, "test-host", async () => ({
-    fetch: (input, init) =>
-      input instanceof Request
-        ? fetcher(input.url, { headers: input.headers, signal: input.signal })
-        : fetcher(input, init),
-    close: async () => {
-      closed++;
-    },
-  }));
+  const session = new Session(
+    secrets,
+    "test-host",
+    async () => ({
+      fetch: (input, init) =>
+        input instanceof Request
+          ? fetcher(input.url, { headers: input.headers, signal: input.signal })
+          : fetcher(input, init),
+      close: async () => {
+        closed++;
+      },
+    }),
+    credentialAccess,
+  );
   return { session, saved, secrets, closed: () => closed };
 }
 const json = (value) =>
@@ -1111,6 +1116,42 @@ const sessionMetadata = {
   code_challenge_methods_supported: ["S256"],
 };
 
+test("an already-cancelled account read leaves a renewable credential untouched", async (t) => {
+  const selected = {
+    ...sessionOIDC,
+    oidc: { ...sessionOIDC.oidc, refresh: true },
+  };
+  const requests = [];
+  const f = fixture((url) => {
+    requests.push(url);
+    return new Response(null, { status: 503 });
+  });
+  t.after(() => f.session.dispose());
+  const key = "openAgenticCatalog:test-host:local";
+  const saved = JSON.stringify({
+    binding: binding(selected, "test-host"),
+    accessToken: "current-access",
+    refreshToken: "current:refresh",
+    expiresAt: Date.now() + 30000,
+    subject: me.subject,
+    nonce: "original-nonce",
+  });
+  f.saved.set(key, saved);
+  await f.session.select(selected);
+  const guard = f.session.guard(selected);
+  const failure = await f.session
+    .read("/api/v1/me", { signal: AbortSignal.abort() })
+    .catch((error) => error);
+  // A native change notification waits for any credential write already queued.
+  await f.session.secretsChanged("unrelated-key");
+  assert.deepEqual(
+    { requests, credentialRetained: f.saved.get(key) === saved },
+    { requests: [], credentialRetained: true },
+  );
+  guard();
+  assert.equal(failure.code, "cancelled");
+});
+
 // Sign only local synthetic tokens under a fixed clock; all issuer I/O is injected.
 async function sessionSigner(t) {
   const now = 1800000000000;
@@ -1370,3 +1411,153 @@ test("concurrent reads share one renewal even if its first reader cancels, and u
   assert.equal(f.session.cancellation(), signal);
   assert.equal(signal.aborted, false);
 });
+
+test("a renewal refuses the pending Catalog read and preserves a credential replaced during the exchange", async (t) => {
+  const signer = await sessionSigner(t);
+  const selected = {
+    ...sessionOIDC,
+    oidc: { ...sessionOIDC.oidc, refresh: true },
+  };
+  const key = "openAgenticCatalog:test-host:local";
+  const original = {
+    binding: binding(selected, "test-host"),
+    accessToken: "old-access",
+    refreshToken: "old:refresh",
+    subject: me.subject,
+    nonce: "original-nonce",
+    expiresAt: signer.now + 30000,
+  };
+  const replacement = JSON.stringify({
+    ...original,
+    accessToken: "replacement-access",
+    refreshToken: "replacement:refresh",
+    expiresAt: signer.now + 3600000,
+  });
+  const renewed = await signer.sign("catalog");
+  let exchanges = 0;
+  const catalogRequests = [];
+  const f = fixture((url) => {
+    if (url === sessionIssuer + "/.well-known/openid-configuration")
+      return json(sessionMetadata);
+    if (url === sessionMetadata.jwks_uri) return json({ keys: [signer.jwk] });
+    if (url === sessionMetadata.token_endpoint) {
+      exchanges++;
+      // Another window replaces the stored credential before the issuer replies.
+      f.saved.set(key, replacement);
+      return json({
+        access_token: renewed,
+        refresh_token: "renewed:refresh",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+    }
+    catalogRequests.push(url);
+    return json(me);
+  });
+  t.after(() => f.session.dispose());
+  f.saved.set(key, JSON.stringify(original));
+  await f.session.select(selected);
+  await assert.rejects(f.session.read("/api/v1/me"), {
+    code: "connection_changed",
+  });
+  assert.equal(exchanges, 1);
+  assert.deepEqual(catalogRequests, []);
+  assert.equal(f.saved.get(key), replacement);
+  assert.equal(f.session.connectionState(), "signed_out");
+});
+
+for (const paused of ["secret read", "generation write"]) {
+  for (const storageReply of ["original", "replacement"]) {
+    test(`a renewal paused at its ${paused} preserves the new selection and the ${storageReply} credential`, async (t) => {
+      const selected = {
+        ...sessionOIDC,
+        oidc: { ...sessionOIDC.oidc, refresh: true },
+      };
+      const next = connections([
+        { ...definition, id: "work", origin: "https://work.example" },
+      ])[0];
+      const key = "openAgenticCatalog:test-host:local";
+      const credential = {
+        binding: binding(selected, "test-host"),
+        accessToken: "old-access",
+        refreshToken: "old:refresh",
+        subject: me.subject,
+        nonce: "original-nonce",
+        expiresAt: Date.now() + 1000,
+      };
+      const old = JSON.stringify(credential);
+      let generation = old;
+      const entered = Promise.withResolvers();
+      const resume = Promise.withResolvers();
+      const requests = [];
+      const f = fixture(
+        (url, init) => {
+          requests.push([url, new Headers(init.headers).get("authorization")]);
+          return json(url.endsWith("/me") ? me : {});
+        },
+        {
+          run: async (requested, action) => {
+            assert.equal(requested, key);
+            return action();
+          },
+          current: async (requested, value) =>
+            requested === key && value === generation,
+          record: async (requested, value) => {
+            assert.equal(requested, key);
+            generation = value;
+            if (paused === "generation write" && value === undefined) {
+              entered.resolve();
+              await resume.promise;
+            }
+          },
+        },
+      );
+      t.after(() => f.session.dispose());
+      f.saved.set(key, old);
+      f.saved.set(
+        "openAgenticCatalog:test-host:work",
+        JSON.stringify({
+          binding: binding(next, "test-host"),
+          accessToken: "work-token",
+        }),
+      );
+      await f.session.select(selected);
+      const get = f.secrets.get;
+      f.secrets.get = async (requested) => {
+        if (paused === "secret read" && requested === key) {
+          entered.resolve();
+          await resume.promise;
+        }
+        return get(requested);
+      };
+      const oldRead = assert.rejects(f.session.read("/api/v1/me"), {
+        code: "connection_changed",
+      });
+      await entered.promise;
+      const selecting = f.session.select(next);
+      const expected =
+        storageReply === "original"
+          ? old
+          : JSON.stringify({
+              ...credential,
+              accessToken: "replacement-access",
+              refreshToken: "replacement:refresh",
+            });
+      f.saved.set(key, expected);
+      resume.resolve();
+      await Promise.all([oldRead, selecting]);
+      assert.deepEqual(requests, []);
+      assert.equal(f.saved.get(key), expected);
+      assert.equal(
+        generation,
+        paused === "generation write" && storageReply === "replacement"
+          ? undefined
+          : old,
+      );
+      assert.equal((await f.session.json("/api/v1/me")).subject, me.subject);
+      assert.deepEqual(requests, [
+        ["https://work.example/api/v1/me", "Bearer work-token"],
+      ]);
+    });
+  }
+}

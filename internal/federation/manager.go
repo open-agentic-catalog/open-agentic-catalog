@@ -3015,16 +3015,13 @@ func (m *Manager) searchLiveCatalog(ctx context.Context, request catalog.Federat
 		}
 		filter["type"] = mediaTypes
 	}
-	if len(request.Query.Tags) > 0 {
-		filter["tags"] = append([]string(nil), request.Query.Tags...)
-	}
 	if request.Query.Publisher != "" {
 		filter["publisher"] = request.Query.Publisher
 	}
 	if request.Query.License != "" {
 		filter["metadata.license"] = request.Query.License
 	}
-	// ARD subjects use exact OR; Control categories use normalized AND.
+	// ARD tags and subjects use exact OR; Control uses normalized AND.
 	// Fetch a bounded superset and check declarations before candidate admission.
 	liveLimit := min(request.Limit, MaxLiveSearchPageSize)
 	if request.LiveLimit > 0 {

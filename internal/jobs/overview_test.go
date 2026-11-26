@@ -96,3 +96,50 @@ func TestJobOverviewIndependentCeilingsAndOldest(t *testing.T) {
 		t.Fatal(out, err)
 	}
 }
+
+func TestJobOverviewRefusesPartialCountsWhenTargetValidationFails(t *testing.T) {
+	at := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+	ctx := identityfixture.WithActor(t.Context(), identity.Actor{TenantID: "tenant", Subject: "source-admin", Roles: []identity.Role{identity.RoleSourceAdmin}})
+	store := NewMemoryStore()
+	for _, id := range []string{"first", "second"} {
+		store.jobs[id] = Job{ID: id, TenantID: "tenant", Kind: "source.sync", State: StateQueued, NotBefore: at, CreatedAt: at}
+	}
+	var targetErr error
+	checked := 0
+	validate := func(context.Context, Job) error {
+		checked++
+		if checked == 2 {
+			return targetErr
+		}
+		return nil
+	}
+	service := &Service{store: store, clock: clock.NewFake(at), targetValidation: validate}
+	requireBothDue := func() {
+		t.Helper()
+		checked = 0
+		out, err := service.Overview(ctx)
+		if err != nil || checked != 2 || out.Total.Value != 2 || out.Due.Value != 2 {
+			t.Fatalf("want both Jobs due, got %+v, err = %v", out, err)
+		}
+	}
+	requireBothDue()
+	targetErr = catalog.E(catalog.CodeDependencyUnavailable, "target unavailable")
+	bound, _, err := identity.WithCollectionContext(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The service discards rows on any store error. Inspect the store's own
+	// result after validating one due Job so a partial count cannot be hidden.
+	checked = 0
+	rows, err := store.ReadJobOverview(bound, "tenant", ListRequest{validateTarget: validate}, at)
+	if catalog.ErrorCodeOf(err) != catalog.CodeDependencyUnavailable || checked != 2 || len(rows.Items) != 0 || rows.Due != 0 || rows.OldestDueAt != nil {
+		t.Fatalf("store returned partial overview %+v, checks = %d, err = %v", rows, checked, err)
+	}
+	checked = 0
+	out, err := service.Overview(ctx)
+	if catalog.ErrorCodeOf(err) != catalog.CodeDependencyUnavailable || out.Total.Value != 0 || out.Due.Value != 0 || len(out.Kinds) != 0 || out.OldestDueAt != nil {
+		t.Fatalf("unavailable target returned %+v, err = %v", out, err)
+	}
+	targetErr = nil
+	requireBothDue()
+}

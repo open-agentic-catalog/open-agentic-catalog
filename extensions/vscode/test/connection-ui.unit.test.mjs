@@ -237,6 +237,36 @@ test("canceled setup and same-definition conflicts perform no settings writes", 
   await assert.rejects(editConnection(), /workspace_settings_refused/u);
   assert.equal(updates, 0);
 });
+test("a late picker selection cannot overwrite a connection changed before editing", async () => {
+  reset();
+  const picked = connections(values)[0];
+  const replacement = { ...first, origin: "https://replacement.example" };
+  values = [replacement];
+  const rename = () => [
+    answer("Connection name", "Renamed"),
+    answer("Connection security", "false"),
+    (control) => {
+      assert.equal(control.title, "Catalog connection: Catalog origin");
+      control.callbacks.accept(); // Leave the displayed origin unchanged.
+    },
+    answer("Catalog API mode", "control"),
+    answer("Authentication", "manual"),
+    answer("Optional transport settings", "defaults"),
+    answer("Review and save", "save"),
+  ];
+  steps = rename();
+  await assert.rejects(editConnection(picked), { code: "connection_changed" });
+  assert.equal(updates, 0);
+  assert.deepEqual(values, [replacement]);
+
+  steps = rename();
+  const saved = await editConnection(connections(values)[0]);
+  finished();
+  assert.equal(updates, 1);
+  assert.equal(saved.label, "Renamed");
+  assert.equal(saved.origin, replacement.origin);
+  assert.deepEqual(values, [saved]);
+});
 test("OIDC setup exposes refresh only in its mode and preserves explicit trust/limits", async () => {
   reset();
   steps = [

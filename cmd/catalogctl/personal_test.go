@@ -163,14 +163,32 @@ func TestPersonalOfflinePreviewSelectionAndDestination(t *testing.T) {
 		t.Fatal(err)
 	}
 	var preview struct {
-		Items []struct {
+		Origin      string `json:"origin"`
+		TenantID    string `json:"tenantId"`
+		Consistency string `json:"consistency"`
+		Items       []struct {
 			Index  int            `json:"index"`
 			Action string         `json:"action"`
 			Item   personal.Input `json:"item"`
 		} `json:"items"`
 	}
-	if json.Unmarshal(output.Bytes(), &preview) != nil || len(preview.Items) != 3 || preview.Items[0].Action != "create" || preview.Items[1].Action != "skip" || preview.Items[2].Action != "create" || !reflect.DeepEqual(preview.Items[0].Item, file.Items[0]) {
-		t.Fatal("preview changed the selected intent")
+	if err := json.Unmarshal(output.Bytes(), &preview); err != nil {
+		t.Fatal(err)
+	}
+	if preview.Origin != file.Origin || preview.TenantID != file.TenantID || preview.Consistency != file.Consistency {
+		t.Fatalf("unexpected preview origin %q, tenant %q or consistency %q", preview.Origin, preview.TenantID, preview.Consistency)
+	}
+	wantActions := []string{"create", "skip", "create"}
+	if len(preview.Items) != len(wantActions) {
+		t.Fatalf("preview has %d items, want %d", len(preview.Items), len(wantActions))
+	}
+	for i, row := range preview.Items {
+		if row.Index != i+1 || row.Action != wantActions[i] {
+			t.Errorf("preview row %d: got index %d and action %q, want action %q", i+1, row.Index, row.Action, wantActions[i])
+		}
+		if !reflect.DeepEqual(row.Item, file.Items[i]) {
+			t.Errorf("preview row %d: got %s, want %s", i+1, personalTestBytes(t, row.Item), personalTestBytes(t, file.Items[i]))
+		}
 	}
 	for _, b := range output.Bytes() {
 		if b >= 128 {

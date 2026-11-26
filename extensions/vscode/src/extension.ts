@@ -156,8 +156,10 @@ export async function activate(context: vscode.ExtensionContext) {
   // step with successful reads, refusals and cleared session state.
   context.subscriptions.push(browser.onChange(show));
   context.subscriptions.push(session.onStatusChange(show));
-  async function select(id: string) {
+  async function select(id: string, expected?: Connection) {
     const connection = settings().find((c) => c.id === id);
+    if (expected && JSON.stringify(connection) !== JSON.stringify(expected))
+      throw new ClientError("connection_changed");
     if (!connection) throw new Error("missing connection");
     selected = id;
     selectedDefinition = JSON.stringify(connection);
@@ -180,12 +182,14 @@ export async function activate(context: vscode.ExtensionContext) {
   }
   async function pick(): Promise<Connection | undefined> {
     const options = settings();
+    const epoch = selectionEpoch;
     const choice = await vscode.window.showQuickPick(
       [
         ...options.map((c) => ({
           label: c.label,
           description: `${c.mode} · ${c.auth} · ${c.origin}`,
           id: c.id,
+          connection: c,
         })),
         {
           label: "Add connection",
@@ -204,13 +208,11 @@ export async function activate(context: vscode.ExtensionContext) {
       ],
       { title: "Catalog connections on this host" },
     );
-    if (choice?.id === "#add") return saveConnection();
-    if (choice?.id === "#edit") {
-      await editSaved();
-      return undefined;
-    }
-    if (choice) return select(choice.id);
-    return undefined;
+    if (!choice) return;
+    if (epoch !== selectionEpoch) throw new ClientError("connection_changed");
+    if ("connection" in choice) return select(choice.id, choice.connection);
+    if (choice.id === "#add") return saveConnection();
+    await editSaved();
   }
   async function ensure(): Promise<Connection | undefined> {
     if (selecting) await selecting;
@@ -1169,7 +1171,7 @@ export async function activate(context: vscode.ExtensionContext) {
   show();
   // Test and future native consumers share the host-owned browser; no credentials leave it.
   return {
-    select,
+    select: (id: string) => select(id),
     browse: (input?: unknown) => browser.search(input),
     next: () => browser.search(browser.state.query, true),
     explore: (input?: unknown) => browser.explore(input),

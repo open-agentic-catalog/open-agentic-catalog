@@ -432,7 +432,7 @@ All selected categories must match after trimming, lowercasing and deduplication
 
 Search applies these filters across selected origins. Omitted origins use the caller's authorized population. A namespace filter still selects local releases only; explicit indexed or live origins with a namespace return `400`. Explore covers local releases only. Durable filtering occurs before ranking, totals and pagination, including hybrid search. Explore applies its filters before facet counts. Changing a filter invalidates an existing cursor.
 
-Live Control Search checks the complete predicate before candidate admission. It forwards an exact license filter. It omits topic filters because ARD's exact-value OR cannot require every normalized category to match.
+Live Control Search checks the complete predicate before candidate admission. It forwards an exact license filter. It checks tags and topics locally because ARD peers can compare the original spelling and match any selected value. This preserves entries with different case or surrounding whitespace when they appear within the peer page budget.
 
 Live entries without required usable evidence are omitted with an `insufficient_evidence` partial diagnostic. A known nonmatch is an ordinary omission. Peer work remains bounded, so live results can be incomplete. Public ARD filters and contexts are unchanged.
 
@@ -524,7 +524,7 @@ Creation returns HTTP 201. Retrying the same command key replays its receipt und
 
 Resolve the item with `POST /api/v1/personal/items/{itemId}/resolve` and an empty JSON object. An available follow returns `current` and a `change` value of `changed`, `unchanged` or `unacknowledged`. An unavailable follow returns only `{"status":"unavailable"}`. To acknowledge, send the returned `current` as `observed` in a PATCH with the same Listing ID, the owner label, a new command key and the saved item's ETag. If the item or release has changed, HTTP 412 requires a fresh read before another acknowledgement.
 
-The `library.own` permission requires a human membership. When scope enforcement is enabled, reads and resolve require `catalog.read`; mutations require `personal.write`. Entries belong to tenant, membership and realm; callers cannot supply an owner. Owner management survives target access loss, but saving a changed reference requires current target admission. See [library limits and consent](../guides/catalog-ui.mdx#save-resources-and-searches).
+The `library.own` permission requires a human membership. When scope enforcement is enabled, `GET` and `HEAD` on the item list or an individual item require `catalog.read`. Resolving a saved item also requires `catalog.read`. Creating, updating or deleting an item requires `personal.write`. Entries belong to tenant, membership and realm; callers cannot supply an owner. Owner management survives target access loss, but saving a changed reference requires current target admission. See [library limits and consent](../guides/catalog-ui.mdx#save-resources-and-searches).
 
 ## Service activity reads
 

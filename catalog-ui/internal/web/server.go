@@ -486,6 +486,16 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	writeJSONType(w, status, "application/json", value)
 }
 
+// requestBodyProblem distinguishes the configured size limit from incomplete input.
+func requestBodyProblem(w http.ResponseWriter, err error) {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		problem(w, http.StatusRequestEntityTooLarge, "request_too_large")
+		return
+	}
+	problem(w, http.StatusBadRequest, "invalid_ui_request")
+}
+
 // problem emits a fixed-code host error without including private upstream diagnostics.
 func problem(w http.ResponseWriter, status int, code string) {
 	if observed, ok := w.(*hostResponse); ok {

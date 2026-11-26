@@ -205,7 +205,8 @@ func mergeLiveResults(ctx context.Context, response *publication.SearchResponse,
 			return decoder.Decode(target)
 		})))
 		var fields map[string]json.RawMessage
-		if json.Unmarshal(remote.Entry, &fields) != nil || fields == nil || projectionErr != nil {
+		id, idErr := catalog.ParseAIRIdentifier(remote.Identifier)
+		if json.Unmarshal(remote.Entry, &fields) != nil || fields == nil || projectionErr != nil || idErr != nil {
 			response.Partial = true
 			response.Diagnostics = append(response.Diagnostics, publication.SourceDiagnostic{Source: "federation", Status: "invalid_response", Message: "A live result could not be projected as ARD metadata."})
 			continue
@@ -240,8 +241,11 @@ func mergeLiveResults(ctx context.Context, response *publication.SearchResponse,
 			response.Diagnostics = append(response.Diagnostics, publication.SourceDiagnostic{Source: "federation", Status: "invalid_response", Message: "A live result contradicted a structured query filter."})
 			continue
 		}
-		key := searchResultKey(result.Identifier, result.Version)
-		if response.ContainsLocalIdentity(result.Identifier, result.Version) {
+		// Match the canonical identifiers in the local snapshot while keeping
+		// the winning peer's identifier and @id in their original spelling.
+		canonical := id.String()
+		key := searchResultKey(canonical, result.Version)
+		if response.ContainsLocalIdentity(canonical, result.Version) {
 			continue
 		}
 		if _, ok := index[key]; ok {

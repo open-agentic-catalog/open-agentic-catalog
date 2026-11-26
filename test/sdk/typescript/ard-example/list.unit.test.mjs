@@ -182,25 +182,7 @@ test("page limits and later failures never claim completion or restart", async (
       1,
       "http_error",
     ],
-    [
-      [
-        { body: { items: [], total: 1, pageToken: "loop" } },
-        { body: { items: [], total: 1, pageToken: "loop" } },
-      ],
-      4,
-      1,
-      "repeated_page_token",
-    ],
     [[{ body: { items: [], total: 3 } }], 4, 1, "invalid_response"],
-    [
-      [
-        { body: { items: [], total: 1, pageToken: "next" } },
-        { body: { items: [], total: 2 } },
-      ],
-      4,
-      1,
-      "invalid_response",
-    ],
   ]) {
     const { client, requests } = scripted(bodies.slice());
     const output = [];
@@ -218,6 +200,71 @@ test("page limits and later failures never claim completion or restart", async (
     assert.equal(summary.reason, reason);
     assert.equal(requests.length, bodies.length);
     assert.ok(!JSON.stringify(output).includes("private-error-sentinel"));
+  }
+});
+
+test("List emits and counts only pages with a consistent total and continuation", async () => {
+  const second = {
+    ...entry,
+    identifier: "urn:air:catalog.example.test:example:forecast",
+    displayName: "Forecast agent",
+  };
+  const third = {
+    ...entry,
+    identifier: entry.identifier + "-rain",
+    displayName: "Rain agent",
+  };
+  const registry = {
+    ...entry,
+    identifier: entry.identifier + "-registry",
+    type: "application/ai-registry+json",
+  };
+  for (const [
+    firstTotal,
+    lastTotal,
+    continuation,
+    acceptedPages,
+    exit,
+    reason,
+  ] of [
+    [5, 5, { pageToken: "next" }, 1, 1, "repeated_page_token"],
+    [5, 5, {}, 1, 1, "invalid_response"],
+    [5, 4, {}, 1, 1, "invalid_response"],
+    [4, 4, {}, 2, 0, "exhausted"],
+  ]) {
+    const { client, requests } = scripted([
+      {
+        body: { items: [entry, second], total: firstTotal, pageToken: "next" },
+      },
+      { body: { items: [registry, third], total: lastTotal, ...continuation } },
+    ]);
+    const output = [];
+    assert.equal(
+      await list(client, input, new AbortController().signal, (value) =>
+        output.push(JSON.parse(value)),
+      ),
+      exit,
+    );
+    assert.deepEqual(
+      requests.map((request) =>
+        new URL(request.url).searchParams.get("pageToken"),
+      ),
+      [null, "next"],
+    );
+    assert.deepEqual(output, [
+      { kind: "entry", ...entry },
+      { kind: "entry", ...second },
+      ...(acceptedPages === 2 ? [{ kind: "entry", ...third }] : []),
+      {
+        kind: "summary",
+        complete: exit === 0,
+        reason,
+        pages: acceptedPages,
+        resourceEntries: acceptedPages === 2 ? 3 : 2,
+        registryEntriesSkipped: acceptedPages === 2 ? 1 : 0,
+        reportedTotal: firstTotal,
+      },
+    ]);
   }
 });
 

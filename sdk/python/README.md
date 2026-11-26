@@ -85,7 +85,7 @@ Run `python catalog_async.py`. In a framework or notebook with an active event l
 
 Prefer `_with_http_info` or `_sync_with_http_info`. Results preserve status, case-insensitive headers, typed data and bounded `raw_data`. Control error data uses `Problem`; ARD error data uses `ARDError`. A 4xx or 5xx response is returned without an automatic retry. Transport, parsing and local configuration failures raise `SDKError` with a fixed code. Its optional status and request ID support explicit correlation. Default exception text contains no private body or dependency error.
 
-Required typed bodies cannot be empty or JSON `null`. Documented 204/304 responses remain bodyless. The raw methods retain exact response bytes for caller inspection.
+Required typed bodies cannot be empty or JSON `null`. For a `HEAD` request, inspect the status and headers. Typed data is `None` even when the corresponding `GET` would return an error document. Documented 204/304 responses remain bodyless. The raw methods retain exact response bytes for caller inspection.
 
 Do not log raw results, model values, tokens or caller arguments. Generated models are data containers, not safe log projections. Pydantic call errors hide input values. Model constructors used directly by your application retain normal Pydantic validation behavior.
 

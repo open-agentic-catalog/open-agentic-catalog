@@ -23,12 +23,12 @@ class ToolingCoverageTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("value = 1\n")
         (self.root / "pyproject.toml").write_text('[dependency-groups]\ndev = ["coverage==7.16.2"]\n')
-        self.addCleanup(patch.stopall)
-        patch.object(coverage, "ROOT", self.root).start()
-        patch.object(coverage, "tracked_paths", side_effect=lambda: self.paths).start()
+        self.enterContext(patch.object(coverage, "ROOT", self.root))
+        self.enterContext(patch.object(coverage, "tracked_paths", side_effect=lambda: self.paths))
         self.native = Mock()
         self.native.measured_files.return_value = [str(self.root / self.paths[0])]
         self.native.has_arcs.return_value = True
+        self.native.lines.return_value = [1]
         self.module = SimpleNamespace(__version__="7.16.2", CoverageData=Mock(return_value=self.native), Coverage=Mock())
 
     def tool(self):
@@ -142,6 +142,9 @@ class ToolingCoverageTests(unittest.TestCase):
         self.native.measured_files.return_value = ["/outside/source.py"]
         with self.tool(), self.assertRaisesRegex(ValueError, "unexpected source or mode"):
             coverage.read_native(path, sources)
+        self.native.measured_files.return_value = [str(self.root / self.paths[1])]
+        with self.tool(), self.assertRaisesRegex(ValueError, "unexpected source or mode"):
+            coverage.read_native(path, sources)
         self.native.measured_files.return_value = [str(self.root / self.paths[0])]
         self.native.has_arcs.return_value = False
         with self.tool(), self.assertRaisesRegex(ValueError, "unexpected source or mode"):
@@ -160,6 +163,49 @@ class ToolingCoverageTests(unittest.TestCase):
             coverage.finish("output/run")
         (self.root / self.paths[0]).write_text("changed = True\n")
         with self.tool(), self.assertRaisesRegex(ValueError, "sources changed"):
+            coverage.finish("output/run")
+        self.module.Coverage.assert_not_called()
+        self.assertFalse((directory / "receipt.json").exists())
+
+    def test_one_owner_cannot_borrow_another_owners_coverage(self):
+        directory = self.prepared()
+        for owner in ("alpha", "beta"):
+            (directory / "data" / (".coverage." + owner + ".native")).write_bytes(b"native-data")
+        alpha_source = str(self.root / self.paths[0])
+        beta_source = str(self.root / self.paths[2])
+        beta = Mock()
+        beta.measured_files.return_value = [beta_source]
+        beta.has_arcs.return_value = True
+        beta.lines.return_value = [1]
+        companion = Mock()
+        companion.measured_files.return_value = []
+        shards = {
+            ".coverage.alpha.native": self.native,
+            ".coverage.alpha.other": companion,
+            ".coverage.beta.native": beta,
+        }
+        self.module.CoverageData.side_effect = lambda *, basename: shards[Path(basename).name]
+        with self.tool():
+            coverage.record_owner("output/run", "beta")
+            self.native.lines.return_value = []
+            for measured in ([], [alpha_source]):
+                with self.subTest(measured=measured):
+                    self.native.measured_files.return_value = measured
+                    with self.assertRaisesRegex(ValueError, "executed lines"):
+                        coverage.record_owner("output/run", "alpha")
+                    self.assertFalse((directory / "owners/alpha.json").exists())
+
+        # An empty companion shard is harmless when this owner measured code.
+        (directory / "data/.coverage.alpha.other").write_bytes(b"second-native")
+        self.native.lines.return_value = [1]
+        with self.tool():
+            coverage.record_owner("output/run", "alpha")
+        marker = json.loads((directory / "owners/alpha.json").read_text())
+        self.assertCountEqual([Path(row["path"]).name for row in marker["data"]],
+                              [".coverage.alpha.native", ".coverage.alpha.other"])
+        # Alpha still has hits. Losing beta's hits must invalidate the combined receipt.
+        beta.lines.return_value = []
+        with self.tool(), self.assertRaisesRegex(ValueError, "executed lines"):
             coverage.finish("output/run")
         self.module.Coverage.assert_not_called()
         self.assertFalse((directory / "receipt.json").exists())

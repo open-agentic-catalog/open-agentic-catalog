@@ -74,7 +74,8 @@ func TestTopLevelHelpVersionAndUnknownRole(t *testing.T) {
 	assertCatalogdPreflightRefusal(t, output, diagnostic, err, "unknown role; use catalogd --help", "command", nil)
 }
 
-func TestTopLevelArgumentsFailBeforeStartingComponents(t *testing.T) {
+func clearCatalogdEnvironment(t *testing.T) {
+	t.Helper()
 	// Isolate supported runtime inputs without discarding launcher/tool settings.
 	for _, name := range config.EnvironmentVariables() {
 		t.Setenv(name, "")
@@ -82,6 +83,10 @@ func TestTopLevelArgumentsFailBeforeStartingComponents(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+}
+
+func TestTopLevelArgumentsFailBeforeStartingComponents(t *testing.T) {
+	clearCatalogdEnvironment(t)
 	for _, test := range []struct {
 		name, message string
 		arguments     []string
@@ -129,6 +134,41 @@ func TestTopLevelArgumentsFailBeforeStartingComponents(t *testing.T) {
 	t.Cleanup(func() { os.Args = originalArguments })
 	output, diagnostic, err := captureCatalogdUnitStreams(t, run)
 	assertCatalogdPreflightRefusal(t, output, diagnostic, err, "unknown role; use catalogd --help", "command", nil)
+}
+
+func TestStartupValidatesListenersForTheSelectedRole(t *testing.T) {
+	clearCatalogdEnvironment(t)
+	dir := t.TempDir()
+	settings := filepath.Join(dir, "catalog.json")
+	const baseline = `{"auth":{"developmentTokens":{"fixture":{"subject":"reader","tenantId":"00000000-0000-7000-8000-000000000001"}}}}`
+	if err := os.WriteFile(settings, []byte(baseline), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Stop after configuration validation, before any listener or store can start.
+	t.Setenv("CATALOG_CURSOR_SIGNING_KEY_FILE", filepath.Join(dir, "absent-key"))
+	const address = "127.0.0.1:9090"
+	const keyFailure = "cannot read secret file selected by CATALOG_CURSOR_SIGNING_KEY_FILE"
+	for _, tc := range []struct {
+		name, role, apiAddress, workerAddress, want string
+	}{
+		{"API owns the malformed listener", "api", "invalid", address, "config: http.address must contain a host and numeric port"},
+		{"worker ignores the malformed API listener", "worker", "invalid", address, keyFailure},
+		{"worker owns the malformed listener", "worker", address, "invalid", "config: worker.operationsAddress must contain a host and numeric port"},
+		{"API ignores the malformed worker listener", "api", address, "invalid", keyFailure},
+		{"combined role accepts distinct listeners", "all", address, "127.0.0.1:9091", keyFailure},
+		{"combined role owns both listeners", "all", address, address, "config: worker operations and API listeners must use different addresses"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("CATALOG_HTTP_ADDRESS", tc.apiAddress)
+			t.Setenv("CATALOG_WORKER_OPERATIONS_ADDRESS", tc.workerAddress)
+			out, diagnostic, err := runCatalogdPreflightUnit(t, []string{tc.role, "--config", settings})
+			var cause error
+			if tc.want == keyFailure {
+				cause = fs.ErrNotExist
+			}
+			assertCatalogdPreflightRefusal(t, out, diagnostic, err, tc.want, "startup", cause)
+		})
+	}
 }
 
 // captureCatalogdUnitStreams scopes process-global streams to a sequential call.

@@ -85,6 +85,24 @@ func TestUpstreamChangesSelectExactCompleteEvidence(t *testing.T) {
 	if len(read(t, "entry_comparison", "", 20)) != 2 || len(read(t, "unadopted_version", "", 20)) != 1 || len(read(t, "all", "", 1)) != 2 || len(read(t, "all", "b", 1)) != 1 {
 		t.Fatal("selector or continuation")
 	}
+	t.Run("historical observation must identify the adopted Resource", func(t *testing.T) {
+		query := UpstreamChangesQuery{Check: "entry_comparison", ObservationID: "a", Limit: 20}
+		original := store.observations[resource.Proofs["proof-1"].ObservationID]
+		t.Cleanup(func() { store.observations[original.ID] = original })
+		unrelated := original
+		unrelated.Identifier = "urn:air:remote.example:agents:other"
+		store.observations[original.ID] = unrelated
+		candidates, err := store.ListUpstreamChanges(t.Context(), tenant, query)
+		if catalog.ErrorCodeOf(err) != catalog.CodeDependencyUnavailable || len(candidates) != 0 {
+			t.Fatalf("inconsistent historical observation returned %d candidates, err = %v", len(candidates), err)
+		}
+
+		store.observations[original.ID] = original
+		candidates, err = store.ListUpstreamChanges(t.Context(), tenant, query)
+		if err != nil || len(candidates) != 1 || candidates[0].Occurrence.ObservationID != "a" || candidates[0].Outcome != "changed_entry" || candidates[0].Target.PriorVersionRevisionID != "proof-1" {
+			t.Fatalf("restored historical observation returned %+v, err = %v", candidates, err)
+		}
+	})
 	t.Run("matching unfamiliar profiles cannot establish equality or change", func(t *testing.T) {
 		previous := resource.Proofs["proof-3"]
 		original, member := store.observations["b"], rows[1].Occurrence

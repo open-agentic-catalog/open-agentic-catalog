@@ -175,15 +175,31 @@ func TestHostDependencyWarningsRecoveryAndCancellation(t *testing.T) {
 		t.Fatalf("observed recovery: %v", records)
 	}
 	logs.Reset()
-	s.apiClient.Transport = hostRoundTripFunc(func(*http.Request) (*http.Response, error) { return nil, context.Canceled })
 	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
+	defer cancel()
+	calls := 0
+	s.apiClient.Transport = hostRoundTripFunc(func(upstream *http.Request) (*http.Response, error) {
+		calls++
+		if upstream.URL.Path != "/api/v1/me" || upstream.Context().Err() != nil {
+			t.Fatal("expected a pending Catalog self-context read")
+		}
+		cancel() // The browser leaves while its session refresh is in flight.
+		if upstream.Context().Err() != context.Canceled {
+			t.Fatal("leaving the view kept the private self-context read alive")
+		}
+		return nil, upstream.Context().Err()
+	})
 	r := httptest.NewRequestWithContext(ctx, "GET", s.config.Origin+"/auth/session", nil)
 	r.Header.Set("X-Catalog-Request", "1")
 	r.AddCookie(cookie)
-	s.ServeHTTP(httptest.NewRecorder(), r)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	assertUIProblem(t, w, http.StatusServiceUnavailable, "catalog_unavailable")
+	if calls != 1 || len(s.admission) != 0 || w.Header().Get("Set-Cookie") != "" || w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal("abandoned refresh retried, retained admission or changed browser session state")
+	}
 	records = hostLogRecords(t, logs)
-	if len(records) != 1 || records[0]["level"] != "DEBUG" || s.dependencies[0].failed.Load() {
+	if len(records) != 1 || records[0]["level"] != "DEBUG" || records[0]["error_code"] != "request_canceled" || s.dependencies[0].failed.Load() {
 		t.Fatalf("cancellation claimed outage: %v", records)
 	}
 }

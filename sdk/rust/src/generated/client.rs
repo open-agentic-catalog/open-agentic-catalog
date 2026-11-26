@@ -10910,6 +10910,10 @@ impl Client {
             let typed: Option<HeadArdmcpoAuthMetadataApiError>;
             let parse_error: Option<String>;
             match status_code {
+                _ if raw_body.is_empty() => {
+                    typed = None;
+                    parse_error = None;
+                }
                 403u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
                     Ok(v) => {
                         typed = Some(HeadArdmcpoAuthMetadataApiError::Status403(v));
@@ -10984,6 +10988,10 @@ impl Client {
             let typed: Option<HeadCatalogMcpoAuthMetadataApiError>;
             let parse_error: Option<String>;
             match status_code {
+                _ if raw_body.is_empty() => {
+                    typed = None;
+                    parse_error = None;
+                }
                 403u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
                     Ok(v) => {
                         typed = Some(HeadCatalogMcpoAuthMetadataApiError::Status403(v));

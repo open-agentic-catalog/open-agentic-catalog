@@ -55,7 +55,7 @@ Choose **Read current feedback** to reread that case. Confirm before discarding 
 
 [![A private feedback case with exact references, updated time, a moderator response and a control to read current feedback.](../../../../assets/catalog-ui/feedback-case.png)](../../../../assets/catalog-ui/feedback-case.png)
 
-A same-identity permission or scope refresh keeps entered drafts and disables unauthorized new sends. A prepared command retains its captured body and revision. Changing identity clears private drafts, commands and receipts.
+If your account loses permission to submit, the form keeps your edits and disables submission. Losing read access also hides saved feedback. For example, if you changed the category alone, your choice remains visible and the saved comment disappears. If a refresh reports that you are signed out, lack access or the feedback is missing, saved feedback stays hidden until an authorized read succeeds. A prepared command retains its captured body and revision. Changing identity clears private drafts, commands and receipts.
 
 Every change checks the feedback revision. If somebody edits or responds first, refresh the feedback and review the current text before trying again. After an uncertain network outcome, retry the exact command with the same idempotency key. Removal remains available to authorized moderators after the submitter loses access. Deleted resources are excluded from normal feedback lists; an authorized moderator with a retained feedback ID can still remove its text through the API.
 

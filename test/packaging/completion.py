@@ -18,18 +18,34 @@ def cases(suite):
             yield item
 
 
+class RequiredModuleLoader(unittest.TestLoader):
+    """Remember the file modules selected by native discovery, including empty ones."""
+
+    def __init__(self):
+        super().__init__()
+        self.selected = set()
+
+    def loadTestsFromModule(self, module, *, pattern=None):
+        # Discovery also visits package initializers on its way to matching files.
+        if pattern is not None and not hasattr(module, "__path__"):
+            self.selected.add(module.__name__)
+        return super().loadTestsFromModule(module, pattern=pattern)
+
+
 def python_suite(directory, pattern):
     """Use native discovery and require each selected test file to own a case."""
     directory = Path(directory).resolve()
-    loader = unittest.TestLoader()
+    loader = RequiredModuleLoader()
     suite = loader.discover(str(directory), pattern=pattern)
     if loader.errors:
         raise RuntimeError("Python test discovery failed:\n" + "\n".join(loader.errors))
     tests = list(cases(suite))
-    selected = {path.stem for path in directory.glob(pattern) if path.is_file()}
-    observed = {test.__class__.__module__.split(".")[-1] for test in tests}
-    if not tests or not selected or selected - observed:
-        raise RuntimeError("No unit tests discovered or a required test file has no cases")
+    if not tests or not loader.selected:
+        raise RuntimeError("No unit tests discovered")
+    observed = {test.__class__.__module__ for test in tests}
+    missing = loader.selected - observed
+    if missing:
+        raise RuntimeError("A required test file has no cases: " + ", ".join(sorted(missing)))
     return suite, len(tests)
 
 

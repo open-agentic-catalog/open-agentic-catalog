@@ -583,6 +583,26 @@ it("validates nested contribution references and state before they drive display
   for (const value of invalid) expect(memberAccess(value)).toBe(false);
 });
 
+it.each([
+  ["active", "active", true, true],
+  ["suspended", "active", true, false],
+  ["suspended", "active", false, true],
+  ["active", "revoked", true, false],
+  ["active", "revoked", false, true],
+] as const)(
+  "group %s, membership relation %s, effective=%s: accepts contribution=%s",
+  (groupState, relationState, effective, accepted) => {
+    const item = {
+      ...groupPath,
+      assignment: { ...groupPath.assignment, state: "active" },
+      group: { ...group, state: groupState },
+      relation: { ...relation, state: relationState },
+      effective,
+    };
+    expect(memberAccess({ ...contributionPage, items: [item] })).toBe(accepted);
+  },
+);
+
 it.each([false, true])(
   "copies a currently inspected role to a new custom role without changing its source (protected=%s)",
   async (protectedSource) => {

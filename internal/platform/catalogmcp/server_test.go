@@ -55,7 +55,13 @@ func indexedResult() catalog.CatalogSearchResult {
 
 func page(t *testing.T, items ...catalog.CatalogSearchResult) json.RawMessage {
 	t.Helper()
-	return encoded(t, catalog.CatalogSearchResponse{Items: items, NextCursor: "opaque+/=", DurableTotal: 100, LiveCount: 0, Profile: "core-lexical-v1", Generation: testDigest, Tier: "core", Partial: true, Diagnostics: []catalog.CatalogSearchDiagnostic{{SourceID: testID, Status: "failed", Message: "Some peers unavailable"}}})
+	live := 0
+	for _, item := range items {
+		if item.Type == catalog.SearchResultLive {
+			live++
+		}
+	}
+	return encoded(t, catalog.CatalogSearchResponse{Items: items, NextCursor: "opaque+/=", DurableTotal: 100, LiveCount: live, Profile: "core-lexical-v1", Generation: testDigest, Tier: "core", Partial: true, Diagnostics: []catalog.CatalogSearchDiagnostic{{SourceID: testID, Status: "failed", Message: "Some peers unavailable"}}})
 }
 
 type roundTrip func(*http.Request) (*http.Response, error)
@@ -168,6 +174,48 @@ func TestProjectedPageRetainsAllItemsOrderAndContinuation(t *testing.T) {
 		if _, err := projectResult(encoded(t, item)); err != nil {
 			t.Fatal("valid kind rejected", kind, err)
 		}
+	}
+}
+
+func TestSearchRejectsCountsThatContradictTheReturnedPage(t *testing.T) {
+	live := indexedResult()
+	live.ID, live.Type, live.Indexed = "live:peer", catalog.SearchResultLive, nil
+	live.Identifier = "urn:air:peer.test:agents:external"
+	live.Live = &catalog.LiveSearchEvidence{SourceID: testID, Source: "https://peer.test/ard", Entry: json.RawMessage(`{"type":"application/a2a-agent-card+json"}`)}
+	for _, tc := range []struct {
+		name               string
+		durable, transient int
+		valid              bool
+	}{
+		{"more durable matches beyond this page", 7, 1, true},
+		{"all durable matches on this page", 2, 1, true},
+		{"live row missing from count", 7, 0, false},
+		{"durable row counted as live", 7, 2, false},
+		{"one durable row missing from total", 1, 1, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data := catalog.CatalogSearchResponse{
+				Items:     []catalog.CatalogSearchResult{live, localResult(), indexedResult()},
+				LiveCount: tc.transient, DurableTotal: tc.durable, Profile: catalog.CoreSearchProfile, Generation: testDigest, Tier: "core",
+			}
+			if tc.durable > 2 {
+				data.NextCursor = "next+/="
+			}
+			s := unitService(func(*http.Request) (*http.Response, error) {
+				return response(string(encoded(t, data)), http.StatusOK), nil
+			})
+			got := call(t, s, "catalog_control_search", `{"origins":["local","indexed","live"],"limit":3}`)
+			if tc.valid {
+				var projected struct {
+					Data catalog.CatalogSearchResponse `json:"data"`
+				}
+				if err := json.Unmarshal(encoded(t, got.StructuredContent), &projected); err != nil || got.IsError || len(projected.Data.Items) != 3 || projected.Data.DurableTotal != tc.durable || projected.Data.LiveCount != tc.transient || projected.Data.NextCursor != data.NextCursor {
+					t.Fatalf("valid mixed page counts or continuation changed: %s, %v", toolText(t, got), err)
+				}
+			} else if !got.IsError || got.StructuredContent != nil || !strings.HasPrefix(toolText(t, got), "invalid_response:") {
+				t.Errorf("returned a page with contradictory counts: %s", toolText(t, got))
+			}
+		})
 	}
 }
 

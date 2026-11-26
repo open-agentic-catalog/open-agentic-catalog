@@ -53,7 +53,8 @@ class Client(ApiClient):
                              response_types_map: dict[str, Any] | None = None) -> ApiResponse[Any]:
         """Decode bounded results without exceptions that contain response bodies."""
         mapping = response_types_map or {}
-        kind = mapping.get(str(response_data.status), mapping.get("default"))
+        # HEAD carries representation headers even when the corresponding GET has an error body.
+        kind = None if response_data._head else mapping.get(str(response_data.status), mapping.get("default"))
         try:
             data = None
             if kind in ("file", "bytes", "bytearray"):

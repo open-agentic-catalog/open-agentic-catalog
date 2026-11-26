@@ -448,6 +448,43 @@ func TestDeclaredMCPToolProjectionRejectsMalformedEvidence(t *testing.T) {
 	}
 }
 
+func TestSearchOnlyProjectsDeclaredToolMatchesWhenRequested(t *testing.T) {
+	item := localResult()
+	item.Kind, item.Local.Resource.Kind = catalog.KindMCPServer, catalog.KindMCPServer
+	item.ToolMatch = &catalog.MCPToolMatch{
+		RepresentationID: testID, ContentDigest: testDigest, MatchedToolCount: 1,
+		Tools: []catalog.MCPToolSnippet{{Name: "extract_tables"}},
+	}
+	for _, tc := range []struct {
+		name, args, profile string
+		wantMatch           bool
+	}{
+		{"default", `{"text":"tables","origins":["local"]}`, catalog.CoreSearchProfile, false},
+		{"disabled despite upstream tool profile", `{"text":"tables","origins":["local"],"includeMcpTools":false}`, catalog.MCPToolsSearchProfile, false},
+		{"enabled", `{"text":"tables","origins":["local"],"includeMcpTools":true}`, catalog.MCPToolsSearchProfile, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := unitService(func(*http.Request) (*http.Response, error) {
+				return response(string(encoded(t, catalog.CatalogSearchResponse{
+					Items: []catalog.CatalogSearchResult{item}, NextCursor: "next-page", DurableTotal: 2,
+					Profile: tc.profile, Generation: testDigest, Tier: "core",
+				})), http.StatusOK), nil
+			})
+			got := call(t, s, "catalog_control_search", tc.args)
+			body := toolText(t, got)
+			if tc.wantMatch {
+				if got.IsError || !strings.Contains(body, `"name":"extract_tables"`) || !strings.Contains(body, `"nextCursor":"next-page"`) {
+					t.Errorf("selected explanation or continuation lost: %s", body)
+				}
+				return
+			}
+			if !got.IsError || got.StructuredContent != nil || !strings.HasPrefix(body, "invalid_response:") || strings.Contains(body, "extract_tables") || strings.Contains(body, "next-page") {
+				t.Errorf("expected refusal without a tool explanation or continuation, got %s", body)
+			}
+		})
+	}
+}
+
 func TestControlMCPRejectsUnadvertisedPrivateNativeSelectors(t *testing.T) {
 	for _, raw := range []string{`{"nativeCapabilities":{"agentStreaming":false},"origins":["local"]}`, `{"nativeCapabilities":{"agentSkillIds":["invoice"]},"origins":["local"]}`} {
 		if _, err := toolRequest("catalog_control_search", json.RawMessage(raw)); err == nil {

@@ -58,9 +58,10 @@ export function FollowUpdates({
             signal: controller.signal,
           },
         );
+        if (controller.signal.aborted) return;
         checked.push({ item, result: result(reply, followResolution) });
       }
-      if (!controller.signal.aborted) setRows(checked);
+      setRows(checked);
     } catch (e) {
       if (!controller.signal.aborted) {
         setError(true);

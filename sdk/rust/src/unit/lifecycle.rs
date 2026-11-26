@@ -173,3 +173,38 @@ async fn every_content_encoding_must_be_identity_regardless_of_case_or_order() {
         assert_eq!(transport.requests.lock().unwrap().len(), 1);
     }
 }
+
+#[tokio::test]
+async fn head_reports_representation_length_without_charging_it_to_the_body_budget() {
+    let metadata = "/.well-known/oauth-protected-resource/mcp";
+    for (method, body, accepted) in [
+        ("HEAD", &b""[..], true),
+        ("GET", &b""[..], false),
+        ("HEAD", &b"1234"[..], false),
+    ] {
+        let mut response = reply(200, body).unwrap();
+        response
+            .headers
+            .insert("content-length", HeaderValue::from_static("65536"));
+        let transport = Scripted::new(vec![Ok(response)]);
+        let client = client(transport.clone())
+            .with_limits(Limits {
+                response_bytes: 3,
+                ..Limits::default()
+            })
+            .unwrap();
+        let result = client.raw(method, metadata, HeaderMap::new(), vec![]).await;
+        if accepted {
+            let result = result.unwrap();
+            assert_eq!(result.status, 200);
+            assert_eq!(result.headers["content-length"], "65536");
+            assert!(result.raw_body.is_empty());
+        } else {
+            assert_eq!(result.unwrap_err(), Error::ResponseTooLarge);
+        }
+        let requests = transport.requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method(), method);
+        assert_eq!(requests[0].url().path(), metadata);
+    }
+}

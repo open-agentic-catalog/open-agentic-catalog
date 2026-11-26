@@ -147,25 +147,24 @@ func TestDirectHostCurrentSessionWithoutUsableCookie(t *testing.T) {
 func TestDirectHostCurrentSessionResponses(t *testing.T) {
 	t.Parallel()
 	const limit = 64 << 10
-	selfContext := strings.Replace(testAccess, `"subject":`, `"realmId":"00000000-0000-7000-8000-000000000003","subject":`, 1)
-	exact := selfContext + strings.Repeat(" ", limit-len(selfContext))
+	exact := testAccess + strings.Repeat(" ", limit-len(testAccess))
 	for _, test := range []struct {
 		name, raw, code           string
 		status, wantStatus        int
 		readError, transportError bool
 	}{
 		{name: "exact limit", raw: exact, status: 200, wantStatus: 200},
-		{name: "service actor", raw: strings.Replace(selfContext, `"actorType":"human"`, `"actorType":"service"`, 1), status: 200, wantStatus: 200},
+		{name: "service actor", raw: strings.Replace(testAccess, `"actorType":"human"`, `"actorType":"service"`, 1), status: 200, wantStatus: 200},
 		{name: "overflow whitespace", raw: exact + " ", status: 200, wantStatus: 503, code: "catalog_unavailable"},
 		{name: "overflow trailing input", raw: exact + "private invalid trailing input", status: 200, wantStatus: 503, code: "catalog_unavailable"},
 		{name: "bounded large response", raw: exact + strings.Repeat(" ", 1024), status: 200, wantStatus: 503, code: "catalog_unavailable"},
-		{name: "missing tenant", raw: strings.Replace(selfContext, `"tenantId":"00000000-0000-7000-8000-000000000001",`, "", 1), status: 200, wantStatus: 503, code: "catalog_unavailable"},
-		{name: "missing membership", raw: strings.Replace(selfContext, `"membershipId":"00000000-0000-7000-8000-000000000002",`, "", 1), status: 200, wantStatus: 503, code: "catalog_unavailable"},
-		{name: "missing subject", raw: strings.Replace(selfContext, `"subject":"reader",`, "", 1), status: 200, wantStatus: 503, code: "catalog_unavailable"},
+		{name: "missing tenant", raw: strings.Replace(testAccess, `"tenantId":"00000000-0000-7000-8000-000000000001",`, "", 1), status: 200, wantStatus: 503, code: "catalog_unavailable"},
+		{name: "missing membership", raw: strings.Replace(testAccess, `"membershipId":"00000000-0000-7000-8000-000000000002",`, "", 1), status: 200, wantStatus: 503, code: "catalog_unavailable"},
+		{name: "missing subject", raw: strings.Replace(testAccess, `"subject":"reader",`, "", 1), status: 200, wantStatus: 503, code: "catalog_unavailable"},
 		{name: "malformed JSON", raw: `{"subject":`, status: 200, wantStatus: 503, code: "catalog_unavailable"},
-		{name: "wrong field type", raw: strings.Replace(selfContext, `"subject":"reader"`, `"subject":7`, 1), status: 200, wantStatus: 503, code: "catalog_unavailable"},
-		{name: "trailing JSON", raw: selfContext + `{}`, status: 200, wantStatus: 503, code: "catalog_unavailable"},
-		{name: "read failure", raw: selfContext, status: 200, readError: true, wantStatus: 503, code: "catalog_unavailable"},
+		{name: "wrong field type", raw: strings.Replace(testAccess, `"subject":"reader"`, `"subject":7`, 1), status: 200, wantStatus: 503, code: "catalog_unavailable"},
+		{name: "trailing JSON", raw: testAccess + `{}`, status: 200, wantStatus: 503, code: "catalog_unavailable"},
+		{name: "read failure", raw: testAccess, status: 200, readError: true, wantStatus: 503, code: "catalog_unavailable"},
 		{name: "unauthorized", raw: "private upstream diagnostic", status: 401, wantStatus: 401, code: "catalog_login_denied"},
 		{name: "forbidden", raw: "private upstream diagnostic", status: 403, wantStatus: 401, code: "catalog_login_denied"},
 		{name: "unavailable", raw: "private upstream diagnostic", status: 503, wantStatus: 503, code: "catalog_unavailable"},
@@ -225,23 +224,33 @@ func TestDirectHostCurrentSessionRefreshesAccess(t *testing.T) {
 	s.now = func() time.Time { return at }
 	expires := at.Add(time.Hour).Unix()
 	cookie := directHostSession(t, s)
-	bodies := []*transportResponseBody{
-		{reader: strings.NewReader(testAccess)},
-		{reader: strings.NewReader(strings.Replace(testAccess, `"permissions":["resource.read"]`, `"permissions":[]`, 1))},
+	steps := []struct {
+		status int
+		raw    string
+	}{
+		{http.StatusOK, testAccess},
+		{http.StatusServiceUnavailable, "private upstream diagnostic"},
+		{http.StatusOK, strings.NewReplacer(`["resource.read"]`, `[]`, `"authorizationRevision":1`, `"authorizationRevision":2`).Replace(testAccess)},
 	}
 	calls := 0
+	var body *transportResponseBody
 	s.apiClient.Transport = hostRoundTripFunc(func(r *http.Request) (*http.Response, error) {
-		if calls >= len(bodies) || r.URL.String() != "https://api.example.test/api/v1/me" || r.Header.Get("Authorization") != "Bearer test-token" {
+		if calls >= len(steps) || r.URL.String() != "https://api.example.test/api/v1/me" || r.Header.Get("Authorization") != "Bearer test-token" {
 			t.Fatal("session refresh made an unexpected request")
 		}
-		body := bodies[calls]
+		step := steps[calls]
+		body = &transportResponseBody{reader: strings.NewReader(step.raw)}
 		calls++
-		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: body}, nil
+		return &http.Response{StatusCode: step.status, Header: http.Header{}, Body: body}, nil
 	})
-	for index, raw := range []string{testAccess, strings.Replace(testAccess, `"permissions":["resource.read"]`, `"permissions":[]`, 1)} {
+	for index, step := range steps {
 		w := uiRequest(s, http.MethodGet, "/auth/session", "", cookie)
-		assertSessionProjection(t, w, raw, expires)
-		if calls != index+1 || bodies[index].closes != 1 || len(s.admission) != 0 || w.Header().Get("Set-Cookie") != "" {
+		if step.status == http.StatusOK {
+			assertSessionProjection(t, w, step.raw, expires)
+		} else {
+			assertUIProblem(t, w, step.status, "catalog_unavailable")
+		}
+		if calls != index+1 || body.closes != 1 || len(s.admission) != 0 || w.Header().Get("Set-Cookie") != "" || w.Header().Get("Cache-Control") != "no-store" {
 			t.Fatal("session reused stale access, changed its cookie or retained resources")
 		}
 		at = at.Add(time.Minute)
