@@ -92,7 +92,7 @@ Profiles select system/tool prerequisites only. Existing Make installers still o
 
 The `docs` profile selects Go, the documentation Node/npm versions and pinned Markdownlint. It omits YAML, ShellCheck, Hadolint, actionlint and Docker prerequisites. The documentation job runs Markdown/repository contracts before site checks and records their outcomes separately.
 
-The Go client job reuses its existing prerequisites for `webhook-report-check`. That target checks the Go SDK and the independent publication-report receiver. `client-go-check` remains separate. The receiver profile at `coverage/publication-report-unit.out` excludes SDK and functional coverage. The act wrapper has no SDK selection. Run these checks through their native Make targets.
+The Go client job reuses its existing prerequisites for `sdk-go-examples-check`. That target checks the Go SDK once and runs the publication-report and MCP Scanner receiver checks. `client-go-check` remains separate. The receiver profile at `coverage/publication-report-unit.out` excludes SDK and functional coverage. The act wrapper has no SDK selection. Run these checks through their native Make targets.
 
 The functional workflow uses `functional` prerequisites for backup/restore and standalone receiver tests. Its peer federation selection uses `functional-ui` and installs UI dependencies, Chromium libraries and the browser. All selections call fixed existing Make targets and preserve failing exits. The act wrapper retains its eight selections; run the three additional campaigns through their native Make targets.
 

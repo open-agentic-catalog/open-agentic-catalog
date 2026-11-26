@@ -209,21 +209,22 @@ class ScannerQualification(unittest.TestCase):
         workflow = ("name: Check\non: workflow_dispatch\njobs:\n  check:\n    runs-on: ubuntu-latest\n"
                     "    steps:\n      - run: printf 'ok\\n'\n")
         cases = (
-            ("ruff", "test/staged.py", "value = 1\n", "import private_staged_marker\n"),
+            ("ruff", "new-owner/staged.py", "value = 1\n", "import private_staged_marker\n"),
             ("ruff", "examples/mcp-scanner/staged.py", "value = 1\n", "import private_staged_marker\n"),
-            ("shellcheck", "test/functional/restore.sh", "#!/bin/sh\nprintf 'ok\\n'\n",
+            ("shellcheck", "new-owner/run.bash", "#!/bin/sh\nprintf 'ok\\n'\n",
              "#!/bin/sh\necho $private_staged_marker\n"),
             ("shellcheck", "test/functional/pitr_archive.sh", "#!/bin/sh\nprintf 'ok\\n'\n",
              "#!/bin/sh\necho $private_staged_marker\n"),
             ("markdownlint", "notes [draft]\n-file.md", "# Title\n\nText.\n", "# Title\n\n#### private_staged_marker\n"),
             ("hadolint", "Containerfile", "FROM scratch\n", "FROM private-staged-marker\n"),
             *(("hadolint", name, "FROM scratch\n", "FROM private-staged-marker\n") for name in (
-                "test/ci/Containerfile.act", "test/mcp-scanner/Containerfile",
+                "new-owner/Dockerfile.preview", "test/ci/Containerfile.act", "test/mcp-scanner/Containerfile",
                 "examples/tutorials/local-oidc/Containerfile", "test/interoperability/mcp/catalog/Containerfile",
                 "test/interoperability/ard-registry/Containerfile",
             )),
-            ("actionlint", ".github/workflows/check.yml", workflow,
-             workflow + "        if: $" + "{{ private_staged_marker.value }}\n"),
+            *(("actionlint", name, workflow, workflow + "        if: $" + "{{ private_staged_marker.value }}\n") for name in (
+                ".github/workflows/check.yml", "examples/git-draft-delivery/preview.yml", "examples/git-draft-delivery/deliver.yml",
+            )),
         )
         durations = []
         for tool, name, valid, invalid in cases:

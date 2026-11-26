@@ -17,6 +17,8 @@ class StagedSelectionTests(unittest.TestCase):
 
     def test_maintained_scopes(self):
         expected = {
+            "other.py": "ruff", "arbitrary.sh": "shellcheck", "examples/unused/Containerfile": "hadolint",
+            "examples/git-draft-delivery/preview.yml": "actionlint", "examples/git-draft-delivery/deliver.yml": "actionlint",
             "test/a.py": "ruff", "extensions/vscode/tooling/a.py": "ruff",
             "examples/langgraph/app.py": "ruff", "examples/tutorials/local-oidc/service-read.py": "ruff",
             "examples/mcp-scanner/worker.py": "ruff", "examples/git-draft-delivery/deliver.py": "ruff",
@@ -35,7 +37,7 @@ class StagedSelectionTests(unittest.TestCase):
         }
         for path, tool in expected.items():
             self.assertEqual(runner.lint_kind(path), tool, path)
-        for path in ("other.py", "sdk/python/client.py", "arbitrary.sh", "examples/unused/Containerfile",
+        for path in ("schemas/upstream/vendor.sh", "sdk/python/client.py", "samples/upstream/Dockerfile",
                      ".github/workflows/nested/check.yml", "schemas/upstream/README.md", "samples/upstream/README.md",
                      "specs/README.md", "output/report.md", "documentation/dist/page.md",
                      "documentation/src/content/docs/generated/page.md", "test/sdk/.tools/a.py",

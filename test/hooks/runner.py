@@ -29,14 +29,6 @@ LINTER_PINS = "test/ci/pins.json"
 PYTHON_POLICIES = ("ruff.toml", "pyproject.toml", "uv.lock")
 MARKDOWN_POLICY = ".markdownlint.json"
 # These selections follow shell-check, python-lint, docs-check and container-check.
-SHELL_FILES = {"test/functional/housekeeping.sh", "test/functional/restore.sh", "test/functional/pitr_archive.sh",
-               "deployments/container/licenses.sh", "test/hooks/pre-commit"}
-CONTAINER_FILES = {"Containerfile", "test/functional/Containerfile", "catalog-ui/Containerfile", "test/interoperability/adk/Containerfile", "test/interoperability/agentfield/Containerfile",
-                   "test/interoperability/Containerfile", "test/embeddings/Containerfile",
-                   "test/ci/Containerfile.act", "test/mcp-scanner/Containerfile",
-                   "examples/tutorials/local-oidc/Containerfile",
-                   *(f"test/interoperability/{name}/Containerfile" for name in
-                     ("mcp", "mcp/catalog", "a2a", "skills", "plugins", "agntcy/router", "ans", "ard-registry"))}
 MARKDOWN_EXCLUDES = ("schemas/upstream/", "samples/upstream/", "specs/", "output/", ".tools/",
                      "internal/adapter/testdata/upstream/openai/", "internal/adapter/testdata/upstream/huggingface/",
                      "internal/adapter/testdata/upstream/context7/plugin/",
@@ -44,8 +36,6 @@ MARKDOWN_EXCLUDES = ("schemas/upstream/", "samples/upstream/", "specs/", "output
                      "catalog-ui/dist/", "test/clientcompat/go/generated/", "sdk/rust/target/",
                      "test/sdk/rust/consumer/target/", "examples/rust-catalog-report/target/",
                      "extensions/vscode/dist/")
-PYTHON_ROOTS = ("test/", "extensions/vscode/tooling/", "examples/langgraph/", "examples/tutorials/local-oidc/",
-                "examples/mcp-scanner/", "examples/git-draft-delivery/")
 TOOL_PATHS = {"ruff": ".tools/dev/bin/ruff", "shellcheck": ".tools/ci/bin/shellcheck",
               "hadolint": ".tools/ci/bin/hadolint", "actionlint": ".tools/ci/bin/actionlint",
               "markdownlint": ".tools/ci/markdown/node_modules/.bin/markdownlint"}
@@ -62,14 +52,16 @@ def lint_kind(name):
     parts = Path(name).parts
     if any(part in {"node_modules", ".tools", ".venv", "__pycache__"} for part in parts):
         return None
-    if name.startswith(".github/workflows/") and len(parts) == 3 and name.endswith((".yml", ".yaml")):
+    if (name.startswith(".github/workflows/") and len(parts) == 3 and name.endswith((".yml", ".yaml"))
+            or name in {"examples/git-draft-delivery/preview.yml", "examples/git-draft-delivery/deliver.yml"}):
         return "actionlint"
-    if name in SHELL_FILES:
-        return "shellcheck"
-    if name in CONTAINER_FILES:
-        return "hadolint"
-    if name.startswith(PYTHON_ROOTS) and name.endswith(".py") and not name.startswith("test/clientcompat/go/generated/"):
-        return "ruff"
+    if not name.startswith(("schemas/upstream/", "samples/upstream/", "internal/adapter/testdata/upstream/")):
+        if name.endswith((".sh", ".bash")) or name == "test/hooks/pre-commit":
+            return "shellcheck"
+        if re.fullmatch(r"(?:Containerfile|Dockerfile)(?:\.[^/]+)?", parts[-1]):
+            return "hadolint"
+        if name.endswith(".py") and not name.startswith(("sdk/python/", "test/clientcompat/go/generated/")):
+            return "ruff"
     if name.endswith((".md", ".mdx")) and not name.startswith(MARKDOWN_EXCLUDES):
         return "markdownlint"
     return None
@@ -323,7 +315,7 @@ class Checks:
                 elif tool == "shellcheck":
                     arguments = ["--norc", "--format=json1", "--", *names]
                 elif tool == "hadolint":
-                    arguments = ["--config", str(empty), "--no-color", "--format", "json", *names]
+                    arguments = ["--config", str(empty), "--no-color", "--format", "json", "--", *names]
                 elif tool == "actionlint":
                     # actionlint adds -x to ShellCheck. Do not let staged scripts
                     # cause it to read unstaged or absolute source paths.

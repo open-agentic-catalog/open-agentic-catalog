@@ -683,7 +683,8 @@ def check(action):
                 cargo(version, "test", "--frozen", manifest=REPORT / "Cargo.toml")
                 cargo(version, "build", "--frozen", manifest=REPORT / "Cargo.toml")
             cargo(
-                pins()["rust"], "doc", "--frozen", "--no-deps", target=work / "rustdoc"
+                pins()["rust"], "doc", "--frozen", "--no-deps", target=work / "rustdoc",
+                extra_env={"RUSTDOCFLAGS": "-D rustdoc::broken_intra_doc_links"},
             )
             artifact = build_package(work)
             qualify_package(work, artifact, stamp)

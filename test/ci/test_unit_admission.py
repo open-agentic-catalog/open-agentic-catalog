@@ -33,11 +33,12 @@ class AdmissionTests(unittest.TestCase):
         for name in ("pyproject.toml", "uv.lock", "ruff.toml", "test/ci/pins.json",
                      "test/ci/tools.py", "test/packaging/versioning.py"):
             with self.subTest(name=name):
-                self.assertEqual(a.select([name]), expected)
+                self.assertEqual(a.select([name]), {**expected, "charts": name in {"pyproject.toml", "uv.lock", "test/ci/pins.json", "test/ci/tools.py"}})
         results = dict.fromkeys(("selection", "baseline", "unit", "ui", "docs", "clients"), "success")
         plan = a.select(["uv.lock"])
-        self.assertEqual(set(a.outcomes(plan, results).values()), {"passed"})
-        for job in ("ui", "docs", "clients"):
+        results["charts"] = "success"
+        self.assertEqual(a.outcomes(plan, results)["clients"], "passed")
+        for job in ("ui", "docs", "charts", "clients"):
             for outcome in ("failure", "cancelled", "skipped"):
                 with self.subTest(job=job, outcome=outcome), self.assertRaises(ValueError):
                     a.outcomes(plan, {**results, job: outcome})
@@ -45,9 +46,9 @@ class AdmissionTests(unittest.TestCase):
     def test_nested_manifests_keep_their_own_selection(self):
         for name in ("misc/pyproject.toml", "misc/uv.lock", "uv.lock.notes", "pyproject.toml.example"):
             with self.subTest(name=name):
-                self.assertEqual(a.select([name]), {"ui": False, "docs": False, "languages": []})
-        self.assertEqual(a.select(["documentation/uv.lock"]), {"ui": False, "docs": True, "languages": []})
-        self.assertEqual(a.select(["sdk/python/pyproject.toml"]), {"ui": False, "docs": True, "languages": ["python"]})
+                self.assertEqual(a.select([name]), {"ui": False, "docs": False, "charts": False, "languages": []})
+        self.assertEqual(a.select(["documentation/uv.lock"]), {"ui": False, "docs": True, "charts": False, "languages": []})
+        self.assertEqual(a.select(["sdk/python/pyproject.toml"]), {"ui": False, "docs": True, "charts": False, "languages": ["python"]})
 
     def test_independent_language_and_projected_document_inputs(self):
         for language in a.LANGUAGES:
@@ -72,7 +73,15 @@ class AdmissionTests(unittest.TestCase):
             ("examples/tutorials/local-oidc/local_auth.py", False, True, ["go"]),
         ):
             with self.subTest(path=path):
-                self.assertEqual(a.select([path]), {"ui": ui, "docs": docs, "languages": languages})
+                self.assertEqual(a.select([path]), {"ui": ui, "docs": docs, "charts": path == "LICENSE", "languages": languages})
+
+    def test_chart_inputs_select_manifest_validation(self):
+        for path in ("deployments/helm/open-agentic-catalog/templates/job.yaml",
+                     "deployments/helm/open-agentic-catalog-monitoring/values.yaml", "deployments/monitoring/dashboard.json",
+                     "test/helm/new_test.go", "test/monitoring/helm.py", "Makefile"):
+            with self.subTest(path=path):
+                self.assertTrue(a.select([path])["charts"])
+        self.assertFalse(a.select(["documentation/README.md"])["charts"])
 
     def test_invalid_language_never_silently_returns_an_empty_matrix(self):
         self.assertEqual(a.languages("all"), list(a.LANGUAGES))
@@ -81,11 +90,11 @@ class AdmissionTests(unittest.TestCase):
                 a.languages(value)
 
     def test_selected_failure_skip_and_cancellation_cannot_complete(self):
-        plan = {"ui": True, "docs": False, "languages": ["rust"]}
+        plan = {"ui": True, "docs": False, "charts": True, "languages": ["rust"]}
         result = {"selection": "success", "baseline": "success", "unit": "success", "ui": "success",
-                  "docs": "skipped", "clients": "success"}
+                  "docs": "skipped", "charts": "success", "clients": "success"}
         self.assertEqual(a.outcomes(plan, result)["docs"], "unselected")
-        for name in ("baseline", "unit", "ui", "clients"):
+        for name in ("baseline", "unit", "ui", "charts", "clients"):
             for failure in ("failure", "cancelled", "skipped", ""):
                 with self.subTest(name=name, failure=failure), self.assertRaises(ValueError):
                     a.outcomes(plan, {**result, name: failure})
@@ -94,14 +103,14 @@ class AdmissionTests(unittest.TestCase):
                 a.outcomes(plan, {**result, "docs": status})
 
     def test_baseline_only_plan_cannot_hide_a_failed_selector_or_invalid_plan(self):
-        plan = {"ui": False, "docs": False, "languages": []}
-        results = {"baseline": "success", "unit": "success", "ui": "skipped", "docs": "skipped", "clients": "skipped"}
+        plan = {"ui": False, "docs": False, "charts": False, "languages": []}
+        results = {"baseline": "success", "unit": "success", "ui": "skipped", "docs": "skipped", "charts": "skipped", "clients": "skipped"}
         for status in ("failure", "cancelled", "skipped", None):
             with self.subTest(selection=status), self.assertRaisesRegex(ValueError, "selection"):
                 a.outcomes(plan, results if status is None else {**results, "selection": status})
         results["selection"] = "success"
         self.assertEqual(a.outcomes(plan, results), {"selection": "passed", "baseline": "passed", "unit": "passed",
-                                                     "ui": "unselected", "docs": "unselected", "clients": "unselected"})
+                                                     "ui": "unselected", "docs": "unselected", "charts": "unselected", "clients": "unselected"})
         for invalid in (None, {**plan, "ui": None}, {**plan, "docs": 0}, {**plan, "languages": ""},
                         {**plan, "languages": ["other"]}):
             with self.subTest(plan=invalid), self.assertRaisesRegex(ValueError, "plan"):

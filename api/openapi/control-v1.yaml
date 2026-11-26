@@ -7336,7 +7336,7 @@ components:
           description: >-
             Exact, case-sensitive protocolBinding declared by any interface in the released validated
             primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require
-            explicit origins [local]; Browse and Explore are intrinsically local. Requires current
+            selecting only the local origin explicitly; Browse and Explore are intrinsically local. Requires current
             resource.read_content as well as resource.read before matching, totals, facets and paging.
             Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved.
             No endpoint request is added and a declaration does not establish protocol compatibility.
@@ -11518,7 +11518,7 @@ components:
         resource.read and resource.read_content authority. OR within arrays, AND across fields;
         separate skill or remote members may satisfy separate fields. No tuple compatibility,
         media-type normalization, inference or endpoint request. Search and saved criteria require
-        explicit origins [local]; Explore is local. Select one card kind only. At most 64 string
+        selecting only the local origin explicitly; Explore is local. Select one card kind only. At most 64 string
         values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves
         ordinary discovery. Missing/null native streaming does not match explicit false.
       not:
@@ -11680,7 +11680,7 @@ components:
           description: >-
             Exact, case-sensitive protocolBinding declared by any interface in the released validated
             primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require
-            explicit origins [local]; Browse and Explore are intrinsically local. Requires current
+            selecting only the local origin explicitly; Browse and Explore are intrinsically local. Requires current
             resource.read_content as well as resource.read before matching, totals, facets and paging.
             Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved.
             No endpoint request is added and a declaration does not establish protocol compatibility.
@@ -11815,7 +11815,7 @@ components:
           description: >-
             Exact, case-sensitive protocolBinding declared by any interface in the released validated
             primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require
-            explicit origins [local]; Browse and Explore are intrinsically local. Requires current
+            selecting only the local origin explicitly; Browse and Explore are intrinsically local. Requires current
             resource.read_content as well as resource.read before matching, totals, facets and paging.
             Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved.
             No endpoint request is added and a declaration does not establish protocol compatibility.

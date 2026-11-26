@@ -116,7 +116,7 @@ jobs:
         id: sdk_checks
         run: |
           if [[ "$SDK_LANGUAGE" == go ]]; then
-            make webhook-report-check
+            make sdk-go-examples-check
           else
             make sdk-check SDK_LANGUAGE="$SDK_LANGUAGE"
           fi
@@ -211,8 +211,8 @@ jobs:
               printf 'Other SDK languages are unselected.\n'
             fi
             if [[ "$SDK_LANGUAGE" == go ]]; then
-              printf 'Go SDK and webhook receiver gate: `%s`.\n\n' "$SDK_CHECKS"
-              printf 'Receiver-only unit coverage, when produced: `coverage/publication-report-unit.out`.\n'
+              printf 'Go SDK, publication-report and MCP Scanner receiver: `%s`.\n\n' "$SDK_CHECKS"
+              printf 'Publication-report unit coverage, when produced: `coverage/publication-report-unit.out`.\n'
               printf 'This profile excludes SDK and functional coverage.\n'
             else
               printf 'SDK gate: `%s`.\n\n' "$SDK_CHECKS"

@@ -10,6 +10,19 @@ import typescript_runner as runner
 
 
 class TypeScriptRunnerUnits(unittest.TestCase):
+    def test_nested_sdk_sources_are_linted_and_bound_to_the_package(self):
+        with tempfile.TemporaryDirectory() as directory:
+            sdk = Path(directory)
+            (sdk / "src/nested").mkdir(parents=True)
+            handwritten = sdk / "src/nested/transport.ts"
+            generated = sdk / "src/schema.d.ts"
+            for source in (handwritten, generated):
+                source.touch()
+            with patch.object(runner, "SDK", sdk):
+                self.assertEqual(runner.handwritten_sources(), [handwritten])
+                self.assertIn(handwritten, runner.package_sources())
+                self.assertIn(generated, runner.package_sources())
+
     def test_installation_inputs_bind_npm_acquisition_code_and_archive_pin(self):
         before = runner.inputs()
         for name in ("test/sdk/node_runtime.py", "test/ci/pins.json"):

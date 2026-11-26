@@ -745,7 +745,7 @@ Pages prepares matching HTML and PDF output; delivery requires maintainer activa
 
 The documentation job in Source quality runs `make docs-check`, then `make docs-site-check`, with separate summary outcomes. Its `docs` prerequisite profile installs pinned Markdownlint, Go and the documentation Node/npm toolchain. The job needs no Docker socket or other source linters.
 
-The Go selection in the SDK workflow runs `webhook-report-check`, which includes the SDK gate and independent publication-report receiver checks. `client-go-check` retains its own result. The selected receiver profile excludes SDK and functional coverage. The act wrapper has no SDK selection.
+The Go selection in the SDK workflow runs `sdk-go-examples-check` for the Go SDK, publication-report example and MCP Scanner receiver. `client-go-check` retains its own result. The selected receiver profile excludes SDK and functional coverage. The act wrapper has no SDK selection.
 
 The functional workflow offers eight fixed choices, including logical backup/restore, two-Catalog federation and standalone webhook receiver tests. Peers use the UI prerequisite profile and all Chromium setup steps. Backup/restore and receiver choices use the non-UI profile. Report each native campaign and peer cursor failure separately, preserving actual backward-clock evidence. Peer cursor-expiry qualification still requires a stable-clock environment. No hosted execution or publication is performed.
 

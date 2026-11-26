@@ -346,7 +346,9 @@ def actionlint_check(*, validate=True):
         raise ValueError("actionlint version differs from test/ci/pins.json")
     record_tool("actionlint-module", module + " v" + PINS["actionlint"]["version"])
     if validate:
-        run([executable, "-color", "-shellcheck=shellcheck", *workflow_files(ROOT)])
+        examples = ROOT / "examples/git-draft-delivery"
+        run([executable, "-color", "-shellcheck=shellcheck", *workflow_files(ROOT),
+             examples / "preview.yml", examples / "deliver.yml"])
 
 
 def install(profile):

@@ -31,13 +31,14 @@ class AdmissionFunctionalTests(unittest.TestCase):
             script.write_bytes(Path(a.__file__).read_bytes())
             (root / "documentation").mkdir()
             (root / "documentation/content-map.json").write_text("[]")
-            all_jobs = {"ui": True, "docs": True, "languages": ["go", "python", "typescript", "rust"]}
+            shared_jobs = {"charts": True, "ui": True, "docs": True, "languages": ["go", "python", "typescript", "rust"]}
             cases = (
-                ("pyproject.toml", all_jobs, "docs"),
-                ("uv.lock", all_jobs, "docs"),
-                ("catalog-ui/scripts/native-test-completion.mjs", {"ui": True, "docs": True, "languages": ["typescript"]}, "clients"),
-                ("LICENSE", {"ui": True, "docs": True, "languages": ["typescript"]}, "ui"),
-                ("examples/tutorials/local-oidc/service-read.py", {"ui": False, "docs": True, "languages": ["go", "python"]}, "clients"),
+                ("pyproject.toml", shared_jobs, "docs"),
+                ("uv.lock", shared_jobs, "charts"),
+                ("deployments/helm/open-agentic-catalog/templates/new.yaml", shared_jobs, "charts"),
+                ("catalog-ui/scripts/native-test-completion.mjs", {"charts": False, "ui": True, "docs": True, "languages": ["typescript"]}, "clients"),
+                ("LICENSE", {"charts": True, "ui": True, "docs": True, "languages": ["typescript"]}, "ui"),
+                ("examples/tutorials/local-oidc/service-read.py", {"charts": False, "ui": False, "docs": True, "languages": ["go", "python"]}, "clients"),
             )
             for name, _, _ in cases:
                 path = root / name
@@ -58,6 +59,7 @@ class AdmissionFunctionalTests(unittest.TestCase):
                                             env=env, capture_output=True, text=True, timeout=20, check=True)
                     self.assertEqual(json.loads(result.stdout), plan)
                     results = dict.fromkeys(("selection", "baseline", "unit", "docs", "clients"), "success")
+                    results["charts"] = "success" if plan["charts"] else "skipped"
                     results["ui"] = "success" if plan["ui"] else "skipped"
                     for outcome in ("success", "failure", "cancelled", "skipped"):
                         completion = subprocess.run([sys.executable, "-B", str(script), "outcomes", "--plan", result.stdout,
@@ -97,7 +99,7 @@ class AdmissionFunctionalTests(unittest.TestCase):
             git("commit", "-qm", "fixture renames")
             result = subprocess.run(["python3", "-B", str(root / "test/ci/admission.py"), "select", "--base", before],
                                     env=env, capture_output=True, text=True, timeout=20, check=True)
-            self.assertEqual(json.loads(result.stdout), {"ui": True, "docs": True, "languages": ["rust"]})
+            self.assertEqual(json.loads(result.stdout), {"charts": False, "ui": True, "docs": True, "languages": ["rust"]})
 
     def test_git_source_receipt_and_stale_package_refusal(self):
         with tempfile.TemporaryDirectory(prefix="catalog-admission-") as temporary:

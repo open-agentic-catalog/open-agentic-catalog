@@ -275,8 +275,8 @@ sys.exit(int(os.environ["CONTROL_EXIT"]))
         source = (local.ROOT / ".github/workflows/contributions.yml").read_text()
         step = next(step for step in re.split(r"(?m)^      - ", source) if step.startswith("name: Require every selected check\n"))
         command = step.split("        run: ", 1)[1].strip()
-        plan = json.dumps({"ui": False, "docs": False, "languages": []})
-        results = {"baseline": "success", "unit": "success", "ui": "skipped", "docs": "skipped", "clients": "skipped"}
+        plan = json.dumps({"ui": False, "docs": False, "charts": False, "languages": []})
+        results = {"baseline": "success", "unit": "success", "ui": "skipped", "docs": "skipped", "charts": "skipped", "clients": "skipped"}
         for output, status in ((plan, "success"), (plan, "failure"), ("", "cancelled"), ("", "success")):
             with self.subTest(plan=output, selection=status):
                 summary = self.base / "step-summary.md"
@@ -317,7 +317,7 @@ sys.exit(int(os.environ["CONTROL_EXIT"]))
                     completed = subprocess.run(["bash", "--noprofile", "--norc", "-euo", "pipefail", "-c", script],
                                                cwd=self.root, env=env, capture_output=True, text=True, timeout=15, check=False)
                     self.assertEqual(completed.returncode, status, completed.stdout + completed.stderr)
-                    expected = ["webhook-report-check"] if language == "go" else ["sdk-check", "SDK_LANGUAGE=" + language]
+                    expected = ["sdk-go-examples-check"] if language == "go" else ["sdk-check", "SDK_LANGUAGE=" + language]
                     self.assertEqual([json.loads(line) for line in observed.read_text().splitlines()], [expected])
 
     def test_client_summary_separates_receiver_sdk_and_generator_results(self):
@@ -344,8 +344,8 @@ sys.exit(int(os.environ["CONTROL_EXIT"]))
                 content = summary.read_text()
                 self.assertIn(f"Status at summary, before artifact upload: `{result}`.", content)
                 if language == "go":
-                    self.assertIn(f"Go SDK and webhook receiver gate: `{sdk}`.", content)
-                    self.assertIn("Receiver-only unit coverage, when produced: `coverage/publication-report-unit.out`.", content)
+                    self.assertIn(f"Go SDK, publication-report and MCP Scanner receiver: `{sdk}`.", content)
+                    self.assertIn("Publication-report unit coverage, when produced: `coverage/publication-report-unit.out`.", content)
                     self.assertIn("This profile excludes SDK and functional coverage.", content)
                     self.assertIn(f"Independent unmodified-generator gate: `{raw_go}`.", content)
                 else:
