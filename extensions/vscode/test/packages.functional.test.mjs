@@ -208,11 +208,12 @@ setInterval(()=>{},100);
 
 // A real credentialed OCI peer. Only loopback TLS requests participate; the
 // private acquisition path deliberately does not run ORAS or use ambient auth.
-async function privateRegistry(t) {
+async function privateRegistry(t, mediaType = "application/agent-skills+zip") {
   const { createServer, get } = await import("node:https");
   const { readFile } = await import("node:fs/promises");
   const { execFileSync } = await import("node:child_process");
-  const { files, zip, hash, representation } =
+  const { gzipSync } = await import("node:zlib");
+  const { files, zip, tar, hash, representation } =
     await import("./package-fixtures.mjs");
   const { skillPlan, acquirePackage } = await import(
     process.env.CATALOG_VSCODE_LIB
@@ -257,7 +258,11 @@ async function privateRegistry(t) {
       cert: await readFile(join(directory, "cert")),
     },
     entries = files(),
-    archive = zip(entries),
+    archive =
+      mediaType === "application/agent-skills+gzip"
+        ? gzipSync(tar(entries))
+        : zip(entries),
+    input = representation(entries, mediaType),
     seen = [],
     foreign = [],
     basic =
@@ -373,7 +378,7 @@ async function privateRegistry(t) {
       );
       res.end(manifest);
     } else if (url.pathname.startsWith("/v2/skills/owned/blobs/")) {
-      res.setHeader("content-type", "application/agent-skills+zip");
+      res.setHeader("content-type", mediaType);
       if (state.blob === "pending") {
         res.once("close", disconnected.resolve);
         res.write(archive.subarray(0, 2));
@@ -392,7 +397,7 @@ async function privateRegistry(t) {
     }
   });
   const layer = {
-    mediaType: "application/agent-skills+zip",
+    mediaType,
     digest: hash(archive),
     size: archive.length,
   };
@@ -422,7 +427,6 @@ async function privateRegistry(t) {
           }),
         )
       : exact;
-    const input = representation(entries);
     input.handoff.oci.reference = `${new URL(origin).host}/skills/owned@${hash(exact)}`;
     const plan = skillPlan(input, hash("owned registry account"));
     return acquirePackage(
@@ -457,6 +461,7 @@ async function privateRegistry(t) {
   });
   return {
     acquire,
+    inventory: input.package.files,
     expectContent,
     document,
     manifestPath: `/v2/skills/owned/manifests/${hash(Buffer.from(JSON.stringify(document())))}`,
@@ -569,6 +574,34 @@ test("real private OCI authentication binds one token exchange to the selected o
   }
   assert.ok(f.seen.every((request) => !request.headers.cookie));
   f.expectContent(await f.acquire());
+});
+
+test("private OCI gzip Skill verifies the retrieved layer and individual file contents", async (t) => {
+  const mediaType = "application/agent-skills+gzip";
+  const f = await privateRegistry(t, mediaType);
+  const blobPath = "/v2/skills/owned/blobs/" + f.layer.digest;
+  const blobReads = () =>
+    f.seen.filter(
+      (r) =>
+        r.method === "GET" &&
+        r.path === blobPath &&
+        r.headers.accept === mediaType,
+    );
+  f.expectContent(await f.acquire());
+  assert.equal(blobReads().length, 1);
+  const file = f.inventory.find((entry) => entry.executable);
+  assert.ok(file);
+  const original = file.digest;
+  file.digest = f.layer.digest;
+  await assert.rejects(f.acquire(), { code: "package_integrity_failed" });
+  assert.equal(
+    blobReads().length,
+    2,
+    "the corrupt file declaration was checked against the downloaded layer",
+  );
+  file.digest = original;
+  f.expectContent(await f.acquire());
+  assert.equal(blobReads().length, 3);
 });
 
 test("real private OCI acquisition verifies exact manifest and layer evidence and closes a cancelled blob", async (t) => {

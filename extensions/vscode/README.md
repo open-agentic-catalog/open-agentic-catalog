@@ -214,7 +214,7 @@ Cards and native views use robot, server, book and extensions icons with readabl
 | API mode | Browse and filter behavior |
 | --- | --- |
 | Control | Local governed releases are the default. Filter by kind, tag, local namespace UUID, publisher, license, category or visibility. Select indexed metadata or live discovery explicitly. |
-| Published ARD | An empty search uses List, with kind and publisher filters. Enter search text for tags, license or category filters. Search defaults to local publication with `federation: none`. |
+| Published ARD | With empty text, Search uses List and accepts kind and publisher filters. Enter text to search by tag, license or category. **Explore visible filters** accepts those filters with empty text and counts matching local entries. Published Search and Explore accept up to 500 Unicode code points. Search defaults to the local publication with `federation: none`. |
 
 Search and resource kind remain visible. Open **Advanced filters** for exact tag, license, category, publisher, origin, namespace, visibility and page size. **Clear filters** removes selections without issuing a request. Exact filter values containing controls appear as read-only JSON text, so a single-line input cannot change them. Search preserves the original value. Use the adjacent Clear button to type a replacement. Changing origin retains typed filters; correct an incompatible local namespace before submission. A Published empty search explains which filters require search text beside that field.
 

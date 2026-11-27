@@ -344,3 +344,42 @@ test("a feedback page returned after an account change never reaches the picker"
   await assert.rejects(listing, { code: "connection_changed" });
   assert.equal(picker.mock.callCount(), 0);
 });
+
+test("a refused exact opinion read stops before private preview or action selection", async (t) => {
+  const f = fixture(),
+    selected = "00000000-0000-7000-8000-000000000001";
+  t.after(() => f.host.dispose());
+  const picker = t.mock.method(
+    globalThis.opinionNativeFixture.window,
+    "showQuickPick",
+    async (items) => items[0],
+  );
+  f.host.preview = t.mock.fn();
+  const failed = Object.assign(new Error("invalid_response"), {
+    code: "invalid_response",
+  });
+  for (const family of ["ratings", "feedback"]) {
+    f.host.opinions = {
+      clear() {},
+      page: async () => ({
+        items: [
+          {
+            id: selected,
+            score: 5,
+            category: "problem",
+            state: family === "ratings" ? "active" : "open",
+          },
+        ],
+      }),
+      get: async (requestedFamily, id) => {
+        assert.equal(requestedFamily, family);
+        assert.equal(id, selected);
+        throw failed;
+      },
+    };
+    picker.mock.resetCalls();
+    await assert.rejects(f.host.list(family), { code: "invalid_response" });
+    assert.equal(picker.mock.callCount(), 1);
+    assert.equal(f.host.preview.mock.callCount(), 0);
+  }
+});

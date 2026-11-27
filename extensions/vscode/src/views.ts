@@ -3,6 +3,7 @@ import {
   Browser,
   query,
   emptyQuery,
+  blankText,
   hasLive,
   bookmarkLabel,
   type Query,
@@ -430,7 +431,7 @@ export class CatalogViews
   private async tag(tag: string): Promise<void> {
     const q = { ...this.browser.state.query, tag };
     delete q.tags;
-    if (this.session.connection().mode === "published" && !q.text.trim()) {
+    if (this.session.connection().mode === "published" && blankText(q.text)) {
       const check = this.session.guard(this.session.connection()),
         revision = this.revision;
       const text = await vscode.window.showInputBox({
