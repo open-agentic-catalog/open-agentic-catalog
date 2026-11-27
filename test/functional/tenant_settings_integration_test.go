@@ -166,7 +166,14 @@ func qualifyProcessTenantSettings(ctx context.Context, t *testing.T, f processFi
 	for i := range workers {
 		workers[i] = cfg
 		workers[i].Worker.OperationsAddress = processAddress(ctx, t)
-		stops[i] = f.start(ctx, "worker", workerDSN, f.configuration(fmt.Sprintf("settings-worker-%d", i), workers[i]), workers[i].Worker.OperationsAddress)
+		path := f.configuration(fmt.Sprintf("settings-worker-%d", i), workers[i])
+		if i == 0 {
+			// The API login is valid and serving requests, but cannot admit a worker.
+			refusal, cancel := context.WithTimeout(ctx, 10*time.Second)
+			f.run(refusal, f.command(refusal, "catalogd", apiDSN, "worker", "--config", path), 1, "event=process.failed", "stage=startup", "error_code=INTERNAL")
+			cancel()
+		}
+		stops[i] = f.start(ctx, "worker", workerDSN, path, workers[i].Worker.OperationsAddress)
 	}
 	defer func() {
 		for _, stop := range stops {

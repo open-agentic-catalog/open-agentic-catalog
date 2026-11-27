@@ -189,6 +189,8 @@ The Jobs menu requires tenant `job.read` and permission for at least one Job fam
 
 Cancellation/retry requires `job.cancel`/`job.retry`, enforced `catalog.write` and the actual family authority. Source synchronization uses `source.manage`; publication generation uses `publication.generate`; search indexing uses `operations.reindex`. ANS Jobs require `source.read_evidence`, `source.manage` and `federation.discover` together. Source-route scopes do not replace Job scopes. Tenant Administrator cannot bypass scopes.
 
+A worker uses the host assignments it loaded at startup. If its configuration assigns a queued publication Job's host to another tenant, it fails the Job with `policy_denied` before creating a candidate.
+
 ANS cancellation does not require current assessment enqueue eligibility. Retry rechecks the current source, verification policy and credential eligibility on the server. Job status never includes private ANS evidence; [read the assessment explicitly](../operations/federation.mdx#request-an-ans-registration-assessment).
 
 Eligible jobs offer a reason-bearing Cancel job or Retry job action. Cancellation of running work is cooperative and does not undo completed side effects. A retry creates a new queued Job linked to the original. Follow Open retry job to see its progress.

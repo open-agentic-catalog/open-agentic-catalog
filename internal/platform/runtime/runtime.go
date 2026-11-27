@@ -511,11 +511,8 @@ func buildWithTracing(ctx context.Context, options BuildOptions, startTracing fu
 			if len(job.Payload) > 0 && jsonUnmarshal(job.Payload, &input) != nil {
 				return catalog.E(catalog.CodeForbidden, "Job host binding is invalid")
 			}
-			if input.Host == "" && len(publicationManagers) == 1 {
-				input.Host = firstPublicationManager(publicationManagers).Host()
-			}
-			binding, ok := withdrawals.managers[input.Host]
-			if !ok || binding.tenantID != job.TenantID {
+			binding := publicationJobBinding(withdrawals.managers, input.Host)
+			if binding.manager == nil || binding.tenantID != job.TenantID {
 				return catalog.E(catalog.CodeNotFound, "configured Job host was not found")
 			}
 		case "semantic.reindex":
@@ -554,7 +551,7 @@ func buildWithTracing(ctx context.Context, options BuildOptions, startTracing fu
 		handlers := map[string]jobs.Handler{
 			jobs.TrustKind:         trustJobHandler(federationManager, logger),
 			"source.sync":          sourceSyncJobHandler(federationManager.SyncAtRevision, metrics),
-			"publication.generate": publicationJobHandler(publicationManagers, metrics),
+			"publication.generate": publicationJobHandler(withdrawals.managers, metrics),
 		}
 		if semanticStore != nil {
 			indexer, indexerErr := catalog.NewSemanticIndexer(semanticStore, embeddingClient, configuration.SemanticSearch.BatchSize, configuration.SemanticSearch.MaxInputBytes-len(configuration.SemanticSearch.DocumentPrefix))

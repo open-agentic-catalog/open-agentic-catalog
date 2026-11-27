@@ -198,3 +198,17 @@ func TestSourceSyncHandlerRetainsClassifiedFailureWithoutResult(t *testing.T) {
 		})
 	}
 }
+
+func TestSourceSyncRequiresClaimBeforeProgress(t *testing.T) {
+	job := sourceSyncTestJob("manual")
+	job.Kind, job.State, job.LeaseOwner, job.Attempt = "source.sync", jobs.StateRunning, "worker-one", 1
+	job.Payload = json.RawMessage(`{"sourceId":"00000000-0000-7000-8000-000000000003","sourceRevision":7,"trigger":"manual"}`)
+	handler := sourceSyncJobHandler(func(context.Context, string, int64) (federation.Snapshot, error) {
+		t.Fatal("unclaimed Job reached source synchronization")
+		return federation.Snapshot{}, nil
+	}, observability.New(time.Now))
+	result, err := handler(t.Context(), job, func(int) error { t.Fatal("unclaimed Job reported progress"); return nil })
+	if result != nil || catalog.ErrorCodeOf(err) != catalog.CodeForbidden {
+		t.Fatalf("unclaimed source Job returned %v, %v", result, err)
+	}
+}
