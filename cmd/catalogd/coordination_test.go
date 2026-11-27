@@ -7,11 +7,93 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/diagnostics"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/safeerr"
 )
+
+// A preceding shutdown phase can use the shared budget while other components
+// have already buffered their results. Expiry must not discard those results.
+func TestDrainQueuedAtDeadline(t *testing.T) {
+	initial := errors.New("private initiating cause")
+	later := errors.New("private component failure")
+	extra := errors.New("unexpected completion")
+	for _, tc := range []struct {
+		name          string
+		operations    bool
+		expected      int
+		queued        []error
+		initial       error
+		shutdownError error
+		wantDeadline  bool
+		wantSuccess   bool
+	}{
+		{name: "components finished", expected: 2, queued: []error{nil, nil}, wantSuccess: true},
+		{name: "completed component failed", expected: 2, queued: []error{nil, later}},
+		{name: "component failures and outstanding sibling", expected: 3, queued: []error{later, safeerr.ErrPanic}, initial: initial, wantDeadline: true},
+		{name: "listener finished", operations: true, expected: 1, queued: []error{nil}, wantSuccess: true},
+		{name: "listener panicked and shutdown timed out", operations: true, expected: 1, queued: []error{safeerr.ErrPanic}, initial: initial, shutdownError: context.DeadlineExceeded, wantDeadline: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				// Repeat the case because select can choose either ready input.
+				for range 32 {
+					ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+					results := make(chan error, len(tc.queued)+1)
+					for _, err := range tc.queued {
+						results <- err
+					}
+					allQueued := len(tc.queued) == tc.expected
+					if allQueued {
+						results <- extra
+					}
+					<-ctx.Done()
+					var err error
+					if tc.operations {
+						err = drainOperations(ctx, func(context.Context) error { return tc.shutdownError }, results, false, tc.initial)
+					} else {
+						err = drainComponents(ctx, results, tc.expected, tc.initial)
+					}
+					cancel()
+					if allQueued {
+						if len(results) != 1 || !errors.Is(<-results, extra) {
+							t.Fatal("drain did not consume exactly the expected completions")
+						}
+					} else if len(results) != 0 {
+						t.Fatal("drain left an available completion unread")
+					}
+					if (err == nil) != tc.wantSuccess || errors.Is(err, context.DeadlineExceeded) != tc.wantDeadline {
+						t.Fatalf("unexpected shutdown outcome: %v", err)
+					}
+					if tc.initial != nil && !errors.Is(err, tc.initial) {
+						t.Fatalf("lost initiating failure: %v", err)
+					}
+					for _, want := range tc.queued {
+						if want != nil && !errors.Is(err, want) {
+							t.Fatalf("drain lost %v in %v", want, err)
+						}
+					}
+					if tc.shutdownError != nil && (!strings.Contains(err.Error(), "shut down worker operations server:") || strings.Contains(err.Error(), "drain worker operations server:")) {
+						t.Fatalf("unexpected deadline for completed listener: %v", err)
+					}
+					if !slices.Contains(tc.queued, safeerr.ErrPanic) {
+						continue
+					}
+					var log bytes.Buffer
+					diagnostics.Report(&log, "catalogd", "INTERNAL", err, true)
+					if strings.Count(log.String(), "\n") != 1 || !strings.Contains(log.String(), "error_code=INTERNAL_PANIC") || strings.Contains(log.String(), "private") {
+						t.Fatalf("unexpected terminal diagnostic: %s", log.String())
+					}
+				}
+			})
+		})
+	}
+}
 
 // TestWaitForComponentExit preserves the trigger and counts only consumed work.
 func TestWaitForComponentExit(t *testing.T) {
@@ -188,7 +270,7 @@ func TestDrainOperationsRetainsFailures(t *testing.T) {
 					t.Fatal("shutdown lost the shared context or ran after consuming a completion")
 				}
 				return causes[1]
-			}, results, causes[0])
+			}, results, false, causes[0])
 			if calls != 1 || len(results) != 1 || !errors.Is(<-results, extra) || errors.Is(err, extra) {
 				t.Fatal("shutdown or completion count changed")
 			}
@@ -206,6 +288,24 @@ func TestDrainOperationsRetainsFailures(t *testing.T) {
 	}
 }
 
+func TestDrainOperationsAfterListenerExit(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	listenerFailure := errors.New("accept failed")
+	shutdownFailure := errors.New("shutdown failed")
+	calls := 0
+	err := drainOperations(ctx, func(got context.Context) error {
+		calls++
+		if got != ctx {
+			t.Fatal("shutdown replaced the shared context")
+		}
+		return shutdownFailure
+	}, nil, true, listenerFailure)
+	if calls != 1 || !errors.Is(err, shutdownFailure) || !errors.Is(err, listenerFailure) || errors.Is(err, context.Canceled) {
+		t.Fatalf("shutdown calls=%d, result=%v", calls, err)
+	}
+}
+
 // TestDrainOperationsWaitsForListener retains shutdown failure while awaiting
 // the listener's own completion within the original deadline.
 func TestDrainOperationsWaitsForListener(t *testing.T) {
@@ -218,7 +318,7 @@ func TestDrainOperationsWaitsForListener(t *testing.T) {
 		shutdownFailure := errors.New("shutdown failed")
 		listenerFailure := errors.New("listener failed")
 		go func() {
-			done <- drainOperations(ctx, func(context.Context) error { return shutdownFailure }, results, nil)
+			done <- drainOperations(ctx, func(context.Context) error { return shutdownFailure }, results, false, nil)
 		}()
 		synctest.Wait()
 		select {
@@ -251,7 +351,7 @@ func TestDrainOperationsUsesRemainingBudget(t *testing.T) {
 				t.Fatal("operations shutdown replaced the shared context")
 			}
 			return shutdownFailure
-		}, nil, initial)
+		}, nil, false, initial)
 		if calls != 1 || time.Since(started) != 5*time.Second || !errors.Is(err, initial) || !errors.Is(err, shutdownFailure) || !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "drain worker operations server:") {
 			t.Fatalf("drain elapsed=%v calls=%d error=%v", time.Since(started), calls, err)
 		}
@@ -268,7 +368,7 @@ func TestDrainOperationsCancelled(t *testing.T) {
 	err := drainOperations(ctx, func(got context.Context) error {
 		calls++
 		return got.Err()
-	}, nil, initial)
+	}, nil, false, initial)
 	if calls != 1 || !errors.Is(err, initial) || !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "shut down worker operations server:") || !strings.Contains(err.Error(), "drain worker operations server:") {
 		t.Fatalf("cancelled operations drain calls=%d error=%v", calls, err)
 	}

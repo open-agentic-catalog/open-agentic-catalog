@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -95,7 +96,7 @@ func qualifyAbruptPooledWriterLoss(ctx context.Context, t *testing.T, f processF
 		if i == 1 {
 			continue
 		}
-		stop, process := f.startProcess(ctx, "worker", roleDSN("worker"), f.configuration("abrupt-worker-"+string(rune('1'+i)), workers[i]), workers[i].Worker.OperationsAddress)
+		stop, process := f.startProcess(ctx, "worker", roleDSN("worker"), f.configuration("abrupt-worker-"+string(rune('1'+i)), workers[i]), workers[i].Worker.OperationsAddress, syscall.SIGTERM)
 		firstWorker = process
 		workerStops = append(workerStops, stop)
 		identity(workers[i].Worker.OperationsAddress, "/status")

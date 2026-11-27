@@ -240,7 +240,7 @@ func TestPostgresProcesses(t *testing.T) {
 	peerConfig.HTTP.Address = processAddress(ctx, t)
 	peerConfig.HTTP.PublicBaseURL = "http://" + peerConfig.HTTP.Address
 	peerConfiguration := fixture.configuration("peer", peerConfig)
-	stopPeer := fixture.start(ctx, "api", roleDSN("api"), peerConfiguration, peerConfig.HTTP.Address)
+	stopPeer, _ := fixture.startProcess(ctx, "api", roleDSN("api"), peerConfiguration, peerConfig.HTTP.Address, os.Interrupt)
 	var namespace catalog.Namespace
 	decodeProcessJSON(t, fixture.request(ctx, cfg.HTTP.Address, "POST", "/api/v1/namespaces", "local-admin", `{"slug":"process-fixture","displayName":"Process fixture"}`, 201), &namespace)
 	if namespace.ID == "" || namespace.TenantID != tenant || namespace.Slug != "process-fixture" {
@@ -568,11 +568,11 @@ func (f processFixture) run(ctx context.Context, command *exec.Cmd, exitCode int
 
 func (f processFixture) start(ctx context.Context, role, dsn, configuration, address string) func() {
 	f.t.Helper()
-	stop, _ := f.startProcess(ctx, role, dsn, configuration, address)
+	stop, _ := f.startProcess(ctx, role, dsn, configuration, address, syscall.SIGTERM)
 	return stop
 }
 
-func (f processFixture) startProcess(ctx context.Context, role, dsn, configuration, address string) (func(), *os.Process) {
+func (f processFixture) startProcess(ctx context.Context, role, dsn, configuration, address string, stopSignal os.Signal) (func(), *os.Process) {
 	f.t.Helper()
 	command := f.command(ctx, "catalogd", dsn, role, "--config", configuration)
 	var evidence processEvidenceWriter
@@ -586,13 +586,13 @@ func (f processFixture) startProcess(ctx context.Context, role, dsn, configurati
 	go func() { waitErr = command.Wait(); close(done) }()
 	stop := func() {
 		f.t.Helper()
-		if err := command.Process.Signal(syscall.SIGTERM); err != nil {
-			f.t.Fatalf("signal %s: %v", role, err)
+		if err := command.Process.Signal(stopSignal); err != nil {
+			f.t.Fatalf("send %s to %s: %v", stopSignal, role, err)
 		}
 		select {
 		case <-done:
 			if waitErr != nil {
-				f.t.Fatalf("%s graceful shutdown: %v", role, waitErr)
+				f.t.Fatalf("%s graceful shutdown after %s: %v", role, stopSignal, waitErr)
 			}
 		case <-time.After(25 * time.Second):
 			f.t.Fatal("process graceful shutdown timed out")
