@@ -368,7 +368,7 @@ Local Agent protocol, MCP tool and private capability fields are stored generate
 
 ## Indexed declaration projections
 
-Restore verification checks the indexed license/category projection against retained normalized bytes. It distinguishes unavailable declarations from an empty topic array. An outdated projection marker requires the [bounded search repair](search-projection-repair.mdx). A current marker with inconsistent fields is a separate integrity finding; investigate it before selecting a reviewed repair. Restore verification does not fetch a source or rewrite evidence. Check set 4 includes these checks and the projection bytes in its read budget.
+Restore verification checks the indexed license/category projection against retained normalized bytes. It distinguishes unavailable declarations from an empty topic array. An outdated projection marker requires the [bounded search repair](search-projection-repair.mdx). A current marker with inconsistent fields is a separate integrity finding; investigate it before selecting a reviewed repair. The verifier counts projection bytes against its read budget. It uses the restored evidence without fetching the source.
 
 ## Private saved items
 
@@ -376,7 +376,7 @@ Back up `personal_items` with the Catalog database. Restore check set 8 verifies
 
 Apply the [current migrations and exact grants](database-roles.mdx) through the schema-owner maintenance workflow before restarting runtimes. Saved-item removal deletes that selected row; ordinary audit, idempotency and backup retention remain separate. An older backup can restore previously removed preferences. This feature does not establish compliance retention or backup erasure guarantees.
 
-### Restore Publisher verification evidence
+## Restore Publisher verification evidence
 
 Include `publisher_domain_verifications` in the full database backup. Restore check set 8 checks exact Publisher/domain binding and challenge, proof and check timestamps. Reports contain record IDs and fixed findings. They do not contain challenge values or DNS responses. Restoration does not query DNS or renew proof. Use the normal drained, schema-owner migration procedure before verification.
 

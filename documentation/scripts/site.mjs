@@ -174,7 +174,7 @@ export const downloads = [
   'api/openapi/control-v1.yaml', 'api/schemas/catalog-event-v1.schema.json',
   'api/examples/agent-lifecycle.json', 'api/examples/ard-manifest.json',
   'api/examples/audit-export-request.json', 'api/examples/federation-source.json',
-  'api/examples/hybrid-search.json',
+  'api/examples/hybrid-search.json', 'api/examples/mcp-tools-search.json',
   'api/examples/https-representation.json', 'api/examples/publication-webhook-delivery.json',
   'api/examples/source-webhook-delivery.json', 'api/examples/webhook-delivery.json',
   'examples/native-import/mcp-registry-response.json',

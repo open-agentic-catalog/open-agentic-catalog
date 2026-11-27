@@ -77,9 +77,9 @@ The [AgentField guide](agentfield.mdx) covers native public discovery and passiv
 
 ## Obtain a local SDK package
 
-SDKs are available from this repository; no registry releases are published. Consumers need only the selected language and runtime dependencies. Maintainer generators, test tools, the UI and database are not consumer prerequisites.
+Download the SDK for your language from a [published release and verify its checksum](../contributing/build-and-release.md#download-release-packages), or build it from this checkout. Consumers need only the selected language and runtime dependencies.
 
-Start with the [SDK overview](../../../../../sdk/README.md) to choose a language. Follow the [Go](../../../../../sdk/go/README.md), [Python](../../../../../sdk/python/README.md), [JavaScript/TypeScript](../../../../../sdk/typescript/README.md) or [Rust](../../../../../sdk/rust/README.md) guide for installation and transport setup. This page provides complete integration examples and shared API behavior.
+Start with the [SDK overview](../../../../../sdk/README.md) to choose a language. Follow the [Go](../../../../../sdk/go/README.md), [Python](../../../../../sdk/python/README.md), [JavaScript/TypeScript](../../../../../sdk/typescript/README.md) or [Rust](../../../../../sdk/rust/README.md) guide for installation and transport setup. If you install v0.1.2, check how that package handles [bodyless HEAD and 304 responses](../../../../../sdk/README.md#read-bodyless-responses-with-release-packages).
 
 Configure an HTTPS API origin without a path, embedded credentials, query or fragment. Even empty `?` and `#` suffixes are invalid. Use the explicit loopback HTTP option only for local development. Select the API listener, not the optional UI host; an SDK does not use the UI's login cookie.
 
@@ -103,7 +103,7 @@ Use the <a href={`${import.meta.env.BASE_URL}api/`}>HTTP API reference</a> for o
 
 ## Go SDK
 
-The [Go SDK](../../../../../sdk/go/README.md) provides generated operations for the complete OpenAPI contract, including ARD discovery. It requires Go 1.27.3 or later and is available through a local module replacement. No remote package release is available yet. The [Python SDK](#python-sdk) is also available locally. The [JavaScript/TypeScript SDK](#javascripttypescript-sdk) is also available locally.
+The [Go SDK](../../../../../sdk/go/README.md) provides generated operations for the complete OpenAPI contract, including ARD discovery. Use Go 1.27.3 or later. Point the local module replacement at the extracted release archive or the checkout's `sdk/go` directory.
 
 Use `catalogclient.New` with an explicit HTTPS origin and optional token or token provider. It verifies TLS, refuses redirects, ignores ambient proxy settings and bounds responses before typed decoding. Default limits are 30 seconds, 16 MiB per request body, 8 MiB per response body and 32 KiB for response headers. See the package guide for private CAs, per-call response limits and explicit loopback development access.
 
@@ -179,7 +179,7 @@ After an uncertain outcome, preserve the original body, key and preconditions. D
 
 ## Python SDK
 
-The [Python SDK](../../../../../sdk/python/README.md) includes the complete Control OpenAPI and ARD routes. It supports Python 3.12-3.14. Install the local package with `python -m pip install ./sdk/python` from the repository root. No registry release is available yet. Consumer installation needs no generator, Go toolchain, database or UI.
+The [Python SDK](../../../../../sdk/python/README.md) includes the complete Control OpenAPI and ARD routes. It supports Python 3.12-3.14. Install the wheel from the selected release, or run `python -m pip install ./sdk/python` from the repository root.
 
 Use [the LangGraph example](../../../../../examples/langgraph/README.md) for a complete read-only assistant with this SDK and a local model. Its optional environment keeps framework dependencies separate from the SDK and service images.
 
@@ -268,7 +268,7 @@ Typed models can normalize values or discard unknown fields. Use raw bytes for e
 
 ## JavaScript/TypeScript SDK
 
-The [ESM SDK](../../../../../sdk/typescript/README.md) includes JavaScript and TypeScript declarations for the complete Catalog API. It uses [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) behind a bounded transport. Use Node 22.13+ within major 22, Node 24.20+ within major 24, or a modern browser. Chromium is the qualified browser. Type declarations are checked with TypeScript 5.9.3. No npm registry release is published.
+The [ESM SDK](../../../../../sdk/typescript/README.md) includes JavaScript and TypeScript declarations for the complete Catalog API. It uses [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) behind a bounded transport. Use Node 22.23.4 or later within major 22, Node 24.20.0 or later within major 24, or a modern browser. Chromium is the qualified browser. Type declarations are checked with TypeScript 5.9.3.
 
 Build and qualify a local package, then install the reported tarball in your own project:
 

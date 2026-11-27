@@ -201,7 +201,9 @@ The phase observes the real migration hook blocked by a fixture-owned ledger loc
 
 After the final rollout, the harness reopens the Catalog Service port-forward, creates a new namespace and reads it back by ID. The create must return HTTP 201 with a fresh revision and no replay header. The read must return the same tenant, slug, display name, revision and ETag.
 
-Use `make test-minikube-upgrade` for the focused three-node drill. It builds two images from the same source and schema. After preflight rejects invalid target values, the installed API must still serve `minikube` at `/version`. After a migration or startup failure, both runtime Deployments must be at zero, all their Pods gone, and the stored release rows unchanged. A forward retry must serve `minikube-upgrade-target` with the target image running on all four API and worker Pods. These fixture version labels distinguish the binaries during recovery. The report sets `upgradeOnly: true`. Use `make test-minikube-topology` for the additional UI, federation and disruption tests.
+Use `make test-minikube-upgrade` for the focused three-node drill. It builds two images from the same source and schema. After preflight rejects invalid target values, the installed API must still serve `minikube` at `/version`. After each migration or startup failure, the drill checks that both runtime Deployments have zero replicas and all their Pods are gone. It compares a digest of every release row for the primary fixture tenant with the digest recorded before the failures.
+
+After a forward retry, the API must serve `minikube-upgrade-target` and all four API and worker Pods must run the target image. The fixture version labels distinguish the binaries during recovery. The report sets `upgradeOnly: true`. Use `make test-minikube-topology` for the additional UI, federation and disruption tests.
 
 ## Flux maintenance handoff
 

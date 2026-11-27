@@ -38,14 +38,14 @@ This native reader has no response-byte ceiling on the external Search path. Use
 
 ## Search and explicitly import
 
-Send authenticated requests to your AgentField server. Replace the example origins and use your own AgentField key. The examples write only local JSON files.
+Replace the example origins with your AgentField server and approved Catalog registry. Prepare a private file containing one header, `Authorization: Bearer <AgentField management key>`, using your own key. Search saves the response to `search.json` locally. The later import request writes the selected metadata to AgentField's persistent store.
 
 ```sh
 export AGENTFIELD_URL=https://agentfield.example.com
-read -r AGENTFIELD_KEY
+AGENTFIELD_HEADERS=/private/path/to/agentfield-headers
 
 curl --fail --silent --show-error \
-  -H "Authorization: Bearer $AGENTFIELD_KEY" \
+  -H "@$AGENTFIELD_HEADERS" \
   -H 'Content-Type: application/json' \
   "$AGENTFIELD_URL/api/ui/v1/ard/external/search" \
   --data '{"query":{"text":"order"},"registries":["https://catalog.example.com/ard/v1"],"pageSize":10}' \
@@ -54,17 +54,17 @@ curl --fail --silent --show-error \
 
 Check `sources` as well as `results`. Source failures can appear in an HTTP 200 response with an empty results array. Select a returned entry only after checking its identity and metadata. Search itself creates no import or callable binding.
 
-Create `import.json` with the selected `results` object as `entry` and the configured registry base as `source_registry`. Preserve the actual selected metadata. Submit that file:
+Create `import.json` with one selected object from the `results` array as `entry` and the configured registry base as `source_registry`. AgentField keys imports by identifier. Check existing imports before replacing a saved record with the same identifier. Submit that file:
 
 ```sh
 curl --fail --silent --show-error \
-  -H "Authorization: Bearer $AGENTFIELD_KEY" \
+  -H "@$AGENTFIELD_HEADERS" \
   -H 'Content-Type: application/json' \
   "$AGENTFIELD_URL/api/ui/v1/ard/imports" \
   --data-binary @import.json
 
 curl --fail --silent --show-error \
-  -H "Authorization: Bearer $AGENTFIELD_KEY" \
+  -H "@$AGENTFIELD_HEADERS" \
   "$AGENTFIELD_URL/api/ui/v1/ard"
 ```
 

@@ -46,7 +46,7 @@ To find an entry imported from another Catalog, sign in to the importing Catalog
 
 ## Install the local package
 
-The extension is distributed as a local VSIX, with no automatic Marketplace publication. Download `open-agentic-catalog-<version>.vsix` from a maintainer-published GitHub Release, obtain it from your maintainer or [build it from source](#develop-and-test). Download the release assets and `SHA256SUMS` into one directory. Run `sha256sum -c SHA256SUMS` there before installation.
+Download `open-agentic-catalog-<version>.vsix` from a maintainer-published GitHub Release, obtain it from your maintainer or [build it from source](#develop-and-test). For a release download, save `SHA256SUMS` from the same release. Compare the VSIX's SHA-256 digest with the entry for its exact filename before installing it. Use `sha256sum` on Linux, `shasum -a 256` on macOS or `Get-FileHash -Algorithm SHA256` in PowerShell. The release workflow does not publish to the Marketplace.
 
 1. Open the Command Palette in VS Code.
 2. Run **Extensions: Install from VSIX**.
@@ -351,7 +351,7 @@ The Plugin is installed but disabled. The menu provides inspection and removal c
 | Update a Plugin | Disable its path, select the new exact release and install it disabled. Review and activate separately. | Local edits or conflicting settings stop replacement. A changed package needs fresh activation consent. |
 | Disable a Plugin | Run **Catalog: Disable Installed Plugin** for its exact row. | Works after sign-out, including with local edits. The native host owns shutdown of running components. |
 | Remove an MCP selection | Use its row action or **Catalog: Remove MCP Selection**. Stop a running server with native MCP controls. | Works offline. Deletes that selection's owned target secrets; failed deletion remains retryable. |
-| Remove a Skill or Plugin | Use the matching **Catalog: Remove Installed Skill/Plugin** command and confirm the exact workspace and package. | Works without Catalog access. Requires trusted storage and unchanged owned files. Plugin removal disables its path first. |
+| Remove a Skill or Plugin | Run **Catalog: Remove Installed Skill** or **Catalog: Remove Installed Plugin**. Confirm the exact workspace and package. | Works without Catalog access. Requires trusted storage and unchanged owned files. Plugin removal disables its path first. |
 | Recover a Skill | Close competing installation windows, then run **Catalog: Recover Interrupted Skill Operation**. | Checks the exact journal and trees; completes the new tree or restores the old one. Unexpected changes stop recovery. |
 | Recover a Plugin | Close competing windows, then run **Catalog: Recover Interrupted Plugin Operation**. Review every listed path. | Disables verified owned/pending paths before recovery. Damaged receipts and unowned trees are preserved. |
 
@@ -601,7 +601,7 @@ Use **Catalog: Refresh My Tools** after a local change or repair. Unreadable rec
 
 Private ownership receipts and operation journals are under `.oac-catalog/skills/` in the selected workspace. They contain hashes, inventory and ownership bindings, not tokens. Keep this directory out of source control. Installation never writes your home Skill directories or changes Catalog records. At most 100 owned Skills are tracked per workspace.
 
-After an interrupted operation, run **Catalog: Recover Interrupted Skill Operation**. Check the workspace path in the confirmation and close other Catalog installation windows for that folder before approving. Recovery checks exact trees and either completes the activated version or restores the old tree. It also deletes abandoned acquisition and staging directories in the private installation state. Recovery stops if the workspace is removed or trust is withdrawn. Unexpected changes cause a refusal. This recovers interrupted application operations; it is not a filesystem backup or a power-loss durability guarantee. A damaged filesystem or unexpected journal needs manual inspection. Orphaned backups are preserved for manual inspection.
+After an interrupted operation, run **Catalog: Recover Interrupted Skill Operation**. Verify the workspace folder you selected and close other Catalog installation windows for it before approving. The source build also shows the workspace path in the confirmation. Recovery checks exact trees and either completes the activated version or restores the old tree. It also deletes abandoned acquisition and staging directories in the private installation state. Recovery stops if the workspace is removed or trust is withdrawn. Unexpected changes cause a refusal. This recovers interrupted application operations; it is not a filesystem backup or a power-loss durability guarantee. A damaged filesystem or unexpected journal needs manual inspection. Orphaned backups are preserved for manual inspection.
 
 ## Install and activate an Agent Plugin
 

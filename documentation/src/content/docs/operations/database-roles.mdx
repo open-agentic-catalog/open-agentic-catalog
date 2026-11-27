@@ -160,7 +160,9 @@ The command requires at least the `tenant_admin` role for the initial subject. `
 
 ## Tenant membership administration
 
-After the first administrator can authenticate, use `POST /api/v1/role-assignments`, `GET /api/v1/role-assignments`, and `POST /api/v1/role-assignments/{assignmentId}:revoke` for ordinary tenant role administration. These operations require current tenant-scoped `access.manage`. The Tenant Administrator template includes this permission. Mutations require idempotency and an audit reason; revocation also requires `If-Match`.
+After the first administrator can authenticate, use `POST /api/v1/role-assignments` and `POST /api/v1/role-assignments/{assignmentId}:revoke` to manage direct grants of the eight built-in `CatalogRole` templates. These operations and the corresponding list require current tenant-scoped `access.manage` and, when OAuth scopes are enforced, `tenant.admin`. The Tenant Administrator template includes the Catalog permission. Mutations require an idempotency key and an audit reason. Revocation also requires `If-Match` and an assignment in the caller's realm.
+
+`GET /api/v1/role-assignments` lists these direct grants across the tenant's realms. To include custom roles, group assignments and other templates, use `GET /api/v1/access/assignments`. Follow the [scoped access management guide](../guides/access-management.mdx) to inspect grants or change those assignments.
 
 A grant creates or reuses the subject membership only in the administrator's exact authenticated realm; clients cannot select another realm. Namespace grants accept only reader, contributor, reviewer, or publisher roles for an existing exact namespace. The service preserves role history, emits audit and outbox evidence atomically, and refuses to revoke the final active tenant administrator.
 

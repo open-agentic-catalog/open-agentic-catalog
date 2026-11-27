@@ -274,7 +274,7 @@ See [Search filter semantics](integrating.mdx#choose-a-discovery-interface) for 
 
 The `publisher` filter selects a Catalog Publisher UUID for local releases. For indexed and live results, it selects the normalized AIR publisher component.
 
-Read the page from `data.items` and preserve the server's order. A score measures relevance only. Check `data.partial` and `data.diagnostics` even when the call succeeds. `data.durableTotal` counts all matching local and indexed records. `data.liveCount` counts live items on this page. If either count contradicts the returned items, the tool reports `invalid_response` and returns no items or cursor.
+Read the page from `data.items` and preserve the server's order. A score measures relevance only. Check `data.partial` and `data.diagnostics` even when the call succeeds. `data.durableTotal` counts all matching local and indexed records. `data.liveCount` counts live items on this page. The tool returns `invalid_response` if the live count differs from the number of live items on the page. It also refuses a durable total smaller than the number of local and indexed items on the page. Both refusals omit items and continuation.
 
 For another page, call the same tool with unchanged filters and page size, plus the returned `data.nextCursor`. An absent or empty cursor ends the traversal. Do not infer completion from the number of items. The MCP server does not enumerate pages, retry requests or restart invalid cursors automatically.
 

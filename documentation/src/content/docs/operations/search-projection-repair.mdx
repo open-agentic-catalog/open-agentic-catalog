@@ -47,7 +47,7 @@ Unsupported, structurally invalid or non-normalizable upstream entries can legit
     make repair-search-projections REPAIR_TENANT_ID=00000000-0000-7000-8000-000000000001 REPAIR_REASON='Rebuild derived search fields after migration' SEARCH_PROJECTION_REPAIR_LIMIT=500
     ```
 
-    The equivalent direct command is:
+    For the equivalent direct command, set `CATALOG_DATABASE_DSN_FILE` to the protected schema-owner DSN file for the selected database. Leave `CATALOG_DATABASE_DSN` unset when using the file. The API-role DSN in the sample profile cannot perform the repair.
 
     ```sh
     catalogctl repair search-projections --config config/postgres.json --tenant 00000000-0000-7000-8000-000000000001 --reason "Rebuild derived search fields after migration" --limit 500

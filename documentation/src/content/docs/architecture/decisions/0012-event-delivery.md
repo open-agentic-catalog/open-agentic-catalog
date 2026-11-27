@@ -45,7 +45,7 @@ Scanner execution stays outside the Catalog API and worker. Neither process has 
 
 A webhook receiver must verify the signature and event envelope, durably accept and deduplicate work before acknowledgement, and reconcile current authorized state. Use the existing [Go publication-report receiver](../../../../../../examples/publication-report/README.md) for a complete example. An event does not authorize resource execution or contact with a listed runtime. Collection credentials, scanner execution and external reports remain outside Catalog. Any future assessment integration needs an explicit producer, result, freshness and revocation policy before it can affect publication or trust.
 
-The optional [MCP Scanner example](../../guides/mcp-scanner.mdx) collects definitions from explicitly configured endpoints after signed release notifications. It also accepts saved captures for offline scanning. Native scanner and complete Compose qualification remain pending; receiver tests use an executable double. Its reports never change Catalog records or publication eligibility.
+The optional [MCP Scanner example](../../guides/mcp-scanner.mdx) collects definitions from explicitly configured endpoints after signed release notifications. It also accepts saved captures for offline scanning. The native scanner tests and the Compose example run real YARA analysis. The focused receiver tests use an executable double. Scanner reports never change Catalog records or publication eligibility.
 
 ## Why this decision
 
@@ -58,7 +58,7 @@ The optional [MCP Scanner example](../../guides/mcp-scanner.mdx) collects defini
 ## Consequences
 
 - PostgreSQL and the worker are sufficient for standalone operation.
-- Webhook routes, configuration, secrets, delivery storage, metrics, and release checks are conditional on webhook enablement.
+- Core migrations create the webhook endpoint and delivery tables in every Catalog database. Enabling webhooks activates their API routes and worker dispatcher. In production, supply the same webhook encryption key to the API and worker.
 - The checked-in versioned CloudEvents JSON Schema is sufficient for the webhook contract; no separate schema-registry service is needed.
 - A public-type expansion has an explicit old-worker drain point before any new emitter starts.
 - Operators choose bounded retry and delivery-evidence retention within the service's supported ranges.

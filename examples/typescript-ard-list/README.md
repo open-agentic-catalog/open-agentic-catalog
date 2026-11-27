@@ -17,7 +17,7 @@ The [SDK guide](../../sdk/typescript/README.md) owns SDK setup and transport beh
 
 ## Install the local SDK package
 
-No registry release is published. Build the local package from the repository root:
+[Download and verify the TypeScript SDK tarball](../../documentation/src/content/docs/contributing/build-and-release.md#download-release-packages), or build it from the repository root:
 
 ```sh
 make sdk-tools-install SDK_LANGUAGE=typescript
@@ -26,7 +26,7 @@ make sdk-package SDK_LANGUAGE=typescript
 
 Run each command separately. Tool installation downloads pinned inputs. Packaging uses installed inputs and reports the actual tarball path.
 
-Copy this directory into your own working directory, or use it directly. Install the reported tarball there:
+From the repository root, install the downloaded or locally built tarball in the example directory:
 
 ```sh
 cd examples/typescript-ard-list
@@ -34,7 +34,7 @@ npm install /absolute/path/to/open-agentic-catalog-client-0.1.2.tgz \
   --ignore-scripts --no-audit --no-fund
 ```
 
-Replace the example path with the package target's output. Normal npm installation can download runtime dependencies. The application adds no dependencies beyond the installed SDK. Git ignores local npm output and private inputs.
+Replace the example path with the path to your tarball. Normal npm installation can download runtime dependencies. The application adds no dependencies beyond the installed SDK. Git ignores local npm output and private inputs.
 
 ## Prepare the discovery host
 
@@ -88,11 +88,11 @@ This flag permits literal loopback HTTP only. The Catalog must still configure t
 
 ## Read the output
 
-Each resource entry contains only `identifier`, `displayName` and `type`. JSON encoding escapes newlines and terminal control characters. Native documents, entry URLs, tokens and raw error bodies are omitted.
+The application prints one JSON object per line. A resource row has `kind: "entry"` and includes `identifier`, `displayName` and `type`. The final row has `kind: "summary"`. JSON encoding escapes newlines and terminal control characters. Native documents, entry URLs, tokens and raw error bodies are omitted.
 
 The application skips entries with type `application/ai-registry+json`, including the Registry's self-entry. The final summary reports those skipped entries separately.
 
-```json
+```text
 {"kind":"entry","identifier":"urn:air:catalog.example.test:demo:weather","displayName":"Weather agent","type":"application/a2a-agent-card+json"}
 {"kind":"summary","complete":true,"reason":"exhausted","pages":1,"resourceEntries":1,"registryEntriesSkipped":1,"reportedTotal":2}
 ```

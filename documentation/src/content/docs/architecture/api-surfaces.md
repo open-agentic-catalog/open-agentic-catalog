@@ -26,6 +26,8 @@ The ARD and AI Catalog documents under `/.well-known/` select an exact configure
 
 A discovery host can also expose one read-only `search` tool at `/ard/v1/mcp`. Set `mcpEnabled` on that host and restart the API. Searching requires an active publication for the host. The tool uses the same audience, federation policy and continuation rules as ARD REST Search. The Control MCP setting is independent. See [Search an ARD publication over MCP](../guides/mcp-server.mdx#search-an-ard-publication-over-mcp).
 
+An authenticated discovery host with ARD MCP enabled and an OIDC issuer serves public OAuth metadata at `/.well-known/oauth-protected-resource/ard/v1/mcp`. Clients can read this metadata before publication activation.
+
 ### Operations
 
 API `/livez`, `/readyz`, `/version`, `/metrics` and served OpenAPI are unauthenticated and contain no product data. They share the API listener and Service. Restrict their ingress or routing as required by the deployment.

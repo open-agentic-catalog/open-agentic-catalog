@@ -191,7 +191,7 @@ Expand **Permission meanings** to read each action beside its exact key, includi
 
 Built-in and archived roles show **Role permissions** with selected permissions first. Clear **Show selected permissions only** to inspect the complete vocabulary. **Copy to custom role** stages a separate definition. Group pages separate **Overview**, **Members** and **Assignments**. Expand the metadata, lifecycle, member or grant section only when needed. Foreign-realm assignments remain read-only.
 
-**Members**, **Access roles**, **Access groups** and **Access assignments** require protected `access.manage` and `tenant.admin` when scopes are enforced. Members provisions an existing identity's Catalog membership and retains the convenient built-in role grant workflow. It does not create an identity-provider account or issue a token. Role grants target the administrator's current realm.
+Under **Administration**, the **Members**, **Roles**, **Groups** and **Access assignments** pages require the protected `access.manage` permission. If OAuth scopes are enforced, the token also needs `tenant.admin`. Use **Members** to provision Catalog membership for an existing identity or grant a built-in role. The identity provider owns the account and issues its token. Role grants target the administrator's current realm.
 
 Namespace grants apply only to their exact namespace. The backend protects the final active administrator and rejects stale revisions or prohibited self-changes.
 

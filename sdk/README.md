@@ -10,10 +10,21 @@ Each language guide covers installation, authentication, transport limits, respo
 
 | Language | Consumer package | Examples |
 | --- | --- | --- |
-| [Go 1.27+](go/README.md) | Source module; configure a local replacement. | [Discovery and transport](go/README.md#create-a-client-and-read-discovery), [Search](../documentation/src/content/docs/guides/integrating.mdx#search-one-page-with-go), [draft creation](../documentation/src/content/docs/guides/integrating.mdx#create-a-resource-with-go) and [exact bytes](go/README.md#preserve-native-evidence). |
+| [Go 1.27.3+](go/README.md) | Source module; configure a local replacement. | [Discovery and transport](go/README.md#create-a-client-and-read-discovery), [Search](../documentation/src/content/docs/guides/integrating.mdx#search-one-page-with-go), [draft creation](../documentation/src/content/docs/guides/integrating.mdx#create-a-resource-with-go) and [exact bytes](go/README.md#preserve-native-evidence). |
 | [Python 3.12-3.14](python/README.md) | Install local source or a built wheel with pip. | [Discovery](python/README.md#read-ard-discovery), [Search](../documentation/src/content/docs/guides/integrating.mdx#search-one-page-with-python), [draft creation](../documentation/src/content/docs/guides/integrating.mdx#create-a-resource-with-python) and [exact bytes](../documentation/src/content/docs/guides/integrating.mdx#read-exact-bytes-with-python). |
 | [JavaScript/TypeScript](typescript/README.md) | Install the built ESM npm tarball. | [Discovery](typescript/README.md#connect-and-read-discovery), [Search](../documentation/src/content/docs/guides/integrating.mdx#search-one-page-with-javascript-or-typescript), [draft creation](../documentation/src/content/docs/guides/integrating.mdx#create-a-resource-with-javascript-or-typescript) and [exact bytes](../documentation/src/content/docs/guides/integrating.mdx#read-exact-bytes-with-javascript-or-typescript). |
 | [Rust 1.88+](rust/README.md) | Local source or an extracted `.crate`; async Tokio client. | [First request](rust/README.md#make-your-first-request), [Search](rust/README.md#connect-and-search-one-page), [draft creation](rust/README.md#create-a-resource), [exact bytes](rust/README.md#read-exact-bytes) and [operation lookup](rust/README.md#find-an-operation). |
+
+### Read bodyless responses with release packages
+
+For MCP OAuth metadata HEAD requests and conditional GET responses with status 304, inspect the HTTP status and headers. The language guides describe the clients in this checkout. The v0.1.2 downloads have the following differences.
+
+| Download | Behavior to account for |
+| --- | --- |
+| Go | A typed metadata HEAD call can return `request_or_decode_failed` when a 403 or 404 advertises JSON but has an empty body. Use the raw HEAD method to read the status and headers. |
+| Python | A typed metadata HEAD call can raise `invalid_response` on an empty refusal. Use `raw` or `raw_sync` to read the status and headers. |
+| TypeScript | A HEAD or 304 response can raise `response_too_large` when `Content-Length` exceeds the response budget. On a 304 with no length or a positive length within budget, the typed GET returns an empty string in `error`. The current client leaves `error` undefined. Check the HTTP status to identify a 304. |
+| Rust | HEAD or 304 can return `ResponseTooLarge` when the advertised length exceeds the response budget. An empty metadata HEAD refusal can also carry a JSON parse error alongside its HTTP status and headers. |
 
 ## Choose a task
 
@@ -90,7 +101,7 @@ Contributors use these targets from the repository root. Consumers install the s
 
 Run each target alone. Only installation acquires dependencies. Checks do not publish packages, start Compose or contact an external Catalog. The selector accepts `SDK_LANGUAGE=go|python|typescript|rust|all`. The default is `all`; a missing prerequisite fails the command without skipping a language. Go-only selection needs no Python SDK, Node or browser tools. The Python installer requires pinned uv 0.13.7; use `UV=/path/to/uv-0.13.7` when needed. See [SDK qualification](../documentation/src/content/docs/contributing/testing.md#combined-sdk-qualification) for prerequisites and test scope.
 
-Packages and input/tool hashes are retained under `output/artifacts/sdk/<language>/`. Python produces a wheel and source archive; TypeScript produces an npm tarball. Rust produces a `.crate`. Go remains a source module, with a source inventory instead of a binary archive. `sdk-package` with the default `SDK_LANGUAGE=all` removes any previous combined manifest and writes a replacement only after all four builds succeed. A single-language selection writes only that language's outputs. A package build does not establish test success; run `sdk-check` separately.
+Packages and input/tool hashes are retained under `output/artifacts/sdk/<language>/`. Python produces a wheel and source archive. TypeScript produces an npm tarball and Rust produces a `.crate`. Go produces `open-agentic-catalog-go-<version>.tar.gz` containing the source module, and records its source inventory in `manifest.json`. `sdk-package` with the default `SDK_LANGUAGE=all` removes any previous combined manifest and writes a replacement only after all four builds succeed. A single-language selection writes only that language's outputs. A package build does not establish test success; run `sdk-check` separately.
 
 Root `VERSION` owns the SDK release base. Python maps `0.2.0-rc.1` to `0.2.0rc1`; npm and Cargo retain SemVer. The [version-bump workflow](../documentation/src/content/docs/contributing/build-and-release.md#application-version-and-release-checks) updates derived package metadata. Regenerate and check SDKs after a bump. Registry ownership, publication and release tags remain separate actions.
 

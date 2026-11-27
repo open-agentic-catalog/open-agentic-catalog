@@ -36,7 +36,7 @@ After installing the pinned file linters, yamllint and Gitleaks from the testing
 python3 -B -m unittest discover -s test/hooks -p qualify_test.py
 ```
 
-The qualification stages the Docker and MCP examples and the ADK provenance file, then compares the scanner's findings with the reviewed fingerprints. If an example moves, inspect the matched text before changing its fingerprint. A clean scan requires a successful exit and an empty JSON array. A missing report or a disagreement between the report and exit status fails the hook.
+The qualification stages the Docker and MCP examples, the ADK provenance file and a digest change in the Plugin provenance inventory. It compares the scanner's findings with the reviewed fingerprints. If an example moves, inspect the matched text before changing its fingerprint. A clean scan requires a successful exit and an empty JSON array. A missing report or a disagreement between the report and exit status fails the hook.
 
 This fails if yamllint is absent or the scanner is absent or incompatible. It installs the hook only in a disposable repository, commits clean content, rejects staged synthetic credentials despite a clean working copy, checks redaction and exact fingerprint exceptions, accepts clean staged content despite unstaged synthetic credentials, and verifies explicit bypass and uninstall. It also rejects synthetic secrets in generated/vendored paths even with inline allow comments: formatting exclusions do not disable secret scanning. It removes the disposable repository, including its synthetic commits, automatically.
 

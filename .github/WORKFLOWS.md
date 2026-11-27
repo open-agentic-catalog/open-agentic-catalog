@@ -21,11 +21,11 @@ Agents do not dispatch hosted jobs, upload project data or publish artifacts. Th
 
 Quality allows `all`, `unit`, `source`, `lint`, `ui` or `docs`. The `lint` selection runs `make check` without broad regression or API launcher tests. Clients allow `all`, `go`, `python`, `typescript` or `rust`. The default `all` retains complete coverage for those workflows. A focused selection leaves other suites unselected; it does not establish their results. SDK jobs still use at most two concurrent runners and retain the existing language/runtime checks.
 
-Contribution selection treats root `pyproject.toml` and `uv.lock` as shared tooling inputs. Either change selects UI, documentation and all four SDK languages. The baseline lint and unit jobs remain unconditional.
+Changing root `pyproject.toml` or `uv.lock` selects UI, documentation, charts and all four SDK languages. The chart job runs `make deploy-check`. Source lint and isolated units run on every contribution.
 
 The `docs` selection runs `docs-check`, then `docs-site-check`. Its summary reports Markdown/contracts and site outcomes separately. The docs profile installs pinned Markdownlint alongside Go and the documentation Node toolchain. The job needs no Docker socket or other source linters.
 
-The Go selection runs `sdk-go-examples-check`. It checks the Go SDK once, then runs the publication-report and MCP Scanner receiver suites. `client-go-check` remains a separate generated-client result. The `coverage/publication-report-unit.out` profile contains receiver unit coverage, excluding SDK and functional coverage. Existing upload guards also protect this selected file.
+The Go selection runs `sdk-go-examples-check`. It checks the Go SDK once and runs unit tests for both the publication-report and MCP Scanner receivers. The scanner receiver also runs local MCP/TLS tests. `client-go-check` qualifies the standalone Go generator separately. The optional report upload includes `coverage/publication-report-unit.out`, which measures only the publication-report receiver's units.
 
 The functional workflow also offers `test-backup-restore`, `test-federation-peers` and `test-webhook-report`. Select one suite per run. Federation peers install locked UI dependencies, Chromium system libraries and the browser before the campaign. Backup/restore and receiver tests use the non-UI prerequisite profile. Summaries describe the selected scope; raw database backups, fixture state and credentials are not exported.
 

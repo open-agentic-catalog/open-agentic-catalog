@@ -517,7 +517,7 @@ Run the [testing gates](testing.md) appropriate to the change. These include `ma
 
 ## Build and run the UI locally
 
-Install [Node.js](https://nodejs.org/en/download) 22.23.4 and select npm 12.2.2 separately; that npm version is not bundled with this Node distribution. The `catalog-ui/.nvmrc` file selects the Node version for nvm. The UI build and test tools require Node 22.18 or later within major 22. Install the repository Go toolchain and Make prerequisites from [local development](../guides/local-development.mdx#start-the-service).
+Use [Node.js](https://nodejs.org/en/download) 22.23.4 and npm 12.2.2 to reproduce the UI build. With nvm, run `nvm install` and `nvm use` inside `catalog-ui/`, then `npm install --global npm@12.2.2` for that Node installation. The UI package supports Node 22.22.2 or later within major 22. Install the repository Go toolchain and Make prerequisites from [local development](../guides/local-development.mdx#start-the-service).
 
 Run the following commands from the repository root in separate terminals:
 
