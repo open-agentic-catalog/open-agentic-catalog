@@ -148,6 +148,31 @@ class WorkflowAdmissionTests(unittest.TestCase):
             caller.touch()
             self.assertCountEqual(tools.workflow_files(root), [caller, reusable])
 
+    def test_actionlint_checks_active_workflows_and_both_copyable_examples(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(tools, "ROOT", Path(directory)),
+            patch.object(tools, "OWNED", Path(directory)),
+            patch.object(tools.shutil, "which", return_value="/tools/shellcheck"),
+            patch.object(tools, "record_tool"),
+            patch.object(tools, "run") as execute,
+        ):
+            root = Path(directory)
+            binary = root / "bin/actionlint"
+            binary.parent.mkdir()
+            binary.touch()
+            active = root / ".github/workflows/new.yaml"
+            active.parent.mkdir(parents=True)
+            active.touch()
+            pin = tools.PINS["actionlint"]
+            module = pin["module"].removesuffix("/cmd/actionlint")
+            execute.return_value = f"\tmod\t{module}\tv{pin['version']}\th1:fixture"
+            tools.actionlint_check()
+            examples = root / "examples/git-draft-delivery"
+            self.assertEqual(execute.call_args.args[0], [
+                binary, "-color", "-shellcheck=shellcheck", active, examples / "preview.yml", examples / "deliver.yml",
+            ])
+
     def test_markdown_profiles_preserve_tool_scope(self):
         for profile in ("quality", "docs", "unit"):
             with self.subTest(profile=profile):

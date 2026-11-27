@@ -10,7 +10,7 @@ For a local Model Context Protocol (MCP) host, use the [Catalog MCP server](mcp-
 
 ## Set up the client
 
-1. Build `catalogctl` from a source checkout with `make build`, or use a binary supplied by your Catalog operator. No released binary or Skill archive is assumed here. Put it on the assistant's command `PATH`. See [build and release](../contributing/build-and-release.md).
+1. [Download and verify the CLI and Skill archives](../contributing/build-and-release.md#download-release-packages) from the same release, then extract them. Alternatively, build `catalogctl` with `make build` from the source checkout or use a binary supplied by your operator. Put `catalogctl` on the assistant's command `PATH`.
 2. Supply an active Catalog identity with `resource.read` for the tenant or selected namespace. The Reader template grants this local-release access. When OAuth scopes are enforced, the token also needs `catalog.read`. Optional indexed/live discovery additionally needs tenant `federation.discover`; see [origin selection](#choose-local-or-external-results). The workflow needs no administration, private source-read or feedback authority.
 3. Before starting the assistant, configure its command execution environment:
 
@@ -21,18 +21,17 @@ For a local Model Context Protocol (MCP) host, use the [Catalog MCP server](mcp-
 
    The token file must already contain a bare access token, not CLI login JSON. Optionally supply `CATALOG_REMOTE_CA_FILE` for a private CA. Use the API origin without a path or trailing slash. Do not paste credentials into the conversation. This Skill uses manual bearer inputs and does not refresh them. The CLI separately supports [human login and explicit login-file refresh](../reference/commands.md#human-cli-login); the Skill does not invoke login or select that file. Renew its token outside the assistant session. The CLI does not read `.env`. See [remote command configuration](../reference/commands.md#remote-catalog-reads) for trust, loopback development and limits.
 
-4. From a source checkout of this repository, copy the complete `examples/client-skills/catalog-discovery/` directory into your client's project-local Skill directory. Include its license and relative references. Use `<project>/.agents/skills/catalog-discovery/` for clients that support `.agents/skills/`. For Claude Code, use `<project>/.claude/skills/catalog-discovery/`. Do not rename the package. Start a fresh session and check that the Skill is available.
+4. Copy the extracted `catalog-discovery/` directory or the checkout's `examples/client-skills/catalog-discovery/` directory into your client's project-local Skill directory. Include its license and relative references. Use `<project>/.agents/skills/catalog-discovery/` for clients that support `.agents/skills/`. For Claude Code, use `<project>/.claude/skills/catalog-discovery/`. Do not rename the package. Start a fresh session and check that the Skill is available.
 
 For a client using `.agents/skills/`, the complete checkout-to-project copy is:
 
 ```sh
 CATALOG_SOURCE_CHECKOUT=/absolute/path/to/open-agentic-catalog
 ASSISTANT_PROJECT=/absolute/path/to/your-project
-mkdir -p "$ASSISTANT_PROJECT/.agents/skills"
-# Choose an empty destination; preserve the complete package and relative references.
-test ! -e "$ASSISTANT_PROJECT/.agents/skills/catalog-discovery"
-cp -R "$CATALOG_SOURCE_CHECKOUT/examples/client-skills/catalog-discovery" \
-  "$ASSISTANT_PROJECT/.agents/skills/catalog-discovery"
+skill_dir="$ASSISTANT_PROJECT/.agents/skills/catalog-discovery"
+mkdir -p "$ASSISTANT_PROJECT/.agents/skills" &&
+  mkdir "$skill_dir" &&
+  cp -R "$CATALOG_SOURCE_CHECKOUT/examples/client-skills/catalog-discovery/." "$skill_dir/"
 ```
 
 Use the `.claude/skills/` destination instead for the client described above. Copy the whole directory, including `SKILL.md`, README, license and references; copying only `SKILL.md` leaves its referenced instructions unavailable.

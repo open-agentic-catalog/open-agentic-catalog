@@ -41,6 +41,7 @@ type harness struct {
 	network            string
 	suffix             string
 	application        string
+	upgradeTarget      string
 	fixture            string
 	postgres           string
 	pgbouncerDirect    bool
@@ -1073,6 +1074,9 @@ func (h *harness) cleanup() error {
 			}
 		}
 		ownedImages := []string{h.application, h.fixture, h.postgres}
+		if h.upgradeTarget != "" {
+			ownedImages = append(ownedImages, h.upgradeTarget)
+		}
 		if h.vault != nil {
 			for _, image := range h.vault.images {
 				ownedImages = append(ownedImages, image)

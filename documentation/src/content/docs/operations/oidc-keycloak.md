@@ -14,7 +14,7 @@ The setup starts one Catalog API, worker, UI, PostgreSQL, Keycloak and a TLS fro
 
 ### Prepare images and browser access
 
-Install Docker Compose, Python 3, OpenSSL and Make. Use a local Docker Unix socket. Remote Docker engines are refused.
+From a source checkout, use GNU Make, Git, Python 3.12-3.14, OpenSSL 3 and Docker with BuildKit and the Compose plugin. Use a local Docker Unix socket. By default, the image builds use the host Go toolchain to detect the architecture. Without host Go, pass `CONTAINER_PLATFORM=linux/amd64` or `CONTAINER_PLATFORM=linux/arm64` to each image build for your Docker engine.
 
 Build the application images explicitly:
 

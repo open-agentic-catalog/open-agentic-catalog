@@ -123,6 +123,24 @@ func validControlDeclaration(value string, maximum int) bool {
 	return utf8.ValidString(value) && !strings.ContainsRune(value, '\x00') && utf8.RuneCountInString(value) <= maximum && strings.TrimSpace(value) != ""
 }
 
+// A known mismatch is conclusive even when a sparse result omits another
+// requested declaration. Missing evidence alone makes the live page partial.
+func liveControlDeclarationsMatch(ctx context.Context, raw json.RawMessage, tags []string, query catalog.SearchQuery) (matches, insufficient bool) {
+	if len(query.Tags) > 0 && tags != nil && !hasAll(normalizedSearchTags(tags), query.Tags) {
+		return false, false
+	}
+	if query.License != "" || len(query.Categories) > 0 {
+		declarations := projectLiveControlFilters(ctx, raw, len(query.Categories) > 0)
+		if !declarations.matches(query) {
+			return false, declarations.insufficient(query)
+		}
+	}
+	if len(query.Tags) > 0 && tags == nil {
+		return false, true
+	}
+	return true, false
+}
+
 func (p ObservationControlFilters) matches(query catalog.SearchQuery) bool {
 	return (query.License == "" || p.License != nil && *p.License == query.License) &&
 		(len(query.Categories) == 0 || p.Categories != nil && containsAllStrings(p.Categories, query.Categories))

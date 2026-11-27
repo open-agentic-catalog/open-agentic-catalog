@@ -13,6 +13,28 @@ import (
 	"time"
 )
 
+const upgradeTargetVersion = "minikube-upgrade-target"
+
+// The focused Helm drill crosses a real image boundary while retaining the same schema.
+func (h *harness) prepareUpgradeTarget() error {
+	h.upgradeTarget = "open-agentic-catalog:minikube-upgrade-target-" + h.suffix
+	args := agntcyBuildArguments(h.upgradeTarget, map[string]string{"version": upgradeTargetVersion, "commit": "local", "sourceState": "unknown"})
+	if _, err := h.run("build distinct upgrade target", h.options.docker, args...); err != nil {
+		return err
+	}
+	raw, err := h.run("record upgrade target image", h.options.docker, "image", "inspect", "--format", "{{.Id}}", h.upgradeTarget)
+	if err != nil {
+		return err
+	}
+	id := strings.TrimSpace(string(raw))
+	if id == "" || id == h.report.Images["application"] {
+		return errors.New("upgrade requires distinct initial and target images")
+	}
+	h.report.Images["upgrade-target"] = id
+	_, err = h.minikube("load upgrade target into owned nodes", "image", "load", "--daemon=true", "--overwrite=true", h.upgradeTarget)
+	return err
+}
+
 func (h *harness) deploymentChart() string {
 	if h.coordinatorChart != "" {
 		return h.coordinatorChart
@@ -81,8 +103,7 @@ func (h *harness) upgradeValues(marker, role string, replicas int, missingSecret
 }
 
 // verifyCoordinatedUpgrade qualifies retained-state failure/retry without a
-// fictitious predecessor schema or migration. The selected current image owns
-// the real hook and exact grant reconciliation throughout.
+// fictitious predecessor schema or migration. Both builds run the real owner hook.
 func (h *harness) verifyCoordinatedUpgrade(runID string, initial []byte) error {
 	good, err := h.upgradeValues("coordinated", "catalog_api", 2, false)
 	if err != nil {
@@ -96,6 +117,15 @@ func (h *harness) verifyCoordinatedUpgrade(runID string, initial []byte) error {
 	}
 	if err := h.verifyUpgradeBarrier(good); err != nil {
 		return err
+	}
+	if h.options.upgradeOnly {
+		if err := h.prepareUpgradeTarget(); err != nil {
+			return err
+		}
+		good, err = h.upgradeValues("upgrade-target", "catalog_api", 2, false)
+		if err != nil {
+			return err
+		}
 	}
 	if err := h.verifyUpgradeFaults(runID, initial, good); err != nil {
 		return err
@@ -119,7 +149,14 @@ func (h *harness) verifyCoordinatedUpgrade(runID string, initial []byte) error {
 
 // verifyUpgradeFaults injects invalid inputs, then recovers using the caller's exact target.
 func (h *harness) verifyUpgradeFaults(runID string, initial []byte, good string) error {
+	var originalRows string
 	var err error
+	if h.options.upgradeOnly {
+		originalRows, err = h.upgradeReleaseDigest()
+		if err != nil {
+			return err
+		}
+	}
 	before := map[string][]podIdentity{}
 	for _, role := range []string{"api", "worker"} {
 		before[role], err = h.pods(role)
@@ -147,6 +184,16 @@ func (h *harness) verifyUpgradeFaults(runID string, initial []byte, good string)
 			return errors.New("invalid target disturbed running Pods")
 		}
 	}
+	if h.options.upgradeOnly {
+		address, err := h.startPortForward("service/catalog", 8080)
+		if err != nil {
+			return err
+		}
+		if err := h.verifyServedBuild("http://"+address, map[string]string{"version": "minikube", "commit": "local"}); err != nil {
+			return err
+		}
+		h.report.Checks = append(h.report.Checks, "original-build-serving-after-target-preflight-refusal")
+	}
 	badRole, err := h.upgradeValues("invalid-role", "catalog_api_missing", 2, false)
 	if err != nil {
 		return err
@@ -154,7 +201,7 @@ func (h *harness) verifyUpgradeFaults(runID string, initial []byte, good string)
 	if h.deployCatalog(badRole, "2m") == nil {
 		return errors.New("upgrade unexpectedly accepted missing role")
 	}
-	if err = h.requireDrainedRuntimes(); err != nil {
+	if err = h.verifyFailedUpgrade(originalRows); err != nil {
 		return err
 	}
 	raw, err := h.kubectl("inspect retained upgrade hook failure", "-n", h.catalogNamespace(), "get", "job/catalog-migrate", "-o", "jsonpath={.status.failed}")
@@ -177,7 +224,7 @@ func (h *harness) verifyUpgradeFaults(runID string, initial []byte, good string)
 	if h.deployCatalog(broken, "1m") == nil {
 		return errors.New("missing runtime secret unexpectedly became ready")
 	}
-	if err = h.requireDrainedRuntimes(); err != nil {
+	if err = h.verifyFailedUpgrade(originalRows); err != nil {
 		return err
 	}
 	raw, err = h.kubectl("require successful hook cleanup before startup failure", "-n", h.catalogNamespace(), "get", "jobs", "-l", "app.kubernetes.io/component=migration,app.kubernetes.io/instance=catalog", "-o", "json")
@@ -199,6 +246,41 @@ func (h *harness) verifyUpgradeFaults(runID string, initial []byte, good string)
 		}
 	}
 	h.report.Checks = append(h.report.Checks, "coordinated-preflight-preserves-running-replicas", "coordinated-migration-failure-stops-both-roles", "coordinated-startup-failure-no-rollback", "coordinated-retry-restores-two-replicas-and-retained-state")
+	if h.options.upgradeOnly {
+		h.report.Checks = append(h.report.Checks, "stored-release-rows-unchanged-during-both-failures", "recovered-target-serving-on-verified-api-and-worker-images")
+	}
+	return nil
+}
+
+// upgradeReleaseDigest fingerprints every release row for the disposable primary tenant.
+func (h *harness) upgradeReleaseDigest() (string, error) {
+	const sql = `SELECT encode(sha256(convert_to(string_agg(to_jsonb(r)::text, E'\n' ORDER BY id), 'UTF8')), 'hex')
+FROM listing_releases r WHERE tenant_id='` + primaryTenantID + `'`
+	raw, err := h.drainSQL(h.ctx, sql)
+	if err != nil {
+		return "", err
+	}
+	digest := strings.TrimSpace(string(raw))
+	if !backupDigestPattern.MatchString(digest) {
+		return "", errors.New("missing stored releases in upgrade fixture")
+	}
+	return digest, nil
+}
+
+func (h *harness) verifyFailedUpgrade(originalRows string) error {
+	if err := h.requireDrainedRuntimes(); err != nil {
+		return err
+	}
+	if originalRows != "" {
+		current, err := h.upgradeReleaseDigest()
+		if err != nil {
+			return err
+		}
+		if current != originalRows {
+			return errors.New("stored release rows changed during failed upgrade")
+		}
+		fmt.Printf("[%s] no API or worker Pods; release rows retain SHA-256 %s\n", h.options.scenario, current)
+	}
 	return nil
 }
 
@@ -241,6 +323,13 @@ func (h *harness) verifyUpgradeReadback(runID string, initial []byte) error {
 		if err := requireUpgradeReplicas(pods, h.options.scenario == "topology"); err != nil {
 			return fmt.Errorf("%s retry lost configured replica intent: %w", role, err)
 		}
+		if h.upgradeTarget != "" {
+			for _, pod := range pods {
+				if pod.ImageID != h.report.Images["upgrade-target"] {
+					return fmt.Errorf("recovered %s Pod %s has unexpected image ID %s", role, pod.Name, pod.ImageID)
+				}
+			}
+		}
 		h.recordPlacement("coordinated-readback-"+role, pods)
 	}
 	address, err := h.startPortForward("service/catalog", 8080)
@@ -249,6 +338,11 @@ func (h *harness) verifyUpgradeReadback(runID string, initial []byte) error {
 	}
 	if err = h.waitHTTP("http://" + address + "/readyz"); err != nil {
 		return err
+	}
+	if h.upgradeTarget != "" {
+		if err := h.verifyServedBuild("http://"+address, map[string]string{"version": upgradeTargetVersion, "commit": "local"}); err != nil {
+			return err
+		}
 	}
 	replayed, err := h.runSmoke("http://"+address, runID)
 	if err != nil {

@@ -142,7 +142,7 @@ function inspect(base) {
     ['operations/observability', ['#inspect-service-information-in-the-ui', 'generated/documentation/assets/catalog-ui/jobs-filtered.png'], ['Investigate one retained Job', 'There is no raw-result JSON fallback.']],
     ['operations/hybrid-search', ['operations/observability/#investigate-one-retained-job', 'generated/documentation/assets/catalog-ui/search-indexing-confirmation.png'], ['Check a rebuild outcome', 'Accounting includes reused vectors and failed inputs']],
     ['operations/troubleshooting', ['guides/search-cookbook/#origin-and-local-namespace-filters'], []],
-    ['reference/api-assets', ['generated/api/examples/hybrid-search.json'], []],
+    ['reference/api-assets', ['generated/api/examples/hybrid-search.json', 'generated/api/examples/mcp-tools-search.json'], ['" Support "']],
     ['reference/profiles', ['reference/standards/#verify-and-update-standards-profiles', 'contributing/testing/#schema-validation-and-ard-conformance'], []],
     ['reference/helm', ['operations/helm-monitoring/'], []],
     ['reference/receiver-example', ['generated/LICENSE'], ['examples/webhookreceiver/verify.go']],

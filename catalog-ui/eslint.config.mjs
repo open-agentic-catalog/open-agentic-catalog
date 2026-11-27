@@ -42,6 +42,12 @@ export default defineConfig(
     plugins: { playwright },
     rules: playwrightRules,
   },
+  {
+    basePath: fileURLToPath(new URL("../", import.meta.url)),
+    files: ["test/interoperability/pi-ard/*.mjs"],
+    extends: [js.configs.recommended],
+    languageOptions: { globals: globals.node },
+  },
   globalIgnores(["dist/**", "src/api/schema.d.ts"]),
   {
     files: ["**/*.{ts,tsx,mjs}"],

@@ -128,7 +128,7 @@ A nil Go error means the exchange and selected decoding succeeded. It does not m
 - Control failures use `ApplicationproblemJSONDefault`, with the service's RFC 9457 problem code.
 - ARD failures use `JSONDefault`, with `errorCode` and `message`.
 - Read `HTTPResponse.Header` for `X-Request-ID`, ETag, Location and Retry-After. A Location header does not trigger another request.
-- Handle bodyless 204 and 304 responses by status. They do not require a JSON body.
+- For HEAD, 204 and 304 responses, read the status and headers. For example, a metadata HEAD returning 404 can carry a request ID and a JSON content type while its typed problem body is nil.
 
 Transport and codec failures return `*Error` with a fixed diagnostic code. When available, it also carries `StatusCode` and `RequestID`. Use `errors.Is` for `context.Canceled` and `context.DeadlineExceeded`. Default error formatting excludes URLs, tokens, private bodies and dependency causes. Response bodies and problem messages remain caller-owned private data; do not log them indiscriminately. The SDK emits no logs.
 

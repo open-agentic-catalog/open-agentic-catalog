@@ -3842,7 +3842,7 @@ impl AsRef<str> for PersonalInputType {
 ///Private criteria only. Saving and opening never execute a Search. Current disclosure, live and embedding consent apply to the later explicit Search.
 #[derive(Debug, Clone)]
 pub struct PersonalCriteria {
-    ///Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+    ///Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require selecting only the local origin explicitly; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
     ///Constraint: maxLength=256, pattern=`^[^\x00]*$`
     pub agent_protocol: Option<String>,
     ///All selected categories must match after trimming, lowercasing and deduplication. Local releases use Listing categories; external entries use bounded literal Dublin Core subjects. Missing, malformed or oversized declarations do not match. Live candidates are checked before admission; their bounded population can be incomplete. Applies across selected origins.
@@ -9509,7 +9509,7 @@ impl AsRef<str> for CatalogSearchDiagnosticStatus {
 }
 #[derive(Debug, Clone)]
 pub struct CatalogSearch {
-    ///Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+    ///Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require selecting only the local origin explicitly; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
     ///Constraint: maxLength=256, pattern=`^[^\x00]*$`
     pub agent_protocol: Option<String>,
     ///All selected categories must match after trimming, lowercasing and deduplication. Local releases use Listing categories; external entries use bounded literal Dublin Core subjects. Missing, malformed or oversized declarations do not match. Live candidates are checked before admission; their bounded population can be incomplete. Applies across selected origins.
@@ -11245,7 +11245,7 @@ impl CatalogExploreBuilder {
 }
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct CatalogExploreQuery {
-    ///Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+    ///Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require selecting only the local origin explicitly; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
     ///Constraint: maxLength=256, pattern=`^[^\x00]*$`
     #[serde(rename = "agentProtocol", skip_serializing_if = "Option::is_none")]
     pub agent_protocol: Option<String>,
@@ -11280,7 +11280,7 @@ pub struct CatalogExploreQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub visibility: Option<Visibility>,
 }
-///Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require explicit origins [local]; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
+///Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require selecting only the local origin explicitly; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct NativeCapabilitiesFilter {

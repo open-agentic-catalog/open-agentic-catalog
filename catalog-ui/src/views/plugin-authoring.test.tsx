@@ -243,6 +243,7 @@ it("generates named MCP rows with literal ordered arguments and non-secret optio
   ]);
   click("Remove argument 1");
   expect(test.mcp().mcpServers.first!.args).toEqual(["${PLUGIN_ROOT}/asset"]);
+  expect(document.activeElement).toBe(screen.getByLabelText("Argument 1"));
   rename("Working directory (optional)", "${PLUGIN_DATA}/cache");
   click("Add Environment variable");
   rename("Environment variable 1 name", "PUBLIC_SETTING");
@@ -257,6 +258,9 @@ it("generates named MCP rows with literal ordered arguments and non-secret optio
   rename("Environment variable 2 name", "OTHER");
   rename("Environment variable 2 value", "text");
   click("Remove Environment variable 2");
+  expect(document.activeElement).toBe(
+    screen.getByLabelText("Environment variable 1 name"),
+  );
   expect(test.mcp().mcpServers.first).toMatchObject({
     cwd: "${PLUGIN_DATA}/cache",
     env: { PUBLIC_SETTING: "${USER_SETTING}" },
@@ -298,6 +302,11 @@ it("keeps MCP names distinct and explicitly confirms transport changes and remov
     url: "http://localhost:3000/events",
     headers: { "X-Client": "${CLIENT_ID}" },
   });
+  click("Remove Header 1");
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "Add Header" }),
+  );
+  expect(test.mcp().mcpServers.third!.headers).toEqual({});
   change("Server 3 transport", "streamable-http");
   rename("MCP endpoint URL", "https://example.test/mcp");
   expect(test.mcp().mcpServers.third!.type).toBe("streamable-http");

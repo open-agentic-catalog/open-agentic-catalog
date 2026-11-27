@@ -18,6 +18,8 @@ The database requires command protocol v2. Repair and command execution reject u
 
 Use the exact compatible release image and the operator-controlled schema-owner DSN. The tool rejects API and worker database roles and applies tenant row-level security (RLS). It never prints the client idempotency key. Output contains one-way SHA-256 key and principal-binding digests, the opaque reservation UUID and safe command metadata. The principal binding is reported as `authorizationDigest`.
 
+For the direct `catalogctl` examples below, set `CATALOG_DATABASE_DSN_FILE` to the protected owner DSN file for the selected database. Leave `CATALOG_DATABASE_DSN` unset when using the file. The sample `config/postgres.json` contains an API-role DSN.
+
 List and plan do not change the reservation. Apply requires the unchanged version-2 plan digest and reason. It reacquires the command advisory lock, rechecks the row, and commits the release with its audit event. Repair creates no outbox row and has no webhook dependency.
 
 Do not repair a live command, including one intentionally paused or drained. An `active` plan is ineligible. A v2 `interrupted` plan can be eligible before replay expiry. Eligibility depends on the free advisory lock and transaction guarantee, not elapsed time.

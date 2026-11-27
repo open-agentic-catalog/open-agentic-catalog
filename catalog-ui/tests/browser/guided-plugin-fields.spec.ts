@@ -132,6 +132,15 @@ for (const base of ["root", "subpath"] as const) {
       .getByRole("textbox", { name: "Argument 2", exact: true })
       .fill("${PLUGIN_ROOT}/index");
     await page
+      .getByRole("button", { name: "Add argument", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Remove argument 3" })
+      .press("Enter");
+    await expect(
+      page.getByRole("textbox", { name: "Argument 2" }),
+    ).toBeFocused();
+    await page
       .getByRole("button", { name: "Edit Plugin MCP JSON", exact: true })
       .click();
     const mcp = page.getByRole("textbox", {

@@ -92,7 +92,7 @@ Profiles select system/tool prerequisites only. Existing Make installers still o
 
 The `docs` profile selects Go, the documentation Node/npm versions and pinned Markdownlint. It omits YAML, ShellCheck, Hadolint, actionlint and Docker prerequisites. The documentation job runs Markdown/repository contracts before site checks and records their outcomes separately.
 
-The Go client job reuses its existing prerequisites for `webhook-report-check`. That target checks the Go SDK and the independent publication-report receiver. `client-go-check` remains separate. The receiver profile at `coverage/publication-report-unit.out` excludes SDK and functional coverage. The act wrapper has no SDK selection. Run these checks through their native Make targets.
+The Go client job runs `sdk-go-examples-check`, which checks the SDK once and runs both receiver examples' unit tests. The MCP Scanner receiver also exercises its local MCP/TLS transport. The optional client report upload includes unit coverage for the publication-report receiver at `coverage/publication-report-unit.out`. Run `client-go-check` separately to qualify the standalone Go generator. Use the native Make targets for SDK checks when working locally.
 
 The functional workflow uses `functional` prerequisites for backup/restore and standalone receiver tests. Its peer federation selection uses `functional-ui` and installs UI dependencies, Chromium libraries and the browser. All selections call fixed existing Make targets and preserve failing exits. The act wrapper retains its eight selections; run the three additional campaigns through their native Make targets.
 
@@ -132,7 +132,7 @@ The hosted installer and local act harness keep their Linux AMD64/Python 3.12 re
 
 Root `pyproject.toml` and `uv.lock` changes select UI, documentation and every SDK language. Those jobs consume the shared Python installer or locked development tools. Changes beneath a specific SDK or documentation directory retain their existing selection. Selected failures, cancellations and unexpected skips fail the completion gate.
 
-The UI, documentation and TypeScript SDK jobs all consume the root `LICENSE` and `catalog-ui/scripts/native-test-completion.mjs`. Changing either selects all three. Changing `examples/tutorials/local-oidc/service-read.py` also selects the Python SDK job, which runs that tutorial against its installed packages.
+Changes to `catalog-ui/scripts/native-test-completion.mjs` select the UI, documentation and TypeScript SDK jobs. A change to the root `LICENSE` selects those jobs, chart validation and the Go SDK job, which compares the license copies in both Go webhook examples with the root file. Changing `examples/tutorials/local-oidc/service-read.py` also selects the Python SDK job, which runs that tutorial against its installed packages.
 
 `fuzz_corpus.py` collects new synthetic Go counterexamples after a failed fuzz measurement. Its package allowlist has a unit contract against `make test-fuzz`. Collection uses untracked, nonignored Git paths and preserves source files. It accepts regular files with hexadecimal names and the Go corpus header, within 1 MiB per file and 16 MiB total. Reports stay under ignored `output/`; redirected paths and existing destination files are refused. Collection does not change the failed measurement result. Unit cases and the native functional selection test the helper and the workflow's actual shell command without a fuzz campaign or upload.
 

@@ -98,35 +98,34 @@ func TestARDMCPHTTPCurrentHostAuthorityAndMetadata(t *testing.T) {
 					}
 				}
 			}
-			query := map[string]any{"query": map[string]any{"text": "fixture"}, "federation": "none", "pageSize": 1}
-			status, _, body := mcpRequest(t, client, server.URL+ardMCPPath, "reader/catalog.read", version, "tools/call", "search", mcpWire(t, version, "tools/call", "search", query), nil)
-			var page struct {
-				Result struct {
-					Structured publication.SearchResponse `json:"structuredContent"`
-					IsError    bool                       `json:"isError"`
-				} `json:"result"`
+			search := func(cursor string) []byte {
+				t.Helper()
+				query := map[string]any{"query": map[string]any{"text": "fixture"}, "federation": "none", "pageSize": 1}
+				if cursor != "" {
+					query["pageToken"] = cursor
+				}
+				status, _, body := mcpRequest(t, client, server.URL+ardMCPPath, "reader/catalog.read", version, "tools/call", "search", mcpWire(t, version, "tools/call", "search", query), nil)
+				if status != http.StatusOK || bytes.Contains(body, []byte("private-fixture")) {
+					t.Fatalf("search returned HTTP %d: %s", status, body)
+				}
+				return body
 			}
-			if json.Unmarshal(body, &page) != nil || status != 200 || page.Result.IsError || len(page.Result.Structured.Results) != 1 || page.Result.Structured.PageToken == "" {
-				t.Fatal("read-scope positive control", status, string(body))
-			}
+			alpha := "urn:air:" + publicFixtureHost + ":default:alpha"
+			beta := "urn:air:" + publicFixtureHost + ":default:beta"
+			cursor := requireARDMCPPage(t, search(""), alpha, true)
+
 			// The active generation changes without altering the client's query.
 			next := snapshot
 			next.ID = projectionNext
 			next.Generation++
 			next = sealPublicFixtureSnapshot(t, next)
 			active.Store(&next)
-			query["pageToken"] = page.Result.Structured.PageToken
-			status, _, body = mcpRequest(t, client, server.URL+ardMCPPath, "reader/catalog.read", version, "tools/call", "search", mcpWire(t, version, "tools/call", "search", query), nil)
-			if status != 200 || !bytes.Contains(body, []byte(`"isError":true`)) {
-				t.Fatal("old generation cursor remained usable", status, string(body))
-			}
-			delete(query, "pageToken")
-			// Absence/withdrawal is not an empty successful catalog or Control fallback.
+			requireARDMCPRefusal(t, search(cursor), "invalid_arguments:")
+			freshCursor := requireARDMCPPage(t, search(""), alpha, true)
+			requireARDMCPPage(t, search(freshCursor), beta, false)
+
 			active.Store(nil)
-			status, _, body = mcpRequest(t, client, server.URL+ardMCPPath, "reader/catalog.read", version, "tools/call", "search", mcpWire(t, version, "tools/call", "search", query), nil)
-			if status != 200 || !bytes.Contains(body, []byte("publication_unavailable")) || bytes.Contains(body, []byte("private-fixture")) {
-				t.Fatal(status, string(body))
-			}
+			requireARDMCPRefusal(t, search(""), "publication_unavailable:")
 			owner, err := authenticate(t.Context(), "owner")
 			if err != nil {
 				t.Fatal(err)
@@ -149,11 +148,52 @@ func TestARDMCPHTTPCurrentHostAuthorityAndMetadata(t *testing.T) {
 				}
 			}
 			before := reads.Load()
-			status, _, _ = mcpRequest(t, client, server.URL+ardMCPPath, "reader/catalog.read", version, "tools/list", "", mcpWire(t, version, "tools/list", "", nil), nil)
+			status, _, _ := mcpRequest(t, client, server.URL+ardMCPPath, "reader/catalog.read", version, "tools/list", "", mcpWire(t, version, "tools/list", "", nil), nil)
 			if status != 403 || reads.Load() != before {
 				t.Fatal("initialized client retained revoked discovery authority", status, reads.Load())
 			}
 		})
+	}
+}
+
+func requireARDMCPPage(t *testing.T, body []byte, identifier string, hasNext bool) string {
+	t.Helper()
+	var reply struct {
+		Error  json.RawMessage `json:"error"`
+		Result struct {
+			Search  publication.SearchResponse `json:"structuredContent"`
+			IsError bool                       `json:"isError"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(body, &reply); err != nil {
+		t.Fatal(err)
+	}
+	page := reply.Result.Search
+	if reply.Error != nil || reply.Result.IsError || len(page.Results) != 1 || page.Results[0].Identifier != identifier || (page.PageToken != "") != hasNext {
+		t.Fatalf("expected a page for %s (has next: %t), got %s", identifier, hasNext, body)
+	}
+	return page.PageToken
+}
+
+func requireARDMCPRefusal(t *testing.T, body []byte, prefix string) {
+	t.Helper()
+	var reply struct {
+		Error  json.RawMessage `json:"error"`
+		Result struct {
+			IsError    bool            `json:"isError"`
+			Structured json.RawMessage `json:"structuredContent"`
+			Content    []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(body, &reply); err != nil {
+		t.Fatal(err)
+	}
+	result := reply.Result
+	if reply.Error != nil || !result.IsError || result.Structured != nil || len(result.Content) != 1 || result.Content[0].Type != "text" || !strings.HasPrefix(result.Content[0].Text, prefix) {
+		t.Fatalf("expected tool refusal %q, got %s", prefix, body)
 	}
 }
 

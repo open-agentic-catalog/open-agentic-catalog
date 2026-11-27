@@ -8,9 +8,10 @@ The [dashboard JSON](../../../deployments/monitoring/dashboards/catalog.json) ow
 
 Install the documented Docker/Compose and Go prerequisites. Install the repository browser tools with `make ui-install` and `make ui-browser-install` if needed. Run the commands below from the repository root in one shell.
 
-Choose an unused subnet and loopback ports. Check existing Docker networks and listeners first. Do not stop another project to free a port. The example subnet and collector ports are choices, not reserved resources:
+Select the Docker context for your local engine below. Check its networks and your local listeners for an unused subnet and loopback ports. Do not stop another project to free a port. The example subnet and collector ports are choices, not reserved resources:
 
 ```sh
+CAPTURE_CONTEXT=default
 CAPTURE_PROJECT="catalog-monitoring-docs-$(python3 -c 'import secrets; print(secrets.token_hex(4))')"
 CAPTURE_IMAGE="open-agentic-catalog:$CAPTURE_PROJECT"
 CAPTURE_SUBNET=172.30.253.0/24
@@ -20,7 +21,7 @@ CAPTURE_API_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.
 mkdir -p output/playwright/monitoring
 
 capture_make() {
-  env -i PATH="$PATH" HOME="$HOME" DOCKER_CONTEXT=default \
+  env -i PATH="$PATH" HOME="$HOME" DOCKER_CONTEXT="$CAPTURE_CONTEXT" \
     make CATALOG_ENV_FILE=/dev/null COMPOSE_PROJECT="$CAPTURE_PROJECT" \
     IMAGE="$CAPTURE_IMAGE" CATALOG_COMPOSE_SUBNET="$CAPTURE_SUBNET" "$@"
 }
@@ -37,7 +38,7 @@ The clean environment excludes inherited runtime credentials and the developer `
 Seed the fixture through the shipped command:
 
 ```sh
-docker exec "$CAPTURE_PROJECT-api-1" /usr/local/bin/catalogctl smoke \
+docker --context "$CAPTURE_CONTEXT" exec "$CAPTURE_PROJECT-api-1" /usr/local/bin/catalogctl smoke \
   --base-url http://127.0.0.1:8080 --run-id monitoring-docs --timeout 3m \
   --admin-token local-admin --contributor-token local-contributor \
   --reviewer-token local-reviewer --publisher-token local-publisher \
@@ -117,10 +118,10 @@ Run cleanup after success, failure or interruption. These commands delete the se
 
 ```sh
 capture_make compose-reset LOCAL_MONITORING=on
-docker image rm "$CAPTURE_IMAGE"
+docker --context "$CAPTURE_CONTEXT" image rm "$CAPTURE_IMAGE"
 ```
 
-Verify that no containers, networks or volumes remain with `com.docker.compose.project=$CAPTURE_PROJECT`. Remove only `output/monitoring/$CAPTURE_PROJECT/grafana-password` and its now-empty private directory. Keep reviewed evidence, shared image layers and other projects. Do not prune Docker or reset the retained development stack.
+In the same Docker context, verify that no containers, networks or volumes remain with `com.docker.compose.project=$CAPTURE_PROJECT`. Remove only `output/monitoring/$CAPTURE_PROJECT/grafana-password` and its now-empty private directory. Keep reviewed evidence, shared image layers and other projects. Do not prune Docker or reset the retained development stack.
 
 ## Additional diagnostic views
 
@@ -136,7 +137,9 @@ For the database/worker image, use the dashboard URL above with `from=now-30m`. 
 
 For target health, open the owned Prometheus `/targets` page. Require both `catalog-api` and `catalog-worker` to be UP. Capture their endpoint rows without authentication settings.
 
-For import, open Grafana **Dashboards > New > Import**. Upload `deployments/monitoring/dashboards/catalog.json`. Choose a synthetic name and folder, then change the UID to an unused value. Require the availability result before capture. Do not select **Import**. Cancel, then verify that the unused UID is absent and `catalog-overview` remains unchanged. The pinned form has no data-source mapping prompt; select Prometheus in the dashboard afterward.
+Before the import preview, save the `dashboard` object returned by Grafana's `GET /api/dashboards/uid/catalog-overview` endpoint. Open **Dashboards**. In the page's **New** menu, select **Import dashboard**. Upload `deployments/monitoring/dashboards/catalog.json`. Choose the folder first. Select **Change uid** and enter an unused UID. Enter the synthetic dashboard name last so that changing the folder or UID cannot reset it.
+
+In the browser's network panel, confirm that the availability lookup for the proposed UID returns HTTP 404. Capture the form when **Import** is enabled, then select **Cancel**. Verify that `GET /api/dashboards/uid/<proposed-uid>` returns HTTP 404 and that the provisioned `dashboard` object matches the saved copy. After an actual import, select Prometheus in the dashboard.
 
 ### Capture a real Job trace pair
 

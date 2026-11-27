@@ -39,7 +39,7 @@ unset VERSION COMMIT CHART_VERSION APP_VERSION
 | --- | --- |
 | Source, units and manual | Run `make check verify`, `make api-validation-test`, `make coverage-unit`, `make test-tooling-unit`, `make test-ui` and `make docs-site-check`. The API validation tests exercise the installed validators with both valid and invalid inputs. |
 | Database and Compose | Run `make test-integration`. Run `make test-functional-webhooks` and `make test-functional-oidc` with the candidate variables unset. Use the sealed images for the remaining default-off API profile, followed by the packaged UI and OIDC browser suites. [Exact candidate commands](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#exact-candidate-qualification) |
-| SDKs and VS Code | Run `make webhook-report-check` for the Go SDK and its example, then `make client-go-check` for the generated client. Run `make sdk-check` with `SDK_LANGUAGE` set to `python`, `typescript` and `rust` in turn. Run `make vscode-check`. The release editor command runs `make test-vscode` and retains the tested VSIX with its TypeScript SDK hash. [Package handoffs](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#release-package-handoffs) |
+| SDKs and VS Code | Run `make sdk-go-examples-check` for the Go SDK and both webhook receiver examples, then `make client-go-check` for the generated client. Run `make sdk-check` with `SDK_LANGUAGE` set to `python`, `typescript` and `rust` in turn. Run `make vscode-check`. The release editor command runs `make test-vscode` and retains the tested VSIX with its TypeScript SDK hash. [Package handoffs](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#release-package-handoffs) |
 | Helm charts | Run `make deploy-check`. On the clean version tag, run `make helm-package` with the default versions and set `ARTIFACT_OUTPUT` to a fresh directory. Qualify those archives, then run `make helm-oci-test HELM_OCI_QUALIFIED="$charts"` on the same directory. [Package both charts](#package-helm-charts) |
 | Security and standalone programs | Run `make security` and `make ui-deps-check` with a current [Trivy database](#scan-local-images). Build, inspect and scan each target image. Exercise the standalone downloads on matching hardware. [Native package checks](https://github.com/open-agentic-catalog/open-agentic-catalog/blob/main/test/ci/README.md#release-package-handoffs) |
 
@@ -517,7 +517,7 @@ Run the [testing gates](testing.md) appropriate to the change. These include `ma
 
 ## Build and run the UI locally
 
-Install [Node.js](https://nodejs.org/en/download) 22.23.4 and select npm 12.2.2 separately; that npm version is not bundled with this Node distribution. The `catalog-ui/.nvmrc` file selects the Node version for nvm. The UI build and test tools require Node 22.18 or later within major 22. Install the repository Go toolchain and Make prerequisites from [local development](../guides/local-development.mdx#start-the-service).
+Use [Node.js](https://nodejs.org/en/download) 22.23.4 and npm 12.2.2 to reproduce the UI build. With nvm, run `nvm install` and `nvm use` inside `catalog-ui/`, then `npm install --global npm@12.2.2` for that Node installation. The UI package supports Node 22.22.2 or later within major 22. Install the repository Go toolchain and Make prerequisites from [local development](../guides/local-development.mdx#start-the-service).
 
 Run the following commands from the repository root in separate terminals:
 

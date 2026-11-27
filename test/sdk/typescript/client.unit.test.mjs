@@ -897,7 +897,7 @@ test("declared length, encoding and parsed header bounds cancel bodies", async (
   }
 });
 
-test("Control and ARD errors, partial pages and bodyless statuses remain distinct", async () => {
+test("partial Search returns one requested page with raw diagnostics", async () => {
   let calls = 0;
   const partial = {
     items: [],
@@ -918,9 +918,13 @@ test("Control and ARD errors, partial pages and bodyless statuses remain distinc
   };
   const client = make(async (request) => {
     calls++;
-    const data = JSON.parse(await request.text());
-    assert.equal(data.cursor, "same");
-    assert.deepEqual(data.kinds, ["agent"]);
+    assert.equal(request.method, "POST");
+    assert.equal(request.url, origin + "/api/v1/catalog/search");
+    assert.deepEqual(JSON.parse(await request.text()), {
+      cursor: "same",
+      kinds: ["agent"],
+      limit: 1,
+    });
     return json(partial);
   });
   const result = await client.api.POST("/api/v1/catalog/search", {
@@ -932,24 +936,101 @@ test("Control and ARD errors, partial pages and bodyless statuses remain distinc
     JSON.parse(new TextDecoder().decode(client.rawBytes(result.response))),
     partial,
   );
-  for (const error of [
-    { code: "FORBIDDEN", title: "Denied", status: 403 },
-    { errorCode: "INVALID_CURSOR", message: "Denied" },
-  ]) {
-    const reply = await make(async () => json(error, { status: 403 })).api.GET(
+});
+
+test("a Control or ARD 403 preserves the endpoint's error envelope", async () => {
+  for (const [path, error, mediaType] of [
+    [
+      "/api/v1/me",
+      {
+        type: "about:blank",
+        title: "Forbidden",
+        status: 403,
+        code: "FORBIDDEN",
+        detail: "Access denied",
+        requestId: "denied",
+      },
+      "application/problem+json",
+    ],
+    [
       manifest,
-    );
+      { errorCode: "FORBIDDEN", message: "Access denied" },
+      "application/json",
+    ],
+  ]) {
+    const reply = await make(async (request) => {
+      assert.equal(request.method, "GET");
+      assert.equal(request.url, origin + path);
+      return json(error, {
+        status: 403,
+        headers: { "Content-Type": mediaType },
+      });
+    }).api.GET(path);
     assert.deepEqual(reply.error, error);
     assert.equal(reply.data, undefined);
   }
-  for (const status of [204, 304]) {
-    const reply = await make(
-      async () =>
-        new Response(null, { status, headers: { ETag: '"unchanged"' } }),
-    ).api.GET(manifest);
-    assert.equal(reply.response.status, status);
-    assert.equal(reply.data, undefined);
-    assert.equal(reply.response.headers.get("etag"), '"unchanged"');
+});
+
+test("an approved metadata preflight returns empty 204", async () => {
+  const metadata = "/.well-known/oauth-protected-resource/mcp";
+  const browser = "https://browser.example";
+  const reply = await make(async (request) => {
+    assert.equal(request.method, "OPTIONS");
+    assert.equal(request.url, origin + metadata);
+    assert.equal(request.headers.get("Origin"), browser);
+    assert.equal(request.headers.get("Access-Control-Request-Method"), "HEAD");
+    return new Response(null, {
+      status: 204,
+      headers: { "Access-Control-Allow-Origin": browser },
+    });
+  }).api.OPTIONS(metadata, {
+    headers: { Origin: browser, "Access-Control-Request-Method": "HEAD" },
+  });
+  assert.equal(reply.response.status, 204);
+  assert.equal(
+    reply.response.headers.get("Access-Control-Allow-Origin"),
+    browser,
+  );
+  assert.equal(reply.data, undefined);
+  assert.equal(reply.error, undefined);
+});
+
+test("HEAD and conditional GET retain representation length without spending the body budget", async () => {
+  const metadata = "/.well-known/oauth-protected-resource/mcp";
+  const etag = '"current"';
+  for (const [method, path, status, length] of [
+    ["HEAD", metadata, 200, "1024"],
+    ["HEAD", metadata, 404, "1024"],
+    ["GET", manifest, 304, "1024"],
+    ["GET", manifest, 304, null],
+  ]) {
+    const headers = new Headers({
+      "Content-Type": "application/json",
+      ETag: etag,
+    });
+    if (length) headers.set("Content-Length", length);
+    const fetch = mock.fn(async () => new Response(null, { status, headers }));
+    const client = make(fetch, { responseBytes: 8 });
+    const result =
+      method === "HEAD"
+        ? await client.api.HEAD(metadata)
+        : await client.api.GET(manifest, {
+            params: { header: { "If-None-Match": etag } },
+          });
+    assert.equal(fetch.mock.callCount(), 1);
+    const [request] = fetch.mock.calls[0].arguments;
+    assert.equal(request.method, method);
+    assert.equal(request.url, origin + path);
+    assert.equal(
+      request.headers.get("If-None-Match"),
+      method === "HEAD" ? null : etag,
+    );
+    assert.equal(result.response.status, status);
+    assert.equal(result.data, undefined);
+    assert.equal(result.error, undefined);
+    assert.equal(result.response.headers.get("Content-Length"), length);
+    assert.equal(result.response.headers.get("ETag"), etag);
+    assert.deepEqual(client.rawBytes(result.response), new Uint8Array());
   }
 });
 

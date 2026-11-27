@@ -443,7 +443,8 @@ func TestPostgresNativeCapabilityContentScopePrecedesPaging(t *testing.T) {
 	q.Cursor = ""
 	q.Limit = 0
 	facets, err := f.service.Explore(ctx, catalog.ExploreRequest{Query: q, Facets: []catalog.FacetRequest{{Field: "namespace", Limit: 10}}})
-	if err != nil || facets.Matched != 2 || len(facets.Facets["namespace"].Buckets) != 1 || facets.Facets["namespace"].Buckets[0].Count != 2 {
+	wantNamespace := catalog.FacetResult{Buckets: []catalog.FacetBucket{{Value: visible.ID, Count: 2}}}
+	if err != nil || facets.Matched != 2 || !reflect.DeepEqual(facets.Facets["namespace"], wantNamespace) {
 		t.Fatal("denied rows leaked into facets", facets, err)
 	}
 }

@@ -355,6 +355,10 @@ func TestPostgresScopedCollectionsAndPolicyContinuation(t *testing.T) {
 			if err != nil || facets.Matched != 3 || !reflect.DeepEqual(facets.Facets["tag"].Buckets, []catalog.FacetBucket{{Value: "visible", Count: 3}}) {
 				t.Fatal("facet population", facets, err)
 			}
+			wantNamespace := catalog.FacetResult{Buckets: []catalog.FacetBucket{{Value: visibleNamespace, Count: 3}}}
+			if !reflect.DeepEqual(facets.Facets["namespace"], wantNamespace) || facets.Facets["tag"].OtherCount != 0 {
+				t.Fatal("facet disclosed a hidden namespace or remainder", facets)
+			}
 			hidden, err := service.Search(ctx, catalog.SearchQuery{Tags: []string{"hidden-only"}})
 			if err != nil || hidden.Total != 0 || len(hidden.Items) != 0 {
 				t.Fatal("hidden exact filter", hidden, err)

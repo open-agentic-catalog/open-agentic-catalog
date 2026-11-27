@@ -38,8 +38,11 @@ func TestMakePythonLint(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
+			// The inventory check needs a Git checkout and runs against the real
+			// repository in make check. This fixture exercises the Ruff recipe.
+			const inventoryChecked = "--assume-old=python-inventory-check"
 			// #nosec G204 -- Fixed Make command and test-owned executable only.
-			command := exec.CommandContext(ctx, "make", "--no-print-directory", "python-lint", "CATALOG_ENV_FILE=/dev/null", "RUFF="+executable)
+			command := exec.CommandContext(ctx, "make", "--no-print-directory", inventoryChecked, "python-lint", "CATALOG_ENV_FILE=/dev/null", "RUFF="+executable)
 			command.Dir = directory
 			command.Env = []string{"PATH=" + os.Getenv("PATH"), "RUFF_TEST_EXIT=" + strconv.Itoa(status)}
 			output, err := command.CombinedOutput()
@@ -69,7 +72,7 @@ func TestMakePythonLint(t *testing.T) {
 				t.Fatal(err)
 			}
 			// #nosec G204 -- Fixed Make command and the now-missing test-owned path only.
-			command = exec.CommandContext(ctx, "make", "--no-print-directory", "python-lint", "CATALOG_ENV_FILE=/dev/null", "RUFF="+executable)
+			command = exec.CommandContext(ctx, "make", "--no-print-directory", inventoryChecked, "python-lint", "CATALOG_ENV_FILE=/dev/null", "RUFF="+executable)
 			command.Dir = directory
 			command.Env = []string{"PATH=" + os.Getenv("PATH")}
 			output, err = command.CombinedOutput()

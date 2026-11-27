@@ -527,6 +527,14 @@ export class Session {
     const epoch = this.epoch;
     const saved = this.storedCredentials,
       key = this.key(connection.id);
+    const checkStored = (value: string | undefined) => {
+      // A late native read cannot invalidate or renew a different selection.
+      this.assert(epoch);
+      if (value !== saved) {
+        this.invalidate();
+        throw new ClientError("connection_changed");
+      }
+    };
     this.renewal = this.write(
       async () => {
         this.assert(epoch);
@@ -535,12 +543,18 @@ export class Session {
           !(await this.credentialAccess.current(key, saved))
         )
           throw new ClientError("credential_update_pending");
-        if ((await this.secrets.get(key)) !== saved) {
-          this.invalidate();
-          throw new ClientError("connection_changed");
-        }
+        checkStored(await this.secrets.get(key));
         try {
-          await this.credentialAccess?.record(key, undefined);
+          if (this.credentialAccess) {
+            await this.credentialAccess.record(key, undefined);
+            if (epoch !== this.epoch) {
+              // The lock is still ours and no exchange started. Restore the
+              // generation only for the exact credential checked above.
+              if ((await this.secrets.get(key)) === saved)
+                await this.credentialAccess.record(key, saved);
+              throw new ClientError("connection_changed");
+            }
+          }
           const next = await refreshLogin(
             connection,
             old,
@@ -551,11 +565,7 @@ export class Session {
             ]),
           );
           this.assert(epoch);
-          if ((await this.secrets.get(key)) !== saved) {
-            this.invalidate();
-            throw new ClientError("connection_changed");
-          }
-          this.assert(epoch);
+          checkStored(await this.secrets.get(key));
           const encoded = JSON.stringify(next);
           await this.secrets.store(key, encoded);
           await this.credentialAccess?.record(key, encoded);
@@ -565,11 +575,9 @@ export class Session {
           return next.accessToken;
         } catch {
           if (epoch !== this.epoch) throw new ClientError("connection_changed");
-          if (epoch === this.epoch) {
-            this.invalidate();
-            if ((await this.secrets.get(key)) === saved)
-              await this.deleteCredential(key);
-          }
+          this.invalidate();
+          if ((await this.secrets.get(key)) === saved)
+            await this.deleteCredential(key);
           throw new ClientError("sign_in_required");
         }
       },
@@ -623,6 +631,7 @@ export class Session {
       this.credentials?.refreshToken,
     ];
     try {
+      if (options.signal?.aborted) throw new ClientError("cancelled");
       const token = await this.token(
         AbortSignal.any([
           ...(options.signal ? [options.signal] : []),

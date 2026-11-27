@@ -32,9 +32,10 @@ type liveSearchPeer struct {
 }
 
 type liveSearchCandidate struct {
-	peer    *liveSearchPeer
-	live    LiveResult
-	catalog catalog.CatalogSearchResult
+	peer     *liveSearchPeer
+	live     LiveResult
+	catalog  catalog.CatalogSearchResult
+	identity string
 }
 
 func newLiveSearchPeer(source Source, depth, hopLimit int) *liveSearchPeer {
@@ -340,7 +341,8 @@ func (m *Manager) livePageCandidates(ctx context.Context, request LiveSearchRequ
 		score, validScore := parseLiveScore(projection.Score)
 		_, versionPresent := rawFields["version"]
 		entry := sourceEntry{Identifier: projection.Identifier, Version: projection.Version, VersionPresent: versionPresent, Type: projection.Type, Tags: projection.Tags}
-		if _, identifierErr := catalog.ParseAIRIdentifier(projection.Identifier); identifierErr != nil || versionPresent && (projection.Version == "" || !validDiscoveryVersion(projection.Version)) || !validScore || !catalog.ValidExternalHTTPSURL(projection.Source) || projection.URL != "" && !catalog.ValidExternalHTTPSURL(projection.URL) || !validARDResultData(projection.Data) {
+		identifier, identifierErr := catalog.ParseAIRIdentifier(projection.Identifier)
+		if identifierErr != nil || versionPresent && (projection.Version == "" || !validDiscoveryVersion(projection.Version)) || !validScore || !catalog.ValidExternalHTTPSURL(projection.Source) || projection.URL != "" && !catalog.ValidExternalHTTPSURL(projection.URL) || !validARDResultData(projection.Data) {
 			peer.response.Partial = true
 			appendLiveDiagnostic(&peer.response, LiveDiagnostic{SourceID: source.ID, Status: "invalid_response", Message: "An upstream result was omitted because its identity, score, source, or delivery was invalid."})
 			continue
@@ -353,16 +355,12 @@ func (m *Manager) livePageCandidates(ctx context.Context, request LiveSearchRequ
 
 		item := liveSearchCandidate{peer: peer, live: candidate}
 		if request.CatalogTenant {
-			if request.catalogQuery.License != "" || len(request.catalogQuery.Categories) > 0 {
-				declarations := projectLiveControlFilters(ctx, raw, len(request.catalogQuery.Categories) > 0)
-				if declarations.insufficient(request.catalogQuery) {
+			if matches, insufficient := liveControlDeclarationsMatch(ctx, raw, projection.Tags, request.catalogQuery); !matches {
+				if insufficient {
 					peer.response.Partial = true
 					appendLiveDiagnostic(&peer.response, LiveDiagnostic{SourceID: source.ID, Status: "insufficient_evidence", Message: "An upstream result lacked bounded literal declarations required by the Catalog filters."})
-					continue
 				}
-				if !declarations.matches(request.catalogQuery) {
-					continue
-				}
+				continue
 			}
 			result, valid := catalogLiveResult(candidate, request.catalogQuery)
 			if !valid {
@@ -372,29 +370,19 @@ func (m *Manager) livePageCandidates(ctx context.Context, request LiveSearchRequ
 			}
 			item.catalog = result
 		}
-		peer.accepted[liveCandidateIdentity(request, candidate)] = struct{}{}
+		// Reader pages count logical resources. Administrator diagnostics select
+		// the peer's exact spelling and native media/delivery variant.
+		keyID, variant := projection.Identifier, ""
+		if request.Administrative {
+			variant = "\x00" + projection.Type + "\x00" + strconv.FormatBool(len(projection.Data) > 0)
+		} else {
+			keyID = identifier.String()
+		}
+		item.identity = keyID + "\x00" + strconv.FormatBool(versionPresent) + "\x00" + projection.Version + variant
+		peer.accepted[item.identity] = struct{}{}
 		candidates = append(candidates, item)
 	}
 	return candidates
-}
-
-func liveResultIdentity(result LiveResult) string {
-	return result.Identifier + "\x00" + strconv.FormatBool(result.VersionPresent) + "\x00" + result.Version
-}
-
-// Private administrator results preserve native media and delivery variants.
-// Public search continues to merge logical resource identities.
-func liveCandidateIdentity(request LiveSearchRequest, result LiveResult) string {
-	key := liveResultIdentity(result)
-	if request.Administrative {
-		var native struct {
-			Type string          `json:"type"`
-			Data json.RawMessage `json:"data"`
-		}
-		_ = jsonv2.Unmarshal(result.Entry, &native, json.DefaultOptionsV1(), jsonv2.MatchCaseInsensitiveNames(false)) // Entry already passed strict ARD validation.
-		key += "\x00" + native.Type + "\x00" + strconv.FormatBool(len(native.Data) > 0)
-	}
-	return key
 }
 
 // Merge only admitted candidates, in actual page visitation order. Keeping
@@ -406,7 +394,7 @@ func mergeLiveCandidates(request LiveSearchRequest, candidates []liveSearchCandi
 		if candidate.peer.invalid {
 			continue
 		}
-		key := liveCandidateIdentity(request, candidate.live)
+		key := candidate.identity
 		if request.CatalogTenant {
 			current, exists := catalogCandidates[key]
 			if !exists || catalogSearchResultBefore(candidate.catalog, current.catalog) {

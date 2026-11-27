@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	jsonv2 "encoding/json/v2"
 	"io"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -244,19 +245,22 @@ func project(name string, raw json.RawMessage, selected selection) (json.RawMess
 			return nil, bad
 		}
 		items := make([]resultProjection, 0, len(page.Items))
+		liveCount := 0
 		for _, item := range page.Items {
 			result, err := projectResult(item)
 			if err != nil {
 				return nil, bad
 			}
-			allowed := false
-			for _, origin := range selected.origins {
-				allowed = allowed || origin == result.Type
-			}
-			if !allowed {
+			if !slices.Contains(selected.origins, result.Type) || result.ToolMatch != nil && !selected.query.IncludeMCPTools {
 				return nil, bad
 			}
+			if result.Type == catalog.SearchResultLive {
+				liveCount++
+			}
 			items = append(items, result)
+		}
+		if *page.LiveCount != liveCount || *page.DurableTotal < len(items)-liveCount {
+			return nil, bad
 		}
 		// Replace only item bodies. Preserve all page-level API fields, including
 		// partial diagnostics, exact continuation and future compatible additions.

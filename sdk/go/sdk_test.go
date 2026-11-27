@@ -769,7 +769,7 @@ func TestConditionalManifestReacquiresWorkloadCredential(t *testing.T) {
 	token := "first-workload-token"
 	var providerErr error
 	var sent []string
-	client := unitClient(t, Config{TokenProvider: func(context.Context) (string, error) {
+	client := unitClient(t, Config{ResponseBytes: 8, TokenProvider: func(context.Context) (string, error) {
 		return token, providerErr
 	}}, doerFunc(func(r *http.Request) (*http.Response, error) {
 		if r.Method != http.MethodGet || r.URL.Path != "/.well-known/ard.json" || r.Header.Get("If-None-Match") != etag {
@@ -778,6 +778,9 @@ func TestConditionalManifestReacquiresWorkloadCredential(t *testing.T) {
 		sent = append(sent, r.Header.Get("Authorization"))
 		reply := response("", http.StatusNotModified, "")
 		reply.Header.Set("ETag", etag)
+		// A 304 can advertise the size of the unchanged GET representation.
+		reply.ContentLength = 1024
+		reply.Header.Set("Content-Length", "1024")
 		return reply, nil
 	}))
 	revalidate := func() {
@@ -803,31 +806,50 @@ func TestConditionalManifestReacquiresWorkloadCredential(t *testing.T) {
 	}
 }
 
-func TestBodylessProblemAndPartialResponseBranches(t *testing.T) {
-	cached := unitClient(t, Config{}, doerFunc(func(*http.Request) (*http.Response, error) { return response("", 304, ""), nil }))
-	manifest, err := cached.GetARDManifestWithResponse(context.Background(), nil)
-	if err != nil || manifest.StatusCode() != 304 || len(manifest.Body) != 0 {
-		t.Fatal("not-modified response mishandled", err)
+func TestMetadataHeadPreservesRefusalWithoutDecodingAnAbsentBody(t *testing.T) {
+	const requestID = "metadata-probe"
+	const problem = `{"type":"about:blank","title":"Not found","status":404,"detail":"Metadata is unavailable.","code":"NOT_FOUND","requestId":"metadata-probe"}`
+	var methods []string
+	getBody := ""
+	client := unitClient(t, Config{}, doerFunc(func(r *http.Request) (*http.Response, error) {
+		methods = append(methods, r.Method)
+		if r.URL.Path != "/.well-known/oauth-protected-resource/mcp" {
+			t.Fatalf("unexpected metadata path %q", r.URL.Path)
+		}
+		reply := response(getBody, http.StatusNotFound, "application/problem+json")
+		reply.Header.Set("X-Request-ID", requestID)
+		return reply, nil
+	}))
+
+	head, err := client.HeadCatalogMCPOAuthMetadataWithResponse(t.Context())
+	if err != nil || head == nil || head.StatusCode() != http.StatusNotFound || len(head.Body) != 0 ||
+		head.ApplicationproblemJSON404 != nil || head.Headers404 == nil || head.Headers404.XRequestID == nil || *head.Headers404.XRequestID != requestID {
+		t.Fatalf("HEAD lost the bodyless 404 or its correlation header: %+v, %v", head, err)
 	}
+
+	empty, err := client.GetCatalogMCPOAuthMetadataWithResponse(t.Context())
+	var decodeErr *Error
+	if empty != nil || !errors.As(err, &decodeErr) || decodeErr.Code != "request_or_decode_failed" || decodeErr.StatusCode != http.StatusNotFound || decodeErr.RequestID != requestID {
+		t.Fatalf("GET with missing problem body: %+v, %v", empty, err)
+	}
+	getBody = problem
+	get, err := client.GetCatalogMCPOAuthMetadataWithResponse(t.Context())
+	if err != nil || get == nil || get.StatusCode() != http.StatusNotFound || get.ApplicationproblemJSON404 == nil || get.ApplicationproblemJSON404.Code != "NOT_FOUND" {
+		t.Fatalf("GET lost the typed problem: %+v, %v", get, err)
+	}
+	if !reflect.DeepEqual(methods, []string{http.MethodHead, http.MethodGet, http.MethodGet}) {
+		t.Fatalf("metadata request methods = %v", methods)
+	}
+}
+
+func TestBodylessAndProblemResponseBranches(t *testing.T) {
 	deleted := unitClient(t, Config{}, doerFunc(func(*http.Request) (*http.Response, error) { return response("", 204, ""), nil }))
 	removed, err := deleted.DeleteResourceWithResponse(context.Background(), UUID{}, &DeleteResourceParams{IdempotencyKey: "caller-key", IfMatch: `"revision"`}, DeleteResourceJSONRequestBody{Reason: "Remove draft"})
 	if err != nil || removed.StatusCode() != 204 || len(removed.Body) != 0 {
 		t.Fatal("no-content response mishandled", err)
 	}
-	calls := 0
-	c := unitClient(t, Config{}, doerFunc(func(*http.Request) (*http.Response, error) {
-		calls++
-		r := response(`{"items":[],"partial":true,"nextCursor":"opaque+/=","diagnostics":[],"generation":"fixture","profile":"lexical","tier":"lexical","durableTotal":0,"liveCount":0}`, 200, "application/json")
-		r.Header.Set("ETag", `"etag"`)
-		r.Header.Set("Retry-After", "5")
-		return r, nil
-	}))
-	r, err := c.SearchCatalogWithResponse(context.Background(), SearchCatalogJSONRequestBody{})
-	if err != nil || r.JSON200 == nil || !r.JSON200.Partial || r.JSON200.NextCursor == nil || *r.JSON200.NextCursor != "opaque+/=" || calls != 1 || r.HTTPResponse.Header.Get("ETag") != `"etag"` {
-		t.Fatal("partial page changed", err)
-	}
 	problem := unitClient(t, Config{}, doerFunc(func(*http.Request) (*http.Response, error) {
-		return response(`{"code":"FORBIDDEN","status":403,"title":"Forbidden","type":"about:blank"}`, 403, "application/problem+json"), nil
+		return response(`{"code":"FORBIDDEN","status":403,"title":"Forbidden","type":"about:blank","detail":"Insufficient permission","requestId":"access-check"}`, 403, "application/problem+json"), nil
 	}))
 	p, err := problem.GetCapabilitiesWithResponse(context.Background())
 	if err != nil || p.ApplicationproblemJSONDefault == nil || p.ApplicationproblemJSONDefault.Code != "FORBIDDEN" {
@@ -839,6 +861,52 @@ func TestBodylessProblemAndPartialResponseBranches(t *testing.T) {
 	a, err := ard.SearchARDRegistryWithResponse(context.Background(), ARDSearch{})
 	if err != nil || a.StatusCode() != 400 || a.JSONDefault == nil || a.JSONDefault.ErrorCode != "INVALID_ARGUMENT" {
 		t.Fatal("ARD error lost", err)
+	}
+}
+
+func TestPartialLiveSearchPreservesResultsAndDiagnostics(t *testing.T) {
+	const sourceID = "00000000-0000-7000-8000-000000000123"
+	calls := 0
+	c := unitClient(t, Config{Token: "reader"}, doerFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		if req.Method != http.MethodPost || req.URL.Path != "/api/v1/catalog/search" || req.Header.Get("Content-Type") != "application/json" {
+			t.Fatalf("unexpected Search request: %s %s %s", req.Method, req.URL.Path, req.Header.Get("Content-Type"))
+		}
+		if req.Header.Get("Authorization") != "Bearer reader" {
+			t.Fatal("Search request lost the reader credential")
+		}
+		var body map[string]any
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil || !reflect.DeepEqual(body, map[string]any{"text": "weather", "origins": []any{"live"}, "limit": float64(1)}) {
+			t.Fatalf("Search selection = %v, err = %v", body, err)
+		}
+		r := response(`{
+            "items":[{"id":"live:weather","type":"live","identifier":"urn:air:peer.example:weather:forecast",
+                "versionPresent":false,"kind":"agent","displayName":"Forecast","tags":[],"score":90,
+                "live":{"sourceId":"`+sourceID+`","source":"https://peer.example/ard","entry":{
+                    "identifier":"urn:air:peer.example:weather:forecast","displayName":"Forecast","type":"application/a2a-agent-card+json","url":"https://peer.example/forecast.json"}}}],
+            "partial":true,"nextCursor":"opaque+/=","diagnostics":[{"sourceId":"`+sourceID+`","status":"continuation_unavailable"}],
+            "generation":"sha256:`+strings.Repeat("a", 64)+`","profile":"core-lexical-v1","tier":"core","durableTotal":0,"liveCount":1
+        }`, 200, "application/json")
+		r.Header.Set("ETag", `"etag"`)
+		return r, nil
+	}))
+	text := "weather"
+	limit := 1
+	origins := []CatalogSearchOrigins{CatalogSearchOriginsLive}
+	r, err := c.SearchCatalogWithResponse(t.Context(), SearchCatalogJSONRequestBody{Text: &text, Origins: &origins, Limit: &limit})
+	if err != nil || r == nil || r.JSON200 == nil || !r.JSON200.Partial || r.JSON200.NextCursor == nil || *r.JSON200.NextCursor != "opaque+/=" || calls != 1 || r.HTTPResponse.Header.Get("ETag") != `"etag"` {
+		t.Fatalf("partial page = %+v, calls = %d, err = %v", r, calls, err)
+	}
+	if r.JSON200.LiveCount != 1 || len(r.JSON200.Items) != 1 || r.JSON200.Items[0].Identifier != "urn:air:peer.example:weather:forecast" {
+		t.Fatalf("missing retained result from partial page: %+v", r.JSON200.Items)
+	}
+	item := r.JSON200.Items[0]
+	if item.Type != "live" || item.Live == nil || item.Live.SourceId.String() != sourceID || item.Live.Source != "https://peer.example/ard" || item.Live.Entry["url"] != "https://peer.example/forecast.json" {
+		t.Fatalf("missing source evidence for %s: %+v", item.Identifier, item.Live)
+	}
+	diagnostics := r.JSON200.Diagnostics
+	if diagnostics == nil || len(*diagnostics) != 1 || (*diagnostics)[0].Status != "continuation_unavailable" || (*diagnostics)[0].SourceId == nil || (*diagnostics)[0].SourceId.String() != sourceID {
+		t.Fatalf("missing upstream continuation diagnostic: %+v", diagnostics)
 	}
 }
 

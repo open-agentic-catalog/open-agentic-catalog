@@ -8,11 +8,11 @@ Agents do not dispatch hosted jobs, upload project data or publish artifacts. Th
 
 | File | Purpose | Important boundary |
 | --- | --- | --- |
-| [contributions.yml](workflows/contributions.yml) | Always run source lint and isolated units; select UI, docs and clients by changed inputs. | Require `Contribution checks complete` in branch protection. Selected failures and cancellations fail that check. |
+| [contributions.yml](workflows/contributions.yml) | Always run source lint and isolated units; select UI, docs, charts and clients by changed inputs. | Require `Contribution checks complete` in branch protection. Selected failures and cancellations fail that check. |
 | [pages.yml](workflows/pages.yml) | Prepare the complete HTML manual and matching PDF. | Only the separate `github-pages` deployment job has Pages permissions. |
 | [release.yml](workflows/release.yml) | Build once, transfer and qualify exact images and client/chart packages. | Publishing requires `RELEASE_PUBLISH_ENABLED=true` and approval through the configured `release` environment. Native download checks run on Linux and macOS on both AMD64 and ARM64. |
 | [quality.yml](workflows/quality.yml) | Isolated Go/Python units, source/local regression, UI and the manual. | Separate jobs preserve the test layers and toolchains. The UI job includes browser tests. |
-| [clients.yml](workflows/clients.yml) | Go, Python, TypeScript and Rust SDK checks, the Go webhook receiver, and selected editor and raw Go-generator checks. | Local HTTP/TLS fixtures and installed consumers are functional tests. The TypeScript harness owns its runtime matrix. |
+| [clients.yml](workflows/clients.yml) | Go, Python, TypeScript and Rust SDK checks, both Go webhook receiver examples, and selected editor and raw Go-generator checks. | Local HTTP/TLS fixtures and installed consumers are functional tests. The TypeScript harness owns its runtime matrix. |
 | [images.yml](workflows/images.yml) | AMD64 backend/UI images on `main`; both architectures on manual runs, plus both Helm packages. | ARM64 is cross-built and inspected. It is not executed. Optional image scans use the same job's images. |
 | [functional.yml](workflows/functional.yml) | One selected PostgreSQL, process, packaged API, browser, local OIDC, backup/restore, federation or webhook receiver suite. | Existing harnesses own disposable services, credentials, ports and cleanup. |
 | [extended.yml](workflows/extended.yml) | Fresh combined application coverage or selected source/dependency security checks. | Combined coverage runs alone. Existing advisory failures remain failures. |
@@ -21,11 +21,11 @@ Agents do not dispatch hosted jobs, upload project data or publish artifacts. Th
 
 Quality allows `all`, `unit`, `source`, `lint`, `ui` or `docs`. The `lint` selection runs `make check` without broad regression or API launcher tests. Clients allow `all`, `go`, `python`, `typescript` or `rust`. The default `all` retains complete coverage for those workflows. A focused selection leaves other suites unselected; it does not establish their results. SDK jobs still use at most two concurrent runners and retain the existing language/runtime checks.
 
-Contribution selection treats root `pyproject.toml` and `uv.lock` as shared tooling inputs. Either change selects UI, documentation and all four SDK languages. The baseline lint and unit jobs remain unconditional.
+Changing root `pyproject.toml` or `uv.lock` selects UI, documentation, charts and all four SDK languages. The chart job runs `make deploy-check`. Source lint and isolated units run on every contribution.
 
 The `docs` selection runs `docs-check`, then `docs-site-check`. Its summary reports Markdown/contracts and site outcomes separately. The docs profile installs pinned Markdownlint alongside Go and the documentation Node toolchain. The job needs no Docker socket or other source linters.
 
-The Go selection runs `webhook-report-check`, which includes `sdk-check SDK_LANGUAGE=go`. It checks the independent publication-report receiver without running the SDK gate twice. `client-go-check` remains a separate generated-client result. The `coverage/publication-report-unit.out` profile contains receiver unit coverage, excluding SDK and functional coverage. Existing upload guards also protect this selected file.
+The Go selection runs `sdk-go-examples-check`. It checks the Go SDK once and runs unit tests for both the publication-report and MCP Scanner receivers. The scanner receiver also runs local MCP/TLS tests. `client-go-check` qualifies the standalone Go generator separately. The optional report upload includes `coverage/publication-report-unit.out`, which measures only the publication-report receiver's units.
 
 The functional workflow also offers `test-backup-restore`, `test-federation-peers` and `test-webhook-report`. Select one suite per run. Federation peers install locked UI dependencies, Chromium system libraries and the browser before the campaign. Backup/restore and receiver tests use the non-UI prerequisite profile. Summaries describe the selected scope; raw database backups, fixture state and credentials are not exported.
 

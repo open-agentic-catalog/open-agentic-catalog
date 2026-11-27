@@ -99,8 +99,14 @@ func collectionFixture(t *testing.T) (guardrailFixture, *identity.Service, conte
 	if len(sink.records) != 4 {
 		t.Fatal("administration skipped its evidence", len(sink.records))
 	}
-	f.repo.namespaces[collectionNamespace] = Namespace{ID: collectionNamespace, TenantID: guardrailTenantID, Slug: "visible", DisplayName: "Visible"}
-	f.repo.namespaces[collectionHiddenNamespace] = Namespace{ID: collectionHiddenNamespace, TenantID: guardrailTenantID, Slug: "aaa-hidden", DisplayName: "Hidden"}
+	seedCollectionCatalog(t, f.repo)
+	return f, authority, owner, direct, grouped
+}
+
+func seedCollectionCatalog(t *testing.T, repo *MemoryRepository) {
+	t.Helper()
+	repo.namespaces[collectionNamespace] = Namespace{ID: collectionNamespace, TenantID: guardrailTenantID, Slug: "visible", DisplayName: "Visible"}
+	repo.namespaces[collectionHiddenNamespace] = Namespace{ID: collectionHiddenNamespace, TenantID: guardrailTenantID, Slug: "aaa-hidden", DisplayName: "Hidden"}
 	template := newRepositoryGuardrailFixture()
 	record, ok := template.catalogRecordLocked(repositoryGuardrailTenant, template.listings["listing"], false)
 	if !ok {
@@ -123,14 +129,13 @@ func collectionFixture(t *testing.T) (guardrailFixture, *identity.Service, conte
 		value.ListingRevision.ID, value.ListingRevision.TenantID, value.ListingRevision.ListingID, value.ListingRevision.VersionRevisionID = key(500), guardrailTenantID, value.Listing.ID, value.VersionRevision.ID
 		value.ListingRevision.DisplayName, value.ListingRevision.Tags = name, []string{tag}
 		value.Release.ID, value.Release.TenantID, value.Release.ListingID, value.Release.ListingRevisionID, value.Release.VersionRevisionID = key(600), guardrailTenantID, value.Listing.ID, value.ListingRevision.ID, value.VersionRevision.ID
-		f.repo.resources[value.Resource.ID], f.repo.versions[value.Version.ID] = value.Resource, value.Version
-		f.repo.versionRevisions[value.VersionRevision.ID], f.repo.evidenceSets[value.Evidence.ID] = value.VersionRevision, value.Evidence
-		f.repo.listings[value.Listing.ID], f.repo.listingRevisions[value.ListingRevision.ID], f.repo.releases[value.Release.ID] = value.Listing, value.ListingRevision, value.Release
+		repo.resources[value.Resource.ID], repo.versions[value.Version.ID] = value.Resource, value.Version
+		repo.versionRevisions[value.VersionRevision.ID], repo.evidenceSets[value.Evidence.ID] = value.VersionRevision, value.Evidence
+		repo.listings[value.Listing.ID], repo.listingRevisions[value.ListingRevision.ID], repo.releases[value.Release.ID] = value.Listing, value.ListingRevision, value.Release
 		submission := clone(template.submissions["submission"])
 		submission.ID, submission.TenantID, submission.ListingID = key(800), guardrailTenantID, value.Listing.ID
-		f.repo.submissions[submission.ID] = submission
+		repo.submissions[submission.ID] = submission
 	}
-	return f, authority, owner, direct, grouped
 }
 
 func TestScopedCollectionsSelectBeforePagingCountsAndFacets(t *testing.T) {

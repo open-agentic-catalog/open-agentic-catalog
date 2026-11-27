@@ -387,6 +387,100 @@ async fn snapshot_comparison_preserves_selection_members_cursor_and_refusal() {
     }
 }
 
+#[tokio::test]
+async fn live_search_preserves_an_empty_partial_page_and_its_reason() {
+    let input = json!({"text":"map", "origins":["live"], "tags":["geography"]});
+    let page = json!({
+        "items": [], "durableTotal": 0, "liveCount": 0, "partial": true,
+        "profile": "core-lexical-v1", "generation": format!("sha256:{}", "a".repeat(64)),
+        "tier": "core",
+        "diagnostics": [{"sourceId":RESOURCE_ID, "status":"insufficient_evidence"}]
+    });
+    let wire = serde_json::to_vec(&page).unwrap();
+    let transport = Scripted::new(vec![reply(200, &wire)]);
+    let result = client(transport.clone())
+        .search_catalog(serde_json::from_value(input.clone()).unwrap())
+        .await
+        .unwrap();
+    let result = result.data.unwrap();
+    assert!(result.partial);
+    assert!(result.items.is_empty());
+    assert!(result.next_cursor.is_none());
+    let diagnostics = result.diagnostics.unwrap();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(
+        diagnostics[0].status,
+        CatalogSearchDiagnosticStatus::InsufficientEvidence
+    );
+    assert_eq!(
+        diagnostics[0].source_id.as_ref().unwrap().to_string(),
+        RESOURCE_ID
+    );
+
+    let requests = transport.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method(), "POST");
+    assert_eq!(
+        requests[0].url().as_str(),
+        "https://catalog.example.com/api/v1/catalog/search"
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(requests[0].body().unwrap().as_bytes().unwrap()).unwrap(),
+        input
+    );
+}
+
+#[tokio::test]
+async fn head_metadata_refusal_retains_http_evidence_without_a_json_parse_error() {
+    let response = |body: &[u8]| {
+        let mut response = reply(404, body).unwrap();
+        response
+            .headers
+            .insert("content-type", HeaderValue::from_static("application/json"));
+        response
+            .headers
+            .insert("x-request-id", HeaderValue::from_static("metadata-check"));
+        Ok(response)
+    };
+    let refusal = br#"{"jsonrpc":"2.0","id":null,"error":{"code":-32601,"message":"Not found"}}"#;
+    let transport = Scripted::new(vec![response(b""), response(b""), response(refusal)]);
+    let client = client(transport.clone());
+    let ApiOpError::Api(head) = client.head_catalog_mcpo_auth_metadata().await.unwrap_err() else {
+        panic!("Expected an HTTP refusal");
+    };
+    assert_eq!(head.status, 404);
+    assert_eq!(head.headers["x-request-id"], "metadata-check");
+    assert!(head.raw_body.is_empty());
+    assert!(head.typed.is_none());
+    assert!(head.parse_error.is_none());
+
+    // The GET operation expects a JSON refusal body for this status.
+    assert!(
+        matches!(client.get_catalog_mcpo_auth_metadata().await.unwrap_err(),
+        ApiOpError::Api(error) if error.status == 404 && error.parse_error.is_some())
+    );
+    let ApiOpError::Api(get) = client.get_catalog_mcpo_auth_metadata().await.unwrap_err() else {
+        panic!("Expected a decoded HTTP refusal");
+    };
+    assert!(get.parse_error.is_none());
+    assert!(matches!(
+        get.typed,
+        Some(GetCatalogMcpoAuthMetadataApiError::Status404(_))
+    ));
+    assert_eq!(get.raw_body, refusal);
+    let requests = transport.requests.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert_eq!(requests[0].method(), "HEAD");
+    assert_eq!(
+        requests[0].url().path(),
+        "/.well-known/oauth-protected-resource/mcp"
+    );
+    for request in &requests[1..] {
+        assert_eq!(request.method(), "GET");
+        assert_eq!(request.url(), requests[0].url());
+    }
+}
+
 /// A complete Resource response keeps identifier text distinct from its API UUID.
 fn resource_wire(identifier: &str) -> Value {
     json!({

@@ -15,11 +15,8 @@ import type {
 } from "./plugins-host.js";
 import type { CatalogMcp } from "./mcp-host.js";
 
-type Row =
-  | { mcp: string }
-  | { store: SkillStore; receipt: SkillSummary }
-  | PluginRow
-  | ToolIssueRow;
+type SkillRow = { store: SkillStore; receipt: SkillSummary };
+type Row = { mcp: string } | SkillRow | PluginRow | ToolIssueRow;
 export class CatalogSkills implements vscode.Disposable {
   private busy = false;
   private changed = new vscode.EventEmitter<Row | undefined>();
@@ -149,6 +146,11 @@ export class CatalogSkills implements vscode.Disposable {
       .slice(0, 20)
       .map((f) => new SkillStore(f.uri.fsPath));
   }
+  private guardWorkspace(store: SkillStore): void {
+    this.trusted();
+    if (!this.stores().some((s) => s.workspace === store.workspace))
+      throw new ClientError("selection_changed");
+  }
   private async workspace(path?: string): Promise<SkillStore | undefined> {
     this.trusted();
     const stores = this.stores();
@@ -162,13 +164,12 @@ export class CatalogSkills implements vscode.Disposable {
       stores.map((store) => ({ label: store.workspace, store })),
       { title: "Choose the workspace for this Skill" },
     );
-    this.trusted();
-    return picked?.store;
+    if (!picked) return;
+    this.guardWorkspace(picked.store);
+    return picked.store;
   }
   async rows(): Promise<Row[]> {
-    const result: Row[] = [...this.mcp.selections.selections.keys()].map(
-      (mcp) => ({ mcp }),
-    );
+    const result: (SkillRow | ToolIssueRow)[] = [];
     for (const store of this.stores()) {
       try {
         const scanned = await store.scan();
@@ -193,18 +194,25 @@ export class CatalogSkills implements vscode.Disposable {
         });
       }
     }
+    const plugins = await this.plugins.rows();
     const admitted = new Set(this.stores().map((store) => store.workspace));
+    const currentRows: Row[] = [
+      ...Array.from(this.mcp.selections.selections.keys(), (mcp) => ({ mcp })),
+      ...result.filter((row) =>
+        admitted.has("store" in row ? row.store.workspace : row.workspace),
+      ),
+    ];
     for (const folder of vscode.workspace.workspaceFolders ?? [])
       if (!admitted.has(folder.uri.fsPath))
-        result.push({
+        currentRows.push({
           issue: ["file", "vscode-remote"].includes(folder.uri.scheme)
             ? "workspace_root_limit"
             : "filesystem_workspace_required",
           workspace: folder.name,
           kind: "skill",
         });
-    result.push(...(await this.plugins.rows()));
-    return result;
+    currentRows.push(...plugins);
+    return currentRows;
   }
   private async installSelected(index = 0, path?: string): Promise<void> {
     this.trusted();
@@ -360,9 +368,7 @@ export class CatalogSkills implements vscode.Disposable {
     expected?: SkillSummary,
   ): Promise<void> {
     this.trusted();
-    const rows = (await this.rows()).filter(
-      (r): r is Extract<Row, { store: SkillStore }> => "store" in r,
-    );
+    const rows = (await this.rows()).filter((r): r is SkillRow => "store" in r);
     const picked =
       name && path
         ? rows.find(
@@ -382,7 +388,10 @@ export class CatalogSkills implements vscode.Disposable {
       if (name || path) throw new ClientError("owned_package_required");
       return;
     }
+    const guard = () => this.guardWorkspace(picked.store);
+    guard();
     const confirmed = await picked.store.get(picked.receipt.name);
+    guard();
     if (
       !confirmed ||
       receiptSummary(confirmed).fingerprint !==
@@ -397,18 +406,8 @@ export class CatalogSkills implements vscode.Disposable {
       )) !== "Remove Skill"
     )
       return;
-    this.trusted();
-    if (!this.stores().some((s) => s.workspace === picked.store.workspace))
-      throw new ClientError("selection_changed");
-    await picked.store.remove(
-      picked.receipt.name,
-      () => {
-        this.trusted();
-        if (!this.stores().some((s) => s.workspace === picked.store.workspace))
-          throw new ClientError("selection_changed");
-      },
-      confirmed,
-    );
+    guard();
+    await picked.store.remove(picked.receipt.name, guard, confirmed);
     this.changed.fire(undefined);
   }
   async reveal(row: Row): Promise<void> {
@@ -496,16 +495,15 @@ export class CatalogSkills implements vscode.Disposable {
     if (
       (await vscode.window.showWarningMessage(
         "Recover an interrupted Skill operation? First close every other Catalog installation window for this workspace. Unexpected local changes will not be deleted.",
-        { modal: true },
+        {
+          modal: true,
+          detail: `Workspace: ${JSON.stringify(store.workspace)}`,
+        },
         "Recover Skill operation",
       )) !== "Recover Skill operation"
     )
       return;
-    const guard = () => {
-      this.trusted();
-      if (!this.stores().some((s) => s.workspace === store.workspace))
-        throw new ClientError("selection_changed");
-    };
+    const guard = () => this.guardWorkspace(store);
     guard();
     await store.recover(guard);
     this.changed.fire(undefined);

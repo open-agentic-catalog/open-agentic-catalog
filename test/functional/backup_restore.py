@@ -22,7 +22,7 @@ import authorization_recovery
 import backup_ratings
 import restore_pages
 from core import exact_record, mutate, records
-from federation import Client, sync, wait_job, wait_until
+from federation import Client, observations, sync, wait_job, wait_until
 from http_client import decode
 from journeys import header, namespace_state
 from postgres_archive import dump_archive, temporary_archive
@@ -187,8 +187,11 @@ class BackupRestore(Journey):
             "scope": {"kinds": ["agent"]}, "updateMode": "manual_review", "networkProfile": "functional-fixture",
             "reason": "Owned logical restore"}, 201)
         initial = sync(self.api, source["id"], source["revision"], "backup-initial")
-        wait_job(self.api, initial["job"]["id"], {"succeeded"})
-        assert int(self.sql("SELECT count(*) FROM observations")) > 0
+        initial_job = wait_job(self.api, initial["job"]["id"], {"succeeded"})
+        self.source_id = source["id"]
+        self.initial_snapshot = initial_job["result"]["snapshotId"]
+        self.sync_member, = [entry for entry in observations(self.api, self.source_id)
+                             if entry["identifier"] == "urn:air:functional.example:default:one"]
         # Retain one live and one cleared feedback record across the real dump/restore.
         self.feedback_records = []
         for terminal in (False, True):
@@ -209,6 +212,7 @@ class BackupRestore(Journey):
         self.compose("stop", "--timeout", "20", "worker")
         self.stopped("worker")
         source, _ = self.api.request("GET", "/api/v1/federation/sources/" + source["id"])
+        assert source["lastCompleteSnapshotId"] == self.initial_snapshot, "initial Job did not produce the source's complete snapshot"
         queued = sync(self.api, source["id"], source["revision"], "backup-queued")
         self.job = queued["job"]["id"]
         assert self.api.request("GET", "/api/v1/jobs/" + self.job)[0]["state"] == "queued"
@@ -271,11 +275,15 @@ class BackupRestore(Journey):
             assert stored(actual) == stored(expected)
         assert self.plugin_reads[2][1]["evidence"] == created["evidence"]
         self.personal_items = []
+        followed = self.retained[0]
+        self.follow_observation = {"releaseId": followed["release"]["id"], "revision": followed["release"]["revision"]}
         for body in ({"type": "search", "label": "Restore search", "search": {
                 "text": "order", "origins": ["local"], "kinds": ["agent"], "tags": ["functional-" + self.env["CATALOG_FUNCTIONAL_SUFFIX"]]}},
                 {"type": "resource", "label": "Restore reference", "reference": {"origin": "local",
-                 "releaseId": self.retained[0]["release"]["id"], "versionRevisionId": self.retained[0]["versionRevision"]["id"]}}):
-            receipt, headers = mutate(self.api, "POST", "/api/v1/personal/items", body, 201)
+                 "releaseId": self.retained[0]["release"]["id"], "versionRevisionId": self.retained[0]["versionRevision"]["id"]}},
+                {"type": "follow", "label": "Restore followed Listing", "listingId": followed["listing"]["id"]}):
+            command_body = dict(body, observed=self.follow_observation) if body["type"] == "follow" else body
+            receipt, headers = mutate(self.api, "POST", "/api/v1/personal/items", command_body, 201)
             path = "/api/v1/personal/items/" + receipt["id"]
             value, reply = self.api.request("GET", path)
             assert all(value[key] == expected for key, expected in body.items())
@@ -288,8 +296,8 @@ class BackupRestore(Journey):
 
     def verify_retained_inputs(self):
         """Require populated records and exact bytes/metadata, including owner isolation."""
-        assert len(self.plugin_reads) == 3 and len(self.personal_items) == 2
-        assert {value["type"] for _, value, _ in self.personal_items} == {"search", "resource"}
+        assert len(self.plugin_reads) == 3 and len(self.personal_items) == 3
+        assert {value["type"] for _, value, _ in self.personal_items} == {"search", "resource", "follow"}
         stranger = Client(self.base, "local-reader")
         for path, expected, validator in self.plugin_reads + self.personal_items:
             actual, headers = self.api.request("GET", path)
@@ -298,6 +306,11 @@ class BackupRestore(Journey):
             if path.startswith("/api/v1/personal/"):
                 assert header(headers, "Cache-Control") == "no-store"
                 stranger.request("GET", path, expected=(404,))
+                if actual["type"] == "follow":
+                    resolution, _ = self.api.request("POST", path + "/resolve", {})
+                    assert resolution == {"status": "available", "change": "unchanged", "current": self.follow_observation}, "follow lost its acknowledged release"
+                    stranger.request("POST", path + "/resolve", {}, expected=(404,))
+                    self.other.request("POST", path + "/resolve", {}, expected=(404,))
 
     def capture(self):
         self.phase("capture")
@@ -553,6 +566,7 @@ class BackupRestore(Journey):
         stored = self.sql("SELECT json_build_array(state,attempt,attempt_limit) FROM jobs "
                           f"WHERE tenant_id='{TENANT}' AND id='{job}'")
         assert json.loads(stored) == ["succeeded", recovered["attempt"], recovered["attemptLimit"]]
+        self.verify_sync_result(recovered["result"])
         for event in (self.pending_event, fresh_event):
             self.verified_delivery(event)
         stats = self.stats()
@@ -564,6 +578,29 @@ class BackupRestore(Journey):
             raise Failure("backup-invalid-evidence")
         write_document(self.state / "backup-restore.json", self.evidence)
         self.phase("complete")
+
+    def verify_sync_result(self, result):
+        """Follow the restored Job's result to the source and its immutable members."""
+        assert (result["type"], result["state"], result["sourceId"]) == ("source_snapshot", "complete", self.source_id)
+        snapshot_id = result["snapshotId"]
+        assert snapshot_id != self.initial_snapshot, "recovered Job points to the pre-backup snapshot"
+        source, _ = self.api.request("GET", "/api/v1/federation/sources/" + self.source_id)
+        assert source["lastCompleteSnapshotId"] == snapshot_id, "source did not advance to the recovered Job's snapshot"
+        snapshots = "/api/v1/federation/snapshots/"
+        snapshot, _ = self.api.request("GET", snapshots + snapshot_id)
+        assert (snapshot["id"], snapshot["sourceId"], snapshot["state"]) == (snapshot_id, self.source_id, "complete")
+        comparison, _ = self.api.request("GET", snapshots + self.initial_snapshot + "/comparison?otherSnapshotId=" + snapshot_id + "&view=all")
+        assert (comparison["sourceId"], comparison["before"]["id"], comparison["after"]["id"]) == (self.source_id, self.initial_snapshot, snapshot_id)
+        assert not comparison.get("nextCursor"), "owned two-entry source exceeded one comparison page"
+        row, = [entry for entry in comparison["items"] if entry.get("before", {}).get("identifier") == self.sync_member["identifier"]]
+        assert row["change"] == "unchanged", "recovered snapshot lost the retained fixture entry"
+        for side, selected in (("before", self.initial_snapshot), ("after", snapshot_id)):
+            member = row[side]
+            assert (member["identifier"], member["versionPresent"], member["version"]) == (
+                self.sync_member["identifier"], self.sync_member["versionPresent"], self.sync_member.get("version", ""))
+            occurrence = member["occurrence"]
+            assert (occurrence["snapshotId"], occurrence["exactEntryDigest"]) == (
+                selected, self.sync_member["exactEntryDigest"]), "occurrence does not bind the saved entry to the selected snapshot"
 
     def run(self):
         self.baseline()

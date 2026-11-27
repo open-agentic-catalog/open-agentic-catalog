@@ -215,12 +215,13 @@ impl Transport for HttpTransport {
         limits: Limits,
     ) -> BoxFuture<'a, Result<BufferedResponse, Error>> {
         Box::pin(async move {
+            let head_request = request.method() == reqwest::Method::HEAD;
             let mut response = self
                 .0
                 .execute(request)
                 .await
                 .map_err(|_| Error::RequestFailed)?;
-            validate_headers(response.headers(), limits)?;
+            validate_headers(response.headers(), limits, head_request, response.status())?;
             if response
                 .content_length()
                 .is_some_and(|n| n > limits.response_bytes as u64)
@@ -362,9 +363,11 @@ impl Client {
             if let Some(token) = token {
                 request.headers_mut().insert(AUTHORIZATION, token);
             }
+            let head_request = request.method() == reqwest::Method::HEAD;
             let response = self.transport.send(request, self.limits).await?;
-            reqwest::StatusCode::from_u16(response.status).map_err(|_| Error::RequestFailed)?;
-            validate_headers(&response.headers, self.limits)?;
+            let status =
+                reqwest::StatusCode::from_u16(response.status).map_err(|_| Error::RequestFailed)?;
+            validate_headers(&response.headers, self.limits, head_request, status)?;
             if response.body.len() > self.limits.response_bytes {
                 return Err(Error::ResponseTooLarge);
             }
@@ -450,7 +453,12 @@ fn origin(value: &str, loopback: bool) -> Result<Url, Error> {
     }
     Ok(url)
 }
-fn validate_headers(headers: &HeaderMap, limits: Limits) -> Result<(), Error> {
+fn validate_headers(
+    headers: &HeaderMap,
+    limits: Limits,
+    head_request: bool,
+    status: reqwest::StatusCode,
+) -> Result<(), Error> {
     let mut size = 0usize;
     for (name, value) in headers {
         size = size
@@ -467,11 +475,14 @@ fn validate_headers(headers: &HeaderMap, limits: Limits) -> Result<(), Error> {
     {
         return Err(Error::UnsupportedEncoding);
     }
-    if headers
-        .get(CONTENT_LENGTH)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<u64>().ok())
-        .is_some_and(|n| n > limits.response_bytes as u64)
+    // HEAD and 304 can advertise the size of the corresponding GET representation.
+    if !head_request
+        && status != reqwest::StatusCode::NOT_MODIFIED
+        && headers
+            .get(CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<u64>().ok())
+            .is_some_and(|n| n > limits.response_bytes as u64)
     {
         return Err(Error::ResponseTooLarge);
     }

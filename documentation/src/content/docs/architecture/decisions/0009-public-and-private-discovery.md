@@ -53,7 +53,7 @@ Anonymous discovery authorization uses a fixed anonymous principal. Local result
 
 ### Authenticated discovery
 
-An authenticated host requires the ADR-0006 signed JWT access-token contract. The token may come from any issuer configured by the standalone deployment or from an integrated platform; no product-specific gateway, trusted identity header, or separate login flow is required. An ingress gateway may add routing, rate limiting, or another independent check, but the Catalog still validates the Catalog-audience token.
+In production, an authenticated host requires the ADR-0006 signed JWT access token from the deployment's single configured issuer. A platform client can forward a token issued for the Catalog audience. An ingress gateway may add routing, rate limiting or another independent check. The Catalog verifies the token's issuer, audience and signature on each authenticated request.
 
 The resolved token tenant must match the host's configured tenant. The caller also needs current tenant `discovery.read` permission and the `catalog.read` OAuth scope when scope enforcement is enabled. Authenticated discovery serves an immutable private-discovery snapshot containing every currently eligible approved release with `tenant` or `public` visibility. Namespace-private resources remain on the authenticated Catalog query API, subject to current permissions in each namespace. Their future ARD exposure requires an audience-specific publication model. Do not mutate one shared manifest for each user.
 

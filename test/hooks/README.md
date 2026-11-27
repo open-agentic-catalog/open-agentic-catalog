@@ -16,7 +16,7 @@ Git whitespace checks exclude `internal/a2apb/` and `schemas/upstream/`. Go form
 
 Markdown style checks preserve the copied `openai/`, `huggingface/` and `context7/plugin/` trees under `internal/adapter/testdata/upstream/`. The maintained corpus guide remains checked, and secret scanning still includes every corpus path.
 
-Ruff, ShellCheck, Hadolint and actionlint check batches of staged files in a private directory. Markdownlint reads each staged document through stdin to preserve literal filenames. Used policies and pins must be regular files matching the index. Tools use verified policy snapshots and exclude inherited configuration variables. Workflow ShellCheck does not follow external sources. No tool writes to the checkout.
+Ruff, ShellCheck, Hadolint and actionlint check batches of staged files in a private directory. Markdownlint reads each staged document through stdin to preserve literal filenames. Workflow lint includes the two Git draft delivery examples. New first-party shell, Python and container files are checked by filename; standalone SDK sources keep their language-specific checks. Used policies and pins must be regular files matching the index. Tools use verified policy snapshots and exclude inherited configuration variables. Workflow ShellCheck does not follow external sources. No tool writes to the checkout.
 
 Tools prefer explicit `RUFF`, `SHELLCHECK`, `MARKDOWNLINT`, `HADOLINT` and `ACTIONLINT` commands, then owned `.tools/` installations, then `PATH`. Versions must match the existing pins. Only selected file types require their tools; workflow checks also require ShellCheck. Hook installation requires Git, Python 3.12+ and pinned Gitleaks. Go changes require `gofmt`.
 
@@ -36,7 +36,7 @@ After installing the pinned file linters, yamllint and Gitleaks from the testing
 python3 -B -m unittest discover -s test/hooks -p qualify_test.py
 ```
 
-The qualification stages the Docker and MCP examples and the ADK provenance file, then compares the scanner's findings with the reviewed fingerprints. If an example moves, inspect the matched text before changing its fingerprint. A clean scan requires a successful exit and an empty JSON array. A missing report or a disagreement between the report and exit status fails the hook.
+The qualification stages the Docker and MCP examples, the ADK provenance file and a digest change in the Plugin provenance inventory. It compares the scanner's findings with the reviewed fingerprints. If an example moves, inspect the matched text before changing its fingerprint. A clean scan requires a successful exit and an empty JSON array. A missing report or a disagreement between the report and exit status fails the hook.
 
 This fails if yamllint is absent or the scanner is absent or incompatible. It installs the hook only in a disposable repository, commits clean content, rejects staged synthetic credentials despite a clean working copy, checks redaction and exact fingerprint exceptions, accepts clean staged content despite unstaged synthetic credentials, and verifies explicit bypass and uninstall. It also rejects synthetic secrets in generated/vendored paths even with inline allow comments: formatting exclusions do not disable secret scanning. It removes the disposable repository, including its synthetic commits, automatically.
 

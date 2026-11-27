@@ -54,6 +54,7 @@ def client_source(source, bindings):
         s["name"] for s in methods if s["operation"]["consumption"] != "buffered"
     }
     expected = {s["name"] for s in methods} - streaming
+    head_methods = {s["name"] for s in methods if s["operation"].get("source_method") == "HEAD"}
     marker = "fn __pct_encode_path_segment(s: &str) -> String {"
     if source.count(marker) != 1:
         raise RuntimeError("Rust generator transport marker changed")
@@ -124,6 +125,16 @@ use crate::{Client, Error as HttpError, ApiError, ApiOpError, Response};
         method = (source[declaration.start():result]
                   + ") -> Result<Response<" + signature[1] + ">, ApiOpError<" + signature[2] + ">> {"
                   + source[body + 1:stop])
+        if declaration[1] in head_methods:
+            # HEAD can retain the GET error's Content-Type without delivering its body.
+            dispatch = "match status_code {"
+            if method.count(dispatch) != 1:
+                raise RuntimeError("Rust generator HEAD error dispatch changed")
+            method = method.replace(dispatch, dispatch + """
+                _ if raw_body.is_empty() => {
+                    typed = None;
+                    parse_error = None;
+                }""")
         # Match one LF-delimited line at a time; \s must not rescan across
         # long blank-line runs while looking for a surviving req assignment.
         if not any(re.match(r"\s+req =", line) for line in method.split("\n")):

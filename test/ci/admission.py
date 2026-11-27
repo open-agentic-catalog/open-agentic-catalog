@@ -93,7 +93,7 @@ def source_identity(root):
 def select(paths, projected=()):
     """Select existing expensive checks; the baseline is unconditional."""
     selected = set()
-    ui = docs = False
+    ui = docs = charts = False
     shared = ("api/", "internal/", "cmd/", "migrations/", "schemas/", "test/", ".github/", "config/", "deployments/", "samples/", ".agents/")
     mapping = {"sdk/" + name + "/": name for name in LANGUAGES}
     examples = {"examples/langgraph/": "python", "examples/rust-catalog-report/": "rust",
@@ -112,6 +112,8 @@ def select(paths, projected=()):
         if name in {"LICENSE", "catalog-ui/scripts/native-test-completion.mjs"}:
             ui = docs = True
             selected.add("typescript")
+        if name == "LICENSE":
+            selected.add("go")
         if name == "examples/tutorials/local-oidc/service-read.py":
             selected.add("python")
         for prefix, value in examples.items():
@@ -119,10 +121,15 @@ def select(paths, projected=()):
                 selected.add(value)
         if name.startswith("examples/") and not any(name.startswith(prefix) for prefix in examples):
             selected.update(LANGUAGES)
+        charts |= (name.startswith(("deployments/helm/", "deployments/monitoring/", "config/", "test/helm/",
+                                    "test/deployment/", "internal/platform/config/", "internal/standards/anstrust/testdata/native/", ".github/workflows/"))
+                   or name in {"VERSION", "LICENSE", "Makefile", "go.mod", "go.sum", "pyproject.toml", "uv.lock",
+                               "test/monitoring/helm.py", "test/packaging/charts.py",
+                               "test/ci/pins.json", "test/ci/tools.py", "test/ci/admission.py"})
         ui |= name.startswith(("catalog-ui/", "test/functional/", "config/"))
         docs |= (name.startswith(("documentation/", "sdk/", "examples/", "extensions/vscode/"))
                  or name in projected or name in {".markdownlint.json", "README.md", "CONTRIBUTING.md", "SECURITY.md", "DESIGN.md", "CONTEXT.md", "DEVELOPING.md"})
-    return {"ui": ui, "docs": docs, "languages": [name for name in LANGUAGES if name in selected]}
+    return {"ui": ui, "docs": docs, "charts": charts, "languages": [name for name in LANGUAGES if name in selected]}
 
 
 def languages(value):
@@ -137,15 +144,15 @@ def outcomes(plan, results):
     selection = results.get("selection") or "missing"
     if selection != "success":
         raise ValueError(f"Incomplete required check: selection ({selection})")
-    if (not isinstance(plan, dict) or not all(isinstance(plan.get(flag), bool) for flag in ("ui", "docs"))
+    if (not isinstance(plan, dict) or not all(isinstance(plan.get(flag), bool) for flag in ("ui", "docs", "charts"))
             or not isinstance(plan.get("languages"), list) or any(lang not in LANGUAGES for lang in plan["languages"])):
         raise ValueError("Invalid contribution selection plan")
     required = {"baseline", "unit"}
-    required.update(name for name in ("ui", "docs") if plan[name])
+    required.update(name for name in ("ui", "docs", "charts") if plan[name])
     if plan["languages"]:
         required.add("clients")
     summary = {"selection": "passed"}
-    for name in ("baseline", "unit", "ui", "docs", "clients"):
+    for name in ("baseline", "unit", "ui", "docs", "charts", "clients"):
         status = results.get(name) or "missing"
         if name in required:
             if status != "success":

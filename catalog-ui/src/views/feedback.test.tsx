@@ -5,6 +5,7 @@ import { deferred } from "../../tests/unit/fixtures";
 // @vitest-environment jsdom
 // Feedback tests substitute only transport, preserving forms, permissions and confirmation.
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -1249,6 +1250,184 @@ it("retains only entered feedback response drafts and disables a prepared comman
   ).not.toBe("Retain this private response");
 });
 
+it.each([401, 403, 404])(
+  "withholds saved feedback through recovery from an HTTP %i refusal",
+  async (status) => {
+    history.replaceState(null, "", "/unit/my-feedback");
+    const w = screenWorkspace();
+    const recheck = deferred<ReturnType<typeof etagReply>>();
+    w.get
+      .mockResolvedValueOnce(etagReply({ items: [item] }))
+      .mockResolvedValueOnce({ response: new Response(null, { status }) })
+      .mockReturnValueOnce(recheck.promise);
+    const view = render(
+      <OwnFeedback
+        {...w.props}
+        access={{ ...w.props.access, ...testAccess(["feedback_member"]) }}
+      />,
+    );
+    await screen.findByText(item.comment, { selector: "p" });
+    expect(screen.getByText(item.response, { selector: "p" })).toBeTruthy();
+    click("Refresh feedback");
+    const alert = await screen.findByRole("alert");
+    function expectSavedFeedbackHidden() {
+      expect(view.container.textContent).not.toContain(item.comment);
+      expect(view.container.textContent).not.toContain(item.response);
+      expect(screen.queryByLabelText("Feedback comment")).toBeNull();
+      expect(
+        screen.queryByRole("link", { name: "Open feedback case" }),
+      ).toBeNull();
+    }
+    expectSavedFeedbackHidden();
+    fireEvent.click(within(alert).getByRole("button", { name: "Reload" }));
+    expectSavedFeedbackHidden();
+    const fresh = {
+      ...item,
+      revision: 3,
+      comment: "Current submission after recovery",
+      response: "Current moderator reply after recovery",
+    };
+    await act(async () => recheck.resolve(etagReply({ items: [fresh] })));
+    expect(
+      await screen.findByText(fresh.comment, { selector: "p" }),
+    ).toBeTruthy();
+    expect(screen.getByText(fresh.response, { selector: "p" })).toBeTruthy();
+    expect(view.container.textContent).not.toContain(item.comment);
+    expect(view.container.textContent).not.toContain(item.response);
+    expect(w.get).toHaveBeenCalledTimes(3);
+    expect(w.patch).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  ["Category", "documentation", "Feedback comment"],
+  ["Feedback comment", "Unsent correction", "Category"],
+])(
+  "keeps only the edited %s when My feedback loses read access",
+  async (field, draft, otherField) => {
+    history.replaceState(null, "", "/unit/my-feedback");
+    const w = screenWorkspace();
+    const access = {
+      ...w.props.access,
+      ...testAccess(["feedback_member"]),
+      scopeEnforcement: true,
+      scopes: ["catalog.read" as const, "feedback.write" as const],
+    };
+    readReplies(w.get, { "/api/v1/feedback": { items: [item] } });
+    const view = render(<OwnFeedback {...w.props} access={access} />);
+    await screen.findByText(item.comment, { selector: "p" });
+    openEditor("Edit or withdraw your feedback");
+    change(field, draft);
+    expect(screen.getByLabelText(otherField)).toHaveProperty(
+      "value",
+      otherField === "Category" ? item.category : item.comment,
+    );
+
+    view.rerender(
+      <OwnFeedback
+        {...w.props}
+        access={{ ...access, scopes: ["feedback.write"] }}
+      />,
+    );
+    const retained = screen.getByLabelText(field);
+    expect(retained).toHaveProperty("value", draft);
+    expect(retained.closest("fieldset")).toHaveProperty("disabled", true);
+    expect(screen.queryByLabelText(otherField)).toBeNull();
+    expect(
+      screen.getByText("Retained feedback draft", { selector: "summary" })
+        .textContent,
+    ).toBe("Retained feedback draft");
+    expect(screen.queryByText(item.comment, { selector: "p" })).toBeNull();
+    expect(w.get).toHaveBeenCalledOnce();
+    expect(w.patch).not.toHaveBeenCalled();
+
+    const recheck = deferred<ReturnType<typeof etagReply>>();
+    w.get.mockReturnValueOnce(recheck.promise);
+    view.rerender(<OwnFeedback {...w.props} access={access} />);
+    expect(screen.queryByText(item.comment, { selector: "p" })).toBeNull();
+    expect(screen.getByLabelText(field)).toHaveProperty("value", draft);
+    await act(async () =>
+      recheck.reject(new Error("Private reread unavailable")),
+    );
+    await screen.findByRole("alert");
+    expect(screen.queryByLabelText(otherField)).toBeNull();
+    expect(screen.getByLabelText(field).closest("fieldset")).toHaveProperty(
+      "disabled",
+      true,
+    );
+    // The next explicit refresh asks before replacing this unsent draft.
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    click("Refresh feedback");
+    expect(w.get).toHaveBeenCalledTimes(2);
+    expect(w.patch).not.toHaveBeenCalled();
+  },
+);
+
+it("hides a saved moderator response arriving after the exact-case read scope is lost", async () => {
+  const w = screenWorkspace();
+  const id = "00000000-0000-7000-8000-000000000091";
+  history.replaceState(null, "", "/unit/feedback/" + id);
+  const access = {
+    ...administrator,
+    permissions: ["feedback.moderate" as const],
+    availablePermissions: ["feedback.moderate" as const],
+    scopeEnforcement: true,
+    scopes: ["catalog.read" as const, "tenant.admin" as const],
+  };
+  const pending = deferred<ReturnType<typeof etagReply>>();
+  const recheck = deferred<ReturnType<typeof etagReply>>();
+  w.get
+    .mockReturnValueOnce(pending.promise)
+    .mockReturnValueOnce(recheck.promise);
+  const view = render(<Feedback {...w.props} access={access} id={id} />);
+  expect(w.get).toHaveBeenCalledWith(
+    "/api/v1/feedback/{feedbackId}",
+    expect.objectContaining({ params: { path: { feedbackId: id } } }),
+  );
+  view.rerender(
+    <Feedback
+      {...w.props}
+      access={{ ...access, scopes: ["tenant.admin"] }}
+      id={id}
+    />,
+  );
+  expect(w.get.mock.calls[0]?.[1]).toMatchObject({ signal: { aborted: true } });
+  await act(async () => pending.resolve(etagReply({ ...item, id })));
+  expect(screen.getByRole("alert").textContent).toContain(
+    "Feedback case reads require",
+  );
+  expect(view.container.textContent).not.toContain(item.comment);
+  expect(view.container.textContent).not.toContain(item.response);
+  expect(screen.queryByLabelText("Moderator response (optional)")).toBeNull();
+  expect(w.get).toHaveBeenCalledOnce();
+  expect(w.post).not.toHaveBeenCalled();
+
+  view.rerender(<Feedback {...w.props} access={access} id={id} />);
+  expect(w.get).toHaveBeenCalledTimes(2);
+  expect(view.container.textContent).not.toContain(item.comment);
+  expect(view.container.textContent).not.toContain(item.response);
+  expect(screen.queryByLabelText("Moderator response (optional)")).toBeNull();
+  const current = {
+    ...item,
+    id,
+    revision: 3,
+    comment: "Fresh authorized comment",
+    response: "Fresh authorized response",
+  };
+  await act(async () => recheck.resolve(etagReply(current)));
+  expect(
+    await screen.findByText(current.comment, { selector: "p" }),
+  ).toBeTruthy();
+  expect(screen.getByText(current.response, { selector: "p" })).toBeTruthy();
+  expect(screen.getByLabelText("Moderator response (optional)")).toHaveProperty(
+    "value",
+    current.response,
+  );
+  expect(view.container.textContent).not.toContain(item.comment);
+  expect(view.container.textContent).not.toContain(item.response);
+  expect(w.props.onFailure).not.toHaveBeenCalled();
+});
+
 it("protects an entered direct-case response when its moderator read scope is withdrawn", async () => {
   const w = screenWorkspace();
   const caseId = "00000000-0000-7000-8000-000000000091";
@@ -1297,6 +1476,13 @@ it("protects an entered direct-case response when its moderator read scope is wi
   expect(w.patch).not.toHaveBeenCalled();
   expect(w.remove).not.toHaveBeenCalled();
   expect(w.props.onFailure).not.toHaveBeenCalled();
+
+  view.rerender(<Feedback {...w.props} access={access} id={caseId} />);
+  expect(await screen.findByText(item.comment, { selector: "p" })).toBeTruthy();
+  const restored = screen.getByLabelText("Moderator response (optional)");
+  expect(restored).toHaveProperty("value", "Keep this unsent case response");
+  expect(restored.closest("fieldset")).toHaveProperty("disabled", false);
+  expect(w.get).toHaveBeenCalledTimes(2);
 });
 
 it("leads inline moderator detail with full text and dates before deliberate identifiers without extra reads", async () => {
@@ -1350,7 +1536,7 @@ it("reuses an authorized resource caption when its inventory case opens, without
     "/api/v1/feedback/inbox": { items: [item] },
     "/api/v1/feedback/{feedbackId}": item,
   });
-  render(<Feedback {...w.props} access={administrator} />);
+  const view = render(<Feedback {...w.props} access={administrator} />);
   await screen.findByText(resource.canonicalIdentifier, { selector: "code" });
   fireEvent.click(screen.getByRole("link", { name: "Open feedback case" }));
   await screen.findByRole("button", { name: "Read current feedback" });
@@ -1368,6 +1554,26 @@ it("reuses an authorized resource caption when its inventory case opens, without
       ([path]) => path === "/api/v1/resources/{resourceId}",
     ),
   ).toBe(false);
+  expect(
+    screen.getByText(resource.canonicalIdentifier, { selector: "code" }),
+  ).toBeTruthy();
+  const reads = w.get.mock.calls.length;
+  view.rerender(
+    <Feedback
+      {...w.props}
+      access={{
+        ...administrator,
+        permissions: ["feedback.moderate"],
+        availablePermissions: ["feedback.moderate"],
+      }}
+    />,
+  );
+  expect(screen.getByText(item.comment, { selector: "p" })).toBeTruthy();
+  expect(screen.queryByText(resource.canonicalIdentifier)).toBeNull();
+  expect(
+    screen.queryByRole("link", { name: "Resource and versions" }),
+  ).toBeNull();
+  expect(w.get).toHaveBeenCalledTimes(reads);
   expect(w.post).not.toHaveBeenCalled();
 });
 

@@ -5,14 +5,28 @@ import { spec } from "node:test/reporters";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
-export function requiredUnitCompletion(files) {
+export function requiredUnitCompletion(files, coverageSource) {
   const required = new Set(files.map((file) => resolve(file)));
   const completed = new Map();
   let failed = false;
   let terminal;
+  let measured;
   return {
     observe(event) {
       if (event.type === "test:fail") failed = true;
+      if (coverageSource && event.type === "test:coverage") {
+        const reports = event.data?.summary?.files;
+        const source = reports?.[0];
+        measured =
+          measured === undefined &&
+          Array.isArray(reports) &&
+          reports.length === 1 &&
+          source?.path === coverageSource &&
+          Number.isSafeInteger(source.coveredLineCount) &&
+          source.coveredLineCount > 0 &&
+          Number.isSafeInteger(source.totalLineCount) &&
+          source.coveredLineCount <= source.totalLineCount;
+      }
       if (event.type !== "test:summary") return;
       const { counts, success, file } = event.data;
       if (
@@ -58,18 +72,27 @@ export function requiredUnitCompletion(files) {
         throw new Error(
           "Required native tests failed, skipped or did not complete",
         );
+      if (coverageSource && !measured)
+        throw new Error("Missing native coverage for the selected source");
       return Object.fromEntries(completed);
     },
   };
 }
 
-export async function runRequiredTests(files, options = {}) {
+export async function runRequiredTests(
+  files,
+  { coverageSource, ...options } = {},
+) {
   if (!files.length) throw new Error("No required native test files selected");
-  const completion = requiredUnitCompletion(files);
+  const completion = requiredUnitCompletion(files, coverageSource);
   const stream = run({
     files: files.map((file) => resolve(file)),
     isolation: "process",
     ...options,
+    ...(coverageSource && {
+      coverage: true,
+      coverageIncludeGlobs: [coverageSource],
+    }),
   });
   stream.on("data", (event) => completion.observe(event));
   await pipeline(stream.compose(spec), process.stdout, { end: false });

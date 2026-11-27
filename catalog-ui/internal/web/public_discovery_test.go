@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 // TestPublicDiscoveryAdmission keeps disabled reads and private routes separate.
@@ -292,6 +293,7 @@ func TestPublicDiscoveryInputBounds(t *testing.T) {
 		contentTypes     []string
 		bytes            int64
 		status           int
+		readError        bool
 	}{
 		{name: "Unicode code point boundary", text: strings.Repeat("漢", 500), status: 200},
 		{name: "Unicode over limit", text: strings.Repeat("漢", 501), status: 400},
@@ -301,6 +303,7 @@ func TestPublicDiscoveryInputBounds(t *testing.T) {
 		{name: "unknown parameter", contentTypes: []string{"application/json; profile=arbitrary"}, status: 415},
 		{name: "duplicate media", contentTypes: []string{"application/json", "text/plain"}, status: 415},
 		{name: "request bytes", bytes: 8, status: 413},
+		{name: "interrupted Search body", readError: true, status: 400},
 		{name: "query on Search", path: "/_discovery/search?host=private", status: 400},
 		{name: "empty manifest query", path: "/_discovery/manifest?", status: 400},
 		{name: "malformed List query", path: "/_discovery/agents?pageToken=%zz", status: 400},
@@ -336,6 +339,9 @@ func TestPublicDiscoveryInputBounds(t *testing.T) {
 			var input io.Reader
 			if method == http.MethodPost {
 				input = strings.NewReader(string(body))
+				if test.readError {
+					input = io.MultiReader(input, iotest.ErrReader(io.ErrUnexpectedEOF))
+				}
 			}
 			r := httptest.NewRequestWithContext(t.Context(), method, c.Origin+path, input)
 			r.Header.Set("Origin", c.Origin)
@@ -349,6 +355,9 @@ func TestPublicDiscoveryInputBounds(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 			s.ServeHTTP(w, r)
+			if test.readError {
+				assertUIProblem(t, w, http.StatusBadRequest, "invalid_ui_request")
+			}
 			wantCalls := 0
 			if test.status == 200 {
 				wantCalls = 1

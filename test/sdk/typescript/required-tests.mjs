@@ -7,6 +7,5 @@ if (!["unit", "functional"].includes(profile) || !source || !files.length)
   throw new Error("Select SDK profile, source and required test files");
 await runRequiredTests(files, {
   timeout: 30000,
-  coverage: profile === "unit",
-  coverageIncludeGlobs: [resolve(source)],
+  coverageSource: profile === "unit" ? resolve(source) : undefined,
 });

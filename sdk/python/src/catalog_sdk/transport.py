@@ -78,6 +78,7 @@ class Response:
     status: int
     headers: httpx.Headers
     data: bytes
+    _head: bool = field(default=False, init=False, compare=False)
 
     @property
     def response(self) -> Response:
@@ -168,7 +169,9 @@ class HTTPBoundary:
                         if len(chunks) + len(chunk) > limit:
                             raise SDKError("response_too_large", status=status, request_id=request_id)
                         chunks.extend(chunk)
-                    return Response(status, response.headers, bytes(chunks))
+                    result = Response(status, response.headers, bytes(chunks))
+                    result._head = method.upper() == "HEAD"
+                    return result
         except SDKError:
             raise
         except TimeoutError:

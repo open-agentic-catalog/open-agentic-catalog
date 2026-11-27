@@ -17,3 +17,23 @@ export function useEditorRowKeys(generation: number | string = 0) {
     },
   };
 }
+
+/** Focus a surviving row's first input before deleting the focused Remove button. */
+export function useRemovableInputRows() {
+  const keys = useEditorRowKeys();
+  const elements = useRef<(HTMLElement | null)[]>([]);
+  const add = useRef<HTMLButtonElement>(null);
+  return {
+    key: keys.key,
+    add,
+    rowRef: (index: number) => (element: HTMLElement | null) => {
+      elements.current[index] = element;
+    },
+    remove(index: number) {
+      const neighbor =
+        elements.current[index + 1] ?? elements.current[index - 1];
+      (neighbor?.querySelector("input") ?? add.current)?.focus();
+      keys.remove(index);
+    },
+  };
+}

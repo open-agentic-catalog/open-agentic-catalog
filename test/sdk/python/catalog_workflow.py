@@ -90,9 +90,16 @@ async def qualify_reviewed_corpus():
                 assert rep["data"] == expected["data"]
             if "description" in expected:
                 assert rep["normalizedFacts"]["description"] == expected["description"]
-            if "text" in expected:
-                content = await reader.raw("GET", f'/api/v1/artifacts/{rep["artifactId"]}/content')
-                assert content.status == 200 and content.data == expected["text"].encode("utf-8")
+            if expected["name"] == "hf-cli":
+                source = expected["text"].encode("utf-8")
+                content = await CatalogLifecycleApi(reader).get_artifact_content_with_http_info(rep["artifactId"])
+                assert content.status_code == 200 and content.data == source
+                assert content.headers["Content-Type"] == expected["representation"]["mediaType"]
+                assert content.headers["Content-Length"] == str(len(source))
+                assert content.headers["Content-Digest"] == expected["artifactContentDigest"]
+                denied = await CatalogLifecycleApi(other).get_artifact_content_with_http_info(rep["artifactId"])
+                assert denied.status_code == 404 and denied.data.status == 404 and denied.data.code == "NOT_FOUND"
+                assert denied.data.request_id and denied.data.request_id == denied.headers["X-Request-ID"]
             if "fileCount" in expected:
                 package = rep["plugin" if expected["kind"] == "plugin" else "package"]
                 assert len(package["files"]) == expected["fileCount"]
@@ -102,6 +109,17 @@ async def qualify_reviewed_corpus():
                 assert {d["path"]: d["content"] for d in docs} == expected["documents"]
             hidden = await CatalogDiscoveryApi(other).get_catalog_record_with_http_info(UUID(expected["releaseId"]))
             assert hidden.status_code == 404
+        paging = corpus["collection"]
+        members = SharedCollectionsApi(reader)
+        for selection in paging["selections"]:
+            cursor = None
+            for index, listing_id in enumerate(selection["expectedListingIds"]):
+                page = await members.list_collection_members(UUID(paging["id"]), limit=1, text=selection["text"], kinds=["agent", "skill"], cursor=cursor)
+                assert [str(member.listing.id) for member in page.items] == [listing_id]
+                cursor = page.next_cursor
+                if index + 1 < len(selection["expectedListingIds"]):
+                    assert cursor, "missing first-page continuation"
+            assert cursor is None
         cases = {case["name"]: case for case in corpus["cases"]}
         source, target = cases["context7-plugin"], cases["context7-registry"]
         gaps = await CatalogLifecycleApi(reader).list_listing_metadata_gaps(checks="license,support", kind=ResourceKind.PLUGIN)

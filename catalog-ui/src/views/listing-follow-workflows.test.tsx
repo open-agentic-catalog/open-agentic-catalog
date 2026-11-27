@@ -92,9 +92,14 @@ it("checks only follows on the loaded page and clears all old target facts on a 
   expect(w.props.onFailure).toHaveBeenCalledOnce();
 });
 
-it("aborts an in-flight page check when the owner view closes", async () => {
+it("stops checking the remaining follows when the owner view closes", async () => {
   const w = screenWorkspace();
-  w.get.mockResolvedValue(etagReply({ items: [item] }));
+  const second = {
+    ...item,
+    id: "00000000-0000-7000-8000-000000000004",
+    listingId: "00000000-0000-7000-8000-000000000005",
+  };
+  w.get.mockResolvedValue(etagReply({ items: [item, second] }));
   const pending = deferred<ReturnType<typeof etagReply>>();
   w.post.mockReturnValue(pending.promise);
   const view = render(<PersonalLibrary {...w.props} />);
@@ -107,6 +112,7 @@ it("aborts an in-flight page check when the owner view closes", async () => {
   view.unmount();
   expect(signal.aborted).toBe(true);
   await act(async () => pending.resolve(etagReply(available)));
+  expect(w.post).toHaveBeenCalledTimes(1);
   expect(w.props.onFailure).not.toHaveBeenCalled();
   expect(w.patch).not.toHaveBeenCalled();
 });

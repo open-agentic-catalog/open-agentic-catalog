@@ -8,12 +8,14 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -21,21 +23,23 @@ import (
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/adapter"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	client "github.com/open-agentic-catalog/open-agentic-catalog/test/clientcompat/go/generated"
 )
 
 // reviewedCase keeps source-derived expectations independent of API responses.
 type reviewedCase struct {
-	Name           string            `json:"name"`
-	Kind           catalog.Kind      `json:"kind"`
-	Identifier     string            `json:"identifier"`
-	ReleaseID      string            `json:"releaseId"`
-	ListingID      string            `json:"listingId"`
-	Representation map[string]any    `json:"representation"`
-	Data           any               `json:"data,omitempty"`
-	Text           string            `json:"text,omitempty"`
-	Description    string            `json:"description,omitempty"`
-	FileCount      int               `json:"fileCount,omitempty"`
-	Documents      map[string]string `json:"documents,omitempty"`
+	Name                  string            `json:"name"`
+	Kind                  catalog.Kind      `json:"kind"`
+	Identifier            string            `json:"identifier"`
+	ReleaseID             string            `json:"releaseId"`
+	ListingID             string            `json:"listingId"`
+	Representation        map[string]any    `json:"representation"`
+	Data                  any               `json:"data,omitempty"`
+	Text                  string            `json:"text,omitempty"`
+	ArtifactContentDigest string            `json:"artifactContentDigest,omitempty"`
+	Description           string            `json:"description,omitempty"`
+	FileCount             int               `json:"fileCount,omitempty"`
+	Documents             map[string]string `json:"documents,omitempty"`
 }
 
 type reviewedCorpus struct {
@@ -160,7 +164,12 @@ func newReviewedCorpus(t *testing.T) (*fixture, reviewedCorpus) {
 		if tc.name == "jupyter-notebook" {
 			expected.FileCount = 12
 		}
-		expected.Representation["contentDigest"] = fmt.Sprintf("sha256:%x", sha256.Sum256(source))
+		hash := sha256.Sum256(source)
+		expected.Representation["contentDigest"] = fmt.Sprintf("sha256:%x", hash)
+		if tc.input.Content != "" {
+			expected.Representation["artifactId"] = fmt.Sprintf("%x", hash)
+			expected.ArtifactContentDigest = "sha-256=:" + base64.StdEncoding.EncodeToString(hash[:]) + ":"
+		}
 		expected.Representation["size"] = float64(len(source))
 		resource, createErr := f.service.CreateResource(actor, catalog.CreateResourceInput{NamespaceID: ns.ID, Kind: tc.kind, CanonicalIdentifier: expected.Identifier})
 		must(t, createErr)
@@ -198,10 +207,61 @@ func newReviewedCorpus(t *testing.T) (*fixture, reviewedCorpus) {
 	return f, result
 }
 
+// Only SDK paging consumers need this collection. Seed it from the governed
+// Listings and derive the expected order before any member query.
+type reviewedCollection struct {
+	ID         string                    `json:"id"`
+	Selections []reviewedMemberSelection `json:"selections"`
+}
+
+type reviewedMemberSelection struct {
+	Text       string   `json:"text"`
+	ListingIDs []string `json:"expectedListingIds"`
+}
+
+func seedReviewedCollection(t *testing.T, f *fixture, corpus reviewedCorpus) reviewedCollection {
+	t.Helper()
+	ids := map[string]string{}
+	for _, item := range corpus.Cases {
+		ids[item.Name] = item.ListingID
+	}
+	listing, err := f.service.GetListing(f.actor("admin"), ids["researcher"])
+	must(t, err)
+	admin := f.client("admin")
+	namespace := decode[client.UUID](t, []byte(strconv.Quote(listing.NamespaceID)))
+	resp, err := admin.CreateCollection(t.Context(), &client.CreateCollectionParams{IdempotencyKey: "sdk-page-collection"}, client.CreateCollection{Name: "SDK paging", NamespaceId: namespace})
+	receipt := decode[client.CollectionReceipt](t, f.result(resp, err, 201))
+	for _, name := range []string{"jupyter-notebook", "context7-registry", "researcher"} {
+		member := decode[client.UUID](t, []byte(strconv.Quote(ids[name])))
+		resp, err = admin.AddCollectionMember(t.Context(), receipt.Id, &client.AddCollectionMemberParams{IdempotencyKey: "sdk-page-" + name, IfMatch: resp.Header.Get("ETag")}, client.AddCollectionMember{ListingId: member})
+		f.result(resp, err, 201)
+	}
+	matching := []string{ids["researcher"], ids["jupyter-notebook"]}
+	slices.Sort(matching)
+	return reviewedCollection{ID: receipt.Id.String(), Selections: []reviewedMemberSelection{
+		{Text: "Reviewed", ListingIDs: matching},
+		{Text: "researcher", ListingIDs: []string{ids["researcher"]}},
+	}}
+}
+
+func sdkReviewedManifest(t *testing.T) string {
+	t.Helper()
+	f, corpus := newReviewedCorpus(t)
+	return writeReviewedManifest(t, struct {
+		reviewedCorpus
+		Collection reviewedCollection `json:"collection"`
+	}{corpus, seedReviewedCollection(t, f, corpus)})
+}
+
 // reviewedManifest passes public source expectations by a private local file.
 func reviewedManifest(t *testing.T) string {
 	t.Helper()
 	_, corpus := newReviewedCorpus(t)
+	return writeReviewedManifest(t, corpus)
+}
+
+func writeReviewedManifest(t *testing.T, corpus any) string {
+	t.Helper()
 	b, err := json.Marshal(corpus)
 	must(t, err)
 	name := filepath.Join(t.TempDir(), "reviewed-corpus.json")

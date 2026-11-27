@@ -294,7 +294,14 @@ export function createCatalogClient(
       if (encoding && encoding !== "identity")
         throw new SDKError("unexpected_encoding");
       const length = upstream.headers.get("content-length");
-      if (length && /^\d+$/u.test(length) && Number(length) > limit)
+      // HEAD and 304 may advertise the size of the corresponding GET representation.
+      if (
+        request.method !== "HEAD" &&
+        upstream.status !== 304 &&
+        length &&
+        /^\d+$/u.test(length) &&
+        Number(length) > limit
+      )
         throw new SDKError("response_too_large");
       const bytes = await readBounded(
         upstream.body,
@@ -408,10 +415,9 @@ export function createCatalogClient(
             o: object,
           ) => Promise<{ data?: unknown; error?: unknown; response: Response }>
         )(path, init);
-        const bodyless =
-          response?.status === 204 ||
-          response?.status === 304 ||
-          method === "HEAD";
+        // openapi-fetch can return an empty error string for a bodyless 304.
+        if (response?.status === 304) return { error: undefined, response };
+        const bodyless = response?.status === 204 || method === "HEAD";
         if (
           !bodyless &&
           (options.parseAs === undefined ||

@@ -322,7 +322,7 @@ func requiredOAuthScope(method, path string) string {
 		}
 		return "ratings.write"
 	case strings.HasPrefix(path, "/api/v1/personal/items"):
-		if method == http.MethodGet || strings.HasSuffix(path, "/resolve") {
+		if read || strings.HasSuffix(path, "/resolve") {
 			return "catalog.read"
 		}
 		return "personal.write"

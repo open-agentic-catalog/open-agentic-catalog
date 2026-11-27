@@ -243,27 +243,48 @@ it("keeps confirmation facts and execution bound to one preparation after a pare
 describe("bounded asynchronous reads", () => {
   it("retains a same-key page during reread and failure, but clears it when scope changes", async () => {
     const pending = deferred<string>();
+    const replacement = deferred<string>();
     const failure = vi.fn();
+    const committed = vi.fn();
     const load = vi
       .fn()
       .mockResolvedValueOnce("loaded")
       .mockImplementationOnce(() => pending.promise)
-      .mockResolvedValueOnce("other scope");
-    const hook = renderHook(({ key }) => useRead(key, load, failure, true), {
-      initialProps: { key: "scope-a" },
-    });
+      .mockImplementationOnce(() => replacement.promise);
+    const hook = renderHook(
+      ({ key }) => {
+        const read = useRead(key, load, failure, true);
+        // Capture what a view can display before passive effects start its next read.
+        useLayoutEffect(() => {
+          committed(
+            key,
+            read.data,
+            read.error,
+            read.problem?.requestId,
+            read.busy,
+          );
+        });
+        return read;
+      },
+      { initialProps: { key: "scope-a" } },
+    );
     await act(async () => {});
     expect(hook.result.current.data).toBe("loaded");
     act(() => hook.result.current.refresh());
     expect(hook.result.current.busy).toBe(true);
     expect(hook.result.current.data).toBe("loaded");
-    await act(async () => pending.reject(new Error("transport unavailable")));
+    const unavailable = new APIError(503, "UNAVAILABLE", "scope-a-request");
+    await act(async () => pending.reject(unavailable));
     expect(hook.result.current.data).toBe("loaded");
-    expect(hook.result.current.error).toBe("This page could not be loaded.");
-    expect(failure).toHaveBeenCalledOnce();
+    expect(hook.result.current.error).toBe(unavailable.message);
+    expect(failure).toHaveBeenCalledExactlyOnceWith(unavailable);
+    committed.mockClear();
     hook.rerender({ key: "scope-b" });
-    expect(hook.result.current.data).toBeUndefined();
-    await act(async () => {});
+    expect(committed.mock.calls.length).toBeGreaterThan(0);
+    for (const state of committed.mock.calls) {
+      expect(state).toEqual(["scope-b", undefined, "", undefined, true]);
+    }
+    await act(async () => replacement.resolve("other scope"));
     expect(hook.result.current.data).toBe("other scope");
     expect(hook.result.current.error).toBe("");
   });

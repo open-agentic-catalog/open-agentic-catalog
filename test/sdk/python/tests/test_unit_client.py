@@ -16,12 +16,14 @@ from catalog_sdk.generated.api.service_api import ServiceApi
 from catalog_sdk.generated.api.identity_api import IdentityApi
 from catalog_sdk.generated.api.discovery_api import DiscoveryApi
 from catalog_sdk.generated.api.catalog_discovery_api import CatalogDiscoveryApi
+from catalog_sdk.generated.api.catalog_mcp_api import CatalogMCPApi
 from catalog_sdk.generated.api.catalog_lifecycle_api import CatalogLifecycleApi
 from catalog_sdk.generated.api.personal_workspace_api import PersonalWorkspaceApi
 from catalog_sdk.generated.api.shared_collections_api import SharedCollectionsApi
 from catalog_sdk.generated.api.feedback_api import FeedbackApi
 from catalog_sdk.generated.api.federation_api import FederationApi
 from catalog_sdk.generated.models.catalog_search import CatalogSearch
+from catalog_sdk.generated.models.create_collection import CreateCollection
 from catalog_sdk.generated.models.trust_assessment_request import TrustAssessmentRequest
 from catalog_sdk.generated.models.update_collection import UpdateCollection
 from catalog_sdk.transport import HTTPBoundary, Response
@@ -478,6 +480,80 @@ class TransportUnits(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(caught.exception.code, code)
         handler.assert_not_called()
 
+    def test_metadata_head_returns_bodyless_errors_while_get_still_checks_the_body(self):
+        api = CatalogMCPApi(self.client)
+        path = "/.well-known/oauth-protected-resource/mcp"
+        metadata = {"resource": "https://catalog.example.com/mcp", "authorization_servers": ["https://issuer.example"],
+                    "scopes_supported": ["catalog.read"], "bearer_methods_supported": ["header"]}
+        wire = json.dumps(metadata).encode()
+        for method, status, chunks, limit, failure in (
+            ("HEAD", 200, [], 1, None),
+            ("HEAD", 404, [], 1, None),
+            ("GET", 404, [], 1, "invalid_response"),
+            ("GET", 200, [wire], len(wire), None),
+            ("GET", 200, [wire], len(wire) - 1, "response_too_large"),
+        ):
+            with self.subTest(method=method, status=status, limit=limit):
+                headers = {"Content-Type": "application/json", "X-Request-ID": "metadata-request"}
+                if method == "HEAD" or chunks:
+                    headers["Content-Length"] = str(len(wire))
+                stream = Stream(chunks)
+                handler = Mock(return_value=httpx.Response(status, headers=headers, stream=stream))
+                with injected(self.boundary, handler), response_limit(limit):
+                    if method == "HEAD":
+                        result = api.head_catalog_mcpo_auth_metadata_sync_with_http_info()
+                        self.assertEqual((result.status_code, result.data, result.raw_data), (status, None, b""))
+                        self.assertEqual(result.headers["X-Request-ID"], "metadata-request")
+                        self.assertEqual(result.headers["Content-Length"], str(len(wire)))
+                    elif failure is None:
+                        result = api.get_catalog_mcpo_auth_metadata_sync_with_http_info()
+                        self.assertEqual((result.status_code, result.data.to_dict(), result.raw_data), (200, metadata, wire))
+                    else:
+                        with self.assertRaises(SDKError) as caught:
+                            api.get_catalog_mcpo_auth_metadata_sync_with_http_info()
+                        self.assertEqual((caught.exception.code, caught.exception.status, caught.exception.request_id),
+                                         (failure, status, "metadata-request"))
+                handler.assert_called_once()
+                request = handler.call_args.args[0]
+                self.assertEqual((request.method, request.url.path), (method, path))
+                self.assertTrue(stream.closed)
+
+    async def test_interrupted_command_response_keeps_status_and_request_id(self):
+        namespace_id = "00000000-0000-7000-8000-000000000101"
+        collection_id = UUID("00000000-0000-7000-8000-000000000102")
+        def receipt(complete):
+            yield b'{"id":'
+            if not complete:
+                raise httpx.RemoteProtocolError("response ended before completion")
+            yield f'"{collection_id}","revision":1}}'.encode()
+
+        for complete in (True, False):
+            with self.subTest(complete=complete):
+                stream = Stream(receipt(complete))
+                handler = Mock(return_value=httpx.Response(
+                    201, headers={"Content-Type": "application/json", "X-Request-ID": "command-created"}, stream=stream
+                ))
+                with injected(self.boundary, handler), response_limit(256):
+                    command = SharedCollectionsApi(self.client).create_collection_with_http_info(
+                        create_collection=CreateCollection(namespace_id=UUID(namespace_id), name="Weather"),
+                        idempotency_key="single-command",
+                    )
+                    if complete:
+                        result = await command
+                        self.assertEqual((result.status_code, result.data.id, result.data.revision), (201, collection_id, 1))
+                    else:
+                        with self.assertRaises(SDKError) as caught:
+                            await command
+                        self.assertEqual(caught.exception.code, "transport_failed")
+                        self.assertEqual(caught.exception.status, 201)
+                        self.assertEqual(caught.exception.request_id, "command-created")
+                handler.assert_called_once()
+                request = handler.call_args.args[0]
+                self.assertEqual((request.method, str(request.url)), ("POST", "https://catalog.example.com/api/v1/collections"))
+                self.assertEqual(request.headers["Idempotency-Key"], "single-command")
+                self.assertEqual(json.loads(request.content), {"namespaceId": namespace_id, "name": "Weather"})
+                self.assertTrue(stream.closed)
+
     async def test_response_limit_restores_outer_budget_after_error_and_default_on_exit(self):
         payload = b"x" * 33  # One byte over the configured default.
         def handler(_):
@@ -616,9 +692,10 @@ class TransportUnits(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(stream.closed)
         stream = Stream([])
         def unchanged(request):
+            self.assertEqual((request.method, request.url.path), ("GET", "/openapi/control-v1.yaml"))
             self.assertEqual(request.headers["If-None-Match"], '"contract"')
-            return httpx.Response(304, headers={"ETag":'"contract"'}, stream=stream)
-        with injected(client.rest_client, unchanged):
+            return httpx.Response(304, headers={"ETag":'"contract"', "Content-Length": "2"}, stream=stream)
+        with injected(client.rest_client, unchanged), response_limit(1):
             result = await ServiceApi(client).get_control_open_api_with_http_info(if_none_match='"contract"')
         self.assertEqual(result.status_code, 304)
         self.assertIsNone(result.data)
@@ -658,17 +735,45 @@ class TransportUnits(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.client.sanitize_for_serialization(model), value)
         self.assertEqual(TrustAssessmentRequest.from_dict(value).to_dict(), value)
 
-    async def test_binary_ard_errors_and_partial_search_are_not_followed(self):
+    async def test_ard_list_continuation_preserves_criteria_and_returns_the_peer_refusal(self):
+        client = Client(Config(origin="https://catalog.example.com"))
+        api = DiscoveryApi(client)
+        entry = {"identifier": "urn:air:example.com:examples:weather", "displayName": "Weather agent",
+                 "type": "application/a2a-agent-card+json", "data": {"name": "Weather agent"}}
+        cursor = "next+/= café"
+        error = {"errorCode": "INVALID_ARGUMENT", "message": "Invalid cursor"}
+        responses = Mock(side_effect=[
+            httpx.Response(200, headers={"Content-Type": "application/json"}, stream=Stream([
+                json.dumps({"items": [entry], "total": 2, "pageToken": cursor}).encode()
+            ])),
+            httpx.Response(400, headers={"Content-Type": "application/json", "X-Request-ID": "list-refused"},
+                           stream=Stream([json.dumps(error).encode()])),
+        ])
+        criteria = {"filter": "displayName = 'Weather agent'", "order_by": "updatedAt DESC", "page_size": 1}
+        with injected(client.rest_client, responses):
+            first = await api.list_ard_registry_entries_with_http_info(**criteria)
+            self.assertEqual(responses.call_count, 1)
+            self.assertEqual((first.status_code, first.data.total, first.data.page_token), (200, 2, cursor))
+            self.assertEqual([item.to_dict() for item in first.data.items], [entry])
+            refused = await api.list_ard_registry_entries_with_http_info(**criteria, page_token=first.data.page_token)
+
+        self.assertEqual((refused.status_code, refused.data.error_code, refused.data.message),
+                         (400, "INVALID_ARGUMENT", "Invalid cursor"))
+        self.assertEqual(refused.headers["X-Request-ID"], "list-refused")
+        query = {"filter": "displayName = 'Weather agent'", "orderBy": "updatedAt DESC", "pageSize": "1"}
+        requests = [call.args[0] for call in responses.call_args_list]
+        self.assertEqual([sorted(r.url.params.multi_items()) for r in requests],
+                         [sorted(query.items()), sorted({**query, "pageToken": cursor}.items())])
+        for request in requests:
+            self.assertEqual((request.method, request.url.host, request.url.path), ("GET", "catalog.example.com", "/ard/v1/agents"))
+            self.assertNotIn("Authorization", request.headers)
+
+    async def test_binary_and_partial_search_responses(self):
         client = Client(Config(origin="https://catalog.example.com"))
         binary = b"\x00\xff\x89PNG\r\n"
         result = client.response_deserialize(Response(200, httpx.Headers({"Content-Type":"image/png"}), binary), {"200":"file"})
         self.assertEqual(result.data, binary)
         self.assertEqual(result.raw_data, binary)
-        error = {"errorCode":"INVALID_ARGUMENT", "message":"Invalid cursor"}
-        with injected(client.rest_client, lambda _: httpx.Response(400, headers={"Content-Type":"application/json"}, stream=Stream([json.dumps(error).encode()]))):
-            result = await DiscoveryApi(client).list_ard_registry_entries_with_http_info()
-        self.assertEqual(result.data.error_code, "INVALID_ARGUMENT")
-        self.assertEqual(result.data.message, "Invalid cursor")
         partial = {"items":[],"nextCursor":"opaque=cursor","durableTotal":0,"liveCount":0,"profile":"core-lexical-v1","generation":"sha256:" + "a" * 64,"tier":"core","partial":True,"diagnostics":[]}
         calls = []
         def handler(request):

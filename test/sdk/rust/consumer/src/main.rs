@@ -1058,13 +1058,36 @@ async fn qualify_reviewed_corpus() {
         if let Some(description) = expected.get("description") {
             assert_eq!(&rep["normalizedFacts"]["description"], description);
         }
-        if let Some(text) = expected.get("text") {
-            let artifact = reader
-                .get_artifact_content(rep["artifactId"].as_str().unwrap())
-                .await
-                .unwrap();
+        if expected["name"] == "hf-cli" {
+            let id = rep["artifactId"].as_str().unwrap();
+            let source = expected["text"].as_str().unwrap().as_bytes();
+            let artifact = reader.get_artifact_content(id).await.unwrap();
             assert_eq!(artifact.status, 200);
-            assert_eq!(artifact.raw_body, text.as_str().unwrap().as_bytes());
+            assert_eq!(artifact.data.unwrap().as_ref(), source);
+            assert_eq!(artifact.raw_body, source);
+            assert_eq!(
+                artifact.headers["content-type"],
+                expected["representation"]["mediaType"].as_str().unwrap()
+            );
+            assert_eq!(artifact.headers["content-length"], source.len().to_string());
+            assert_eq!(
+                artifact.headers["content-digest"],
+                expected["artifactContentDigest"].as_str().unwrap()
+            );
+            match other.get_artifact_content(id).await.unwrap_err() {
+                ApiOpError::Api(error) => {
+                    assert_eq!(error.status, 404);
+                    let GetArtifactContentApiError::Default(problem) = error.typed.unwrap();
+                    assert_eq!(problem.status, 404);
+                    assert_eq!(problem.code, ErrorCode::NotFound);
+                    assert!(!problem.request_id.is_empty());
+                    assert_eq!(
+                        problem.request_id,
+                        error.headers["x-request-id"].to_str().unwrap()
+                    );
+                }
+                _ => panic!("Expected a typed problem for a foreign tenant's artifact"),
+            }
         }
         if let Some(count) = expected.get("fileCount") {
             let key = if expected["kind"] == "plugin" {
@@ -1090,6 +1113,32 @@ async fn qualify_reviewed_corpus() {
             ApiOpError::Api(error) => assert_eq!(error.status, 404),
             _ => panic!("Expected cross-tenant refusal"),
         }
+    }
+    let paging = &corpus["collection"];
+    for selection in paging["selections"].as_array().unwrap() {
+        let expected_ids = selection["expectedListingIds"].as_array().unwrap();
+        let mut cursor = None;
+        for (index, expected) in expected_ids.iter().enumerate() {
+            let page = reader
+                .list_collection_members(
+                    paging["id"].as_str().unwrap(),
+                    Some(1),
+                    selection["text"].as_str(),
+                    Some(vec![ResourceKind::Agent, ResourceKind::Skill]),
+                    cursor.as_deref(),
+                )
+                .await
+                .unwrap()
+                .data
+                .unwrap();
+            assert_eq!(page.items.len(), 1);
+            assert_eq!(page.items[0].listing.id.to_string(), *expected);
+            cursor = page.next_cursor;
+            if index + 1 < expected_ids.len() {
+                assert!(cursor.as_deref().is_some_and(|value| !value.is_empty()));
+            }
+        }
+        assert!(cursor.is_none());
     }
     let target = cases
         .iter()

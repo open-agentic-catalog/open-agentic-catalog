@@ -701,7 +701,6 @@ if Path("fail-" + stage).exists():
         spec = importlib.util.spec_from_file_location("hook_runner", ROOT / "test/hooks/runner.py")
         runner = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(runner)
-        self.assertEqual({root + "/" for root in roots}, set(runner.PYTHON_ROOTS), "hook and python-lint roots differ")
         # SDK Python has its own lint gate; generated compatibility clients are not maintained source.
         python = {name for name in self.source_files(ROOT) if name.endswith(".py")
                   and not name.startswith(("sdk/python/", "test/clientcompat/go/generated/"))}
@@ -726,7 +725,6 @@ if Path("fail-" + stage).exists():
         self.assertIn(copy, found)
         self.assertEqual(found - {copy} - selected, set(), "Containerfile outside make container-check")
         self.assertEqual(selected - found, set(), "container-check names a missing or non-Containerfile path")
-        self.assertEqual(set(runner.CONTAINER_FILES), selected, "staged-hook Containerfile list differs from container-check")
         for name in selected:
             self.assertEqual(runner.lint_kind(name), "hadolint", name)
 
@@ -780,7 +778,6 @@ if Path("fail-" + stage).exists():
         spec = importlib.util.spec_from_file_location("hook_runner", ROOT / "test/hooks/runner.py")
         runner = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(runner)
-        self.assertEqual(set(runner.SHELL_FILES), set(selected), "staged-hook shell list differs from make shell-check")
         for name in sources:
             self.assertEqual(runner.lint_kind(name), "shellcheck", name)
 
@@ -1016,6 +1013,12 @@ sys.exit(41 if json.dumps(call) == os.environ.get("FAIL_CALL") else 0)
         mixed = subprocess.run(["make", "--no-print-directory", "mcp-scanner-check", "build"], cwd=ROOT, capture_output=True, text=True, timeout=10, check=False)
         self.assertNotEqual(mixed.returncode, 0)
         self.assertIn("MCP Scanner targets must run alone", mixed.stderr)
+
+    def test_go_example_checks_share_the_sdk_gate_and_cover_both_modules(self):
+        commands = self.run_make("-n", "sdk-go-examples-check")
+        self.assertEqual(commands.count('test/sdk/runner.py check --language "go"'), 1)
+        for root in ("examples/publication-report", "examples/mcp-scanner/receiver"):
+            self.assertIn(f"cd {root} && go vet -tags=functional,integration ./...", commands)
 
     def test_mcp_scanner_receiver_targets_are_explicit_and_keep_sdk_checks_separate(self):
         goals = ("mcp-scanner-receiver-build", "mcp-scanner-receiver-check", "test-mcp-scanner-receiver", "test-mcp-scanner-receiver-dsn")

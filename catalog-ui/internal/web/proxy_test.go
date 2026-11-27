@@ -94,7 +94,7 @@ func TestDirectHostProxyRequestBoundsAndSession(t *testing.T) {
 		{name: "exact limit", raw: exact, cookie: "valid", status: 200, read: limit},
 		{name: "limit plus one", raw: exact + " ", cookie: "valid", status: 413, code: "request_too_large", read: limit + 1},
 		{name: "bounded larger body", raw: exact + strings.Repeat(" ", 1024), cookie: "valid", status: 413, code: "request_too_large", read: limit + 1},
-		{name: "read failure", raw: payload, cookie: "valid", readError: true, status: 413, code: "request_too_large", read: len(payload)},
+		{name: "interrupted read below limit", raw: payload, cookie: "valid", readError: true, status: 400, code: "invalid_ui_request", read: len(payload)},
 		{name: "missing session", raw: payload, status: 401, code: "login_required"},
 		{name: "invalid session", raw: payload, cookie: "invalid", status: 401, code: "login_required"},
 	} {

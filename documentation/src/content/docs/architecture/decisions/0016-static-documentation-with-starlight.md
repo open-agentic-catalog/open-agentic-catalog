@@ -22,7 +22,9 @@ Keep one documentation-local Node/npm project with a pinned supported Node versi
 
 The documentation build remains separate from the Go module, backend image, ordinary backend startup and readiness. The generated static output can be hosted independently without a Node server. Preserve existing Markdown and contract audits; add site-specific build, link and browser gates without making deployment infrastructure necessary to edit or build documentation.
 
-GitHub Actions includes a [manually run documentation check](../../contributing/testing.md#github-actions). This repository does not configure publication to a separate documentation website. The optional UI image builds the manual in its own stage and serves static output at `/docs/`. It includes no Node server or documentation build tools at runtime. Backend images and ordinary units remain independent. See [UI image delivery](../../contributing/build-and-release.md#optional-ui-image) for the build inventory, caching and verification boundary.
+The GitHub Pages workflow prepares the website and PDF on pushes to `main` and on manual dispatch. Deployment from `main` requires a maintainer to enable it for that run or for pushes. See [website and PDF delivery](../../contributing/documentation.mdx#prepare-the-public-website-and-pdf).
+
+The optional UI image builds the manual in its own stage and serves static output at `/docs/`. It includes no Node server or documentation build tools at runtime. Backend images and ordinary units remain independent. See [UI image delivery](../../contributing/build-and-release.md#optional-ui-image) for the build inventory, caching and verification boundary.
 
 Keep one editable authority for each topic. Derive API presentation from `api/openapi/control-v1.yaml`. Use existing CLI, configuration and example sources instead of duplicate contracts.
 

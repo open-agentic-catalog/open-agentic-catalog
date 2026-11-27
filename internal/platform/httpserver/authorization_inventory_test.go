@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -68,8 +69,16 @@ func TestAuthorizationEvolutionOperationInventory(t *testing.T) {
 		if !ok || policy.ScopeSource == "" || policy.Actors == "" || policy.Disclosure == "" || policy.Eligibility == "" || row.CurrentAuthority == "" {
 			t.Fatalf("incomplete boundary %s", key)
 		}
-		if strings.HasPrefix(row.Path, "/api/v1/") && requiredOAuthScope(row.Method, row.Path) != row.OAuthCeiling {
-			t.Fatalf("OAuth ceiling drift %s", key)
+		if strings.HasPrefix(row.Path, "/api/v1/") {
+			if requiredOAuthScope(row.Method, row.Path) != row.OAuthCeiling {
+				t.Fatalf("OAuth ceiling drift %s", key)
+			}
+			// ServeMux also routes HEAD to GET unless the API defines a separate HEAD operation.
+			if row.Method == http.MethodGet && path.Head == nil {
+				if got := requiredOAuthScope(http.MethodHead, row.Path); got != row.OAuthCeiling {
+					t.Errorf("implicit HEAD %s requires %q, want GET scope %q", row.Path, got, row.OAuthCeiling)
+				}
+			}
 		}
 		all := slices.Clone(row.Permissions)
 		for _, permissions := range row.ConditionalPermissions {

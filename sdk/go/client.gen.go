@@ -6917,7 +6917,7 @@ type CatalogExploreFacetsField string
 
 // CatalogExploreQuery defines model for CatalogExploreQuery.
 type CatalogExploreQuery struct {
-	// AgentProtocol Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+	// AgentProtocol Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require selecting only the local origin explicitly; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
 	AgentProtocol *string `json:"agentProtocol,omitempty"`
 
 	// Categories All selected categories must match local Listing categories after trimming, lowercasing and deduplication. Missing categories do not match. Explore covers local releases only.
@@ -6931,7 +6931,7 @@ type CatalogExploreQuery struct {
 	License     *string `json:"license,omitempty"`
 	NamespaceId *UUID   `json:"namespaceId,omitempty"`
 
-	// NativeCapabilities Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require explicit origins [local]; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
+	// NativeCapabilities Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require selecting only the local origin explicitly; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
 	NativeCapabilities *NativeCapabilitiesFilter `json:"nativeCapabilities,omitempty"`
 
 	// Publisher Catalog Publisher UUID. Explore covers local governed releases only.
@@ -7079,7 +7079,7 @@ type CatalogRole string
 
 // CatalogSearch defines model for CatalogSearch.
 type CatalogSearch struct {
-	// AgentProtocol Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+	// AgentProtocol Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require selecting only the local origin explicitly; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
 	AgentProtocol *string `json:"agentProtocol,omitempty"`
 
 	// Categories All selected categories must match after trimming, lowercasing and deduplication. Local releases use Listing categories; external entries use bounded literal Dublin Core subjects. Missing, malformed or oversized declarations do not match. Live candidates are checked before admission; their bounded population can be incomplete. Applies across selected origins.
@@ -7099,7 +7099,7 @@ type CatalogSearch struct {
 	// NamespaceId Local Listing namespace UUID; restricts to local releases. Unknown or other-tenant UUIDs return no matches. Not an AIR or JSON-LD namespace.
 	NamespaceId *UUID `json:"namespaceId,omitempty"`
 
-	// NativeCapabilities Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require explicit origins [local]; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
+	// NativeCapabilities Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require selecting only the local origin explicitly; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
 	NativeCapabilities *NativeCapabilitiesFilter `json:"nativeCapabilities,omitempty"`
 
 	// Order Explicit column order across local and indexed keyword matches, followed by a separately ordered bounded live window. Omit for relevance (including configured semantic search) or name A-Z when browsing without text. Publisher uses the current local display name or external publisher declaration. Kind uses its wire label. Primary keys use the selected direction; ties use normalized name and stable result ID ascending. Column ordering does not invoke the embedding provider. Changing order requires a new cursor-free search.
@@ -8387,7 +8387,7 @@ type NamespacePage struct {
 	NextCursor *string     `json:"nextCursor,omitempty"`
 }
 
-// NativeCapabilitiesFilter Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require explicit origins [local]; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
+// NativeCapabilitiesFilter Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require selecting only the local origin explicitly; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
 type NativeCapabilitiesFilter struct {
 	// AgentDefaultInputModes Card default input media types, not effective modes of a selected skill. Values are exact case-sensitive literals.
 	AgentDefaultInputModes *[]string `json:"agentDefaultInputModes,omitempty"`
@@ -8654,7 +8654,7 @@ type PermissionKey string
 
 // PersonalCriteria Private criteria only. Saving and opening never execute a Search. Current disclosure, live and embedding consent apply to the later explicit Search.
 type PersonalCriteria struct {
-	// AgentProtocol Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+	// AgentProtocol Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require selecting only the local origin explicitly; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
 	AgentProtocol *string `json:"agentProtocol,omitempty"`
 
 	// Categories All selected categories must match after trimming, lowercasing and deduplication. Local releases use Listing categories; external entries use bounded literal Dublin Core subjects. Missing, malformed or oversized declarations do not match. Live candidates are checked before admission; their bounded population can be incomplete. Applies across selected origins.
@@ -8670,7 +8670,7 @@ type PersonalCriteria struct {
 	// NamespaceId Local Listing namespace UUID; restricts to local releases. Unknown or other-tenant UUIDs return no matches. Not an AIR or JSON-LD namespace.
 	NamespaceId *UUID `json:"namespaceId,omitempty"`
 
-	// NativeCapabilities Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require explicit origins [local]; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
+	// NativeCapabilities Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require selecting only the local origin explicitly; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
 	NativeCapabilities *NativeCapabilitiesFilter `json:"nativeCapabilities,omitempty"`
 
 	// Order Explicit column order across local and indexed keyword matches, followed by a separately ordered bounded live window. Omit for relevance (including configured semantic search) or name A-Z when browsing without text. Publisher uses the current local display name or external publisher declaration. Kind uses its wire label. Primary keys use the selected direction; ties use normalized name and stable result ID ascending. Column ordering does not invoke the embedding provider. Changing order requires a new cursor-free search.
@@ -62508,40 +62508,6 @@ func ParseHeadARDMCPOAuthMetadataResponse(rsp *http.Response) (result *HeadARDMC
 	}
 
 	switch {
-	case rsp.StatusCode == 200:
-		break // No content-type
-
-	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 403:
-		var dest MCPErrorResponseJSONApplicationJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 403:
-		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSON403 = &dest
-
-	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 404:
-		var dest MCPErrorResponseJSONApplicationJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 404:
-		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSON404 = &dest
-
-	}
-
-	switch {
 	case rsp.StatusCode == 403:
 		var headers HeadARDMCPOAuthMetadataResponse403Headers
 		if values := rsp.Header.Values("Allow"); len(values) > 0 {
@@ -63003,40 +62969,6 @@ func ParseHeadCatalogMCPOAuthMetadataResponse(rsp *http.Response) (result *HeadC
 	response := &HeadCatalogMCPOAuthMetadataResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 200:
-		break // No content-type
-
-	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 403:
-		var dest MCPErrorResponseJSONApplicationJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 403:
-		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSON403 = &dest
-
-	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 404:
-		var dest MCPErrorResponseJSONApplicationJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 404:
-		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSON404 = &dest
-
 	}
 
 	switch {

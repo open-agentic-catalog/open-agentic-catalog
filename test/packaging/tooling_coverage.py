@@ -139,10 +139,17 @@ def read_native(path, sources):
     data = module.CoverageData(basename=str(path))
     data.read()
     measured = set(data.measured_files())
-    admitted = {str((ROOT / name).resolve()) for name in sources}
+    admitted = {str((ROOT / name).resolve()) for name in sources if not PurePosixPath(name).name.startswith("test_")}
     if not measured <= admitted or measured and not data.has_arcs():
         raise ValueError("native Python coverage data has an unexpected source or mode")
-    return {"path": str(path.relative_to(ROOT)), "sha256": digest(path)}
+    return {"path": str(path.relative_to(ROOT)), "sha256": digest(path)}, any(data.lines(name) for name in measured)
+
+
+def owner_data(paths, sources):
+    records = [read_native(path, sources) for path in paths]
+    if not any(executed for _, executed in records):
+        raise ValueError("Python unit owner coverage contains no executed lines")
+    return [record for record, _ in records]
 
 
 def record_owner(output, owner):
@@ -156,7 +163,7 @@ def record_owner(output, owner):
     files = sorted((directory / "data").glob(".coverage." + owner + ".*"))
     if not files:
         raise ValueError("Python unit owner produced no native coverage data")
-    records = [read_native(path, value["sourceFiles"]) for path in files]
+    records = owner_data(files, value["sourceFiles"])
     atomic_json(target, {"owner": owner, "status": "passed", "data": records})
 
 
@@ -173,13 +180,15 @@ def finish(output):
         record = json.loads((directory / "owners" / (owner + ".json")).read_text())
         if record.get("owner") != owner or record.get("status") != "passed" or not record.get("data"):
             raise ValueError("Python unit owner did not complete")
+        owner_paths = []
         for entry in record["data"]:
             path = ROOT / entry["path"]
             if path.parent != directory / "data" or not path.name.startswith(".coverage." + owner + "."):
                 raise ValueError("unexpected Python owner data path")
-            if read_native(path, value["sourceFiles"]) != entry:
-                raise ValueError("native Python coverage data changed after owner completion")
-            records.append(path)
+            owner_paths.append(path)
+        if owner_data(owner_paths, value["sourceFiles"]) != record["data"]:
+            raise ValueError("native Python coverage data changed after owner completion")
+        records.extend(owner_paths)
     if set(records) != set((directory / "data").iterdir()) or len(records) != len(set(records)):
         raise ValueError("unrecorded native Python coverage data")
     module, version = coverage_tool()

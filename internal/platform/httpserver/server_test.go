@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
@@ -116,18 +118,19 @@ func TestIfNoneMatchUsesWeakComparisonAndLists(t *testing.T) {
 
 func TestMergeLiveResultsPreservesDistinctVersions(t *testing.T) {
 	identifier := "urn:air:catalog.example.com:default:agent"
+	alias := "urn:air:CATALOG.example.com:default:agent"
 	response := publication.SearchResponse{Results: []publication.SearchResult{{Entry: publication.Entry{Identifier: identifier, Version: "1.0.0"}, Score: 80, Source: "https://catalog.example.com/ard/v1/"}}}
 	live := federation.LiveSearchResponse{Results: []federation.LiveResult{
 		{Identifier: identifier, Version: "1.0.0", Score: 90, SourceID: "source-one", Source: "https://remote.example/ard/v1/", RespondingURL: "https://remote.example/ard/v1/search", Entry: json.RawMessage(`{"identifier":"urn:air:catalog.example.com:default:agent","version":"1.0.0","trustManifest":{"identity":"https://catalog.example.com","signature":"remote-local-collision"}}`)},
-		{Identifier: identifier, Version: "2.0.0", Score: 85, SourceID: "source-one", Source: "https://remote.example/ard/v1/", RespondingURL: "https://remote.example/ard/v1/search", Entry: json.RawMessage(`{"identifier":"urn:air:catalog.example.com:default:agent","version":"2.0.0","trustManifest":{"identity":"https://catalog.example.com","signature":"winning-peer"}}`)},
+		{Identifier: alias, Version: "2.0.0", Score: 85, SourceID: "source-one", Source: "https://remote.example/ard/v1/", RespondingURL: "https://remote.example/ard/v1/search", Entry: json.RawMessage(`{"@id":"urn:air:CATALOG.example.com:default:agent","identifier":"urn:air:CATALOG.example.com:default:agent","version":"2.0.0","trustManifest":{"identity":"https://catalog.example.com","signature":"winning-peer"}}`)},
 		{Identifier: identifier, Version: "2.0.0", Score: 85, SourceID: "source-two", Source: "https://other.example/ard/v1/", RespondingURL: "https://other.example/ard/v1/search", Entry: json.RawMessage(`{"identifier":"urn:air:catalog.example.com:default:agent","version":"2.0.0","trustManifest":{"identity":"https://catalog.example.com","signature":"losing-peer"}}`)},
 	}}
 	mergeLiveResults(t.Context(), &response, live, nil)
 	if len(response.Results) != 2 || response.Results[0].Version != "2.0.0" || response.Results[0].Score != 85 || response.Results[1].Version != "1.0.0" || response.Results[1].Score != 80 {
 		t.Fatalf("merged multi-version response = %#v", response.Results)
 	}
-	if string(response.Results[0].TrustManifest) != `{"identity":"https://catalog.example.com","signature":"winning-peer"}` || len(response.Results[1].TrustManifest) != 0 {
-		t.Fatalf("peer claims were merged or attached to the local winner: %+v", response.Results)
+	if response.Results[0].Identifier != alias || response.Results[0].ID != alias || string(response.Results[0].TrustManifest) != `{"identity":"https://catalog.example.com","signature":"winning-peer"}` || len(response.Results[1].TrustManifest) != 0 {
+		t.Fatalf("peer spelling or claim changed across winners: %+v", response.Results)
 	}
 }
 
@@ -150,10 +153,37 @@ func TestMergeLiveResultsPreservesUnemittedLocalIdentity(t *testing.T) {
 		t.Fatalf("local fixture page=%+v", response)
 	}
 	withheld := snapshot.ARD.Entries[2]
-	remote := federation.LiveResult{Identifier: withheld.Identifier, Version: withheld.Version, Score: 100, SourceID: projectionNext, Source: "https://peer.example/ard/v1/", RespondingURL: "https://peer.example/ard/v1/search", Entry: json.RawMessage(`{"displayName":"Remote claim","trustManifest":{"identity":"https://catalog.example.com","signature":"withheld-local-claim"}}`)}
-	mergeLiveResults(t.Context(), &response, federation.LiveSearchResponse{Results: []federation.LiveResult{remote}}, nil)
-	if len(response.Results) != 1 || response.Results[0].Identifier != snapshot.ARD.Entries[1].Identifier || len(response.Results[0].TrustManifest) != 0 || response.Partial {
-		t.Fatalf("withheld local identity was replaced by remote metadata: %+v", response)
+	alias := strings.Replace(withheld.Identifier, publicFixtureHost, strings.ToUpper(publicFixtureHost), 1)
+	for _, tc := range []struct {
+		id, version string
+		shadowed    bool
+	}{
+		{withheld.Identifier, withheld.Version, true},
+		{alias, withheld.Version, true},
+		{alias, "different-version", false},
+		{strings.Replace(alias, ":default:", ":Default:", 1), withheld.Version, false},
+	} {
+		page := response
+		page.Results = slices.Clone(response.Results)
+		raw, err := json.Marshal(publication.SearchResult{
+			Entry: publication.Entry{Identifier: tc.id, Version: tc.version, DisplayName: "Remote claim"}, Score: 100, Source: "https://peer.example/ard/v1/",
+			TrustManifest: json.RawMessage(`{"identity":"https://catalog.example.com","signature":"withheld-local-claim"}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		remote := federation.LiveResult{Identifier: tc.id, Version: tc.version, VersionPresent: true, Score: 100, SourceID: projectionNext, Source: "https://peer.example/ard/v1/", RespondingURL: "https://peer.example/ard/v1/search", Entry: raw}
+		mergeLiveResults(t.Context(), &page, federation.LiveSearchResponse{Results: []federation.LiveResult{remote}}, nil)
+		if page.Partial || page.PageToken != response.PageToken {
+			t.Fatalf("peer identity changed the local page status or continuation: %+v", page)
+		}
+		if tc.shadowed {
+			if len(page.Results) != 1 || page.Results[0].Identifier != snapshot.ARD.Entries[1].Identifier || len(page.Results[0].TrustManifest) != 0 {
+				t.Errorf("withheld local identity was replaced by peer %s %s: %+v", tc.id, tc.version, page.Results)
+			}
+		} else if len(page.Results) != 2 || page.Results[0].Identifier != tc.id || page.Results[0].Version != tc.version || page.Results[0].DisplayName != "Remote claim" {
+			t.Errorf("distinct peer spelling or version lost: %+v", page.Results)
+		}
 	}
 }
 

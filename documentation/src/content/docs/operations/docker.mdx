@@ -7,7 +7,7 @@ import { FileTree } from "@astrojs/starlight/components";
 
 Run the Catalog image against an operator-supplied PostgreSQL database with this procedure. Docker Compose and Kubernetes are not required. For a temporary Catalog without a database, use the [Docker memory quickstart](../guides/local-development.mdx#start-the-service).
 
-The examples use Bash, Docker Engine on Linux and a non-root host account. They publish the development API only on loopback. Production requires the changes in [production deployment](#production-deployment).
+The examples use Bash, curl and Docker Engine on Linux with a non-root host account. They publish the development API only on loopback. Production requires the changes in [production deployment](#production-deployment).
 
 ## Prepare an image and database
 
@@ -57,10 +57,13 @@ CATALOG_GID=$(id -g)
 test "$CATALOG_UID" -ne 0
 mkdir -p "$CATALOG_INPUTS"
 test ! -e "$CATALOG_INPUTS/config.json"
-cp config/postgres.json "$CATALOG_INPUTS/config.json"
 ```
 
-For an existing input directory, review its contents instead of overwriting files. Without a checkout, save the [PostgreSQL development profile](../../../../../config/postgres.json) as `config.json` in that directory.
+For an existing input directory, review its contents before writing any files. From a checkout, run the following command. With a supplied image and no checkout, save the [PostgreSQL development profile](../../../../../config/postgres.json) as `$CATALOG_INPUTS/config.json`.
+
+```sh
+cp config/postgres.json "$CATALOG_INPUTS/config.json"
+```
 
 The development profile accepts test identities such as `local-admin`. It is not a production authentication configuration. Its discovery host is `127.0.0.1`; use that exact hostname for the example API URL. The database DSN will come from a mounted file and override the sample DSN.
 
@@ -214,11 +217,23 @@ The image contains no shell or curl. Execute its shipped `catalogctl probe` dire
 
 ## Verify the running service
 
-Wait for both roles to become ready. Retry a startup probe for a bounded period; inspect logs if readiness does not arrive:
+Wait for both roles to become ready. The helper retries each container's probe up to 30 times and shows its logs if the last probe fails.
 
 ```sh
-docker exec "$CATALOG_API_CONTAINER" /usr/local/bin/catalogctl probe --url http://127.0.0.1:8080/readyz
-docker exec "$CATALOG_WORKER_CONTAINER" /usr/local/bin/catalogctl probe --url http://127.0.0.1:9090/readyz
+wait_ready() {
+  local container=$1 port=$2 attempt
+  for attempt in {1..30}; do
+    if docker exec "$container" /usr/local/bin/catalogctl probe --url "http://127.0.0.1:$port/readyz" >/dev/null 2>&1; then
+      return 0
+    fi
+    if ((attempt < 30)); then sleep 1; fi
+  done
+  printf '%s did not become ready\n' "$container" >&2
+  docker logs --tail 100 "$container" >&2
+  return 1
+}
+wait_ready "$CATALOG_API_CONTAINER" 8080
+wait_ready "$CATALOG_WORKER_CONTAINER" 9090
 curl -fsS "http://127.0.0.1:$CATALOG_PORT/version"
 curl -fsS -H 'Authorization: Bearer local-admin' "http://127.0.0.1:$CATALOG_PORT/api/v1/capabilities"
 ```

@@ -55,8 +55,13 @@ func TestPostgresSearchNamespaceTotalsAndOriginExclusion(t *testing.T) {
 		}
 	}
 	facets, err := repo.ExploreCatalog(t.Context(), housekeepingTenantA, query, []catalog.FacetRequest{{Field: "namespace", Limit: 10}})
-	if err != nil || facets.Matched != 26 || len(facets.Facets["namespace"].Buckets) != 1 || facets.Facets["namespace"].Buckets[0].Value != namespace {
+	namespaceFacet := facets.Facets["namespace"]
+	if err != nil || facets.Matched != 26 || len(namespaceFacet.Buckets) != 1 || namespaceFacet.Buckets[0] != (catalog.FacetBucket{Value: namespace, Count: 26}) || namespaceFacet.OtherCount != 0 {
 		t.Fatalf("facets=%+v err=%v", facets, err)
+	}
+	foreign, err := repo.ExploreCatalog(t.Context(), housekeepingTenantB, query, []catalog.FacetRequest{{Field: "namespace", Limit: 10}})
+	if bucket, ok := foreign.Facets["namespace"]; err != nil || !ok || foreign.Matched != 0 || len(bucket.Buckets) != 0 || bucket.OtherCount != 0 {
+		t.Fatalf("another tenant's namespace appeared in facet counts: %+v err=%v", foreign, err)
 	}
 	for mask := 1; mask < 8; mask++ {
 		q := catalog.SearchQuery{}

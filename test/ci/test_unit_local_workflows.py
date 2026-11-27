@@ -280,14 +280,14 @@ class WorkflowSourcePolicyTests(unittest.TestCase):
         self.assertIn("contents: read", source)
         complete = source.split("  complete:\n", 1)[1]
         self.assertIn("name: Contribution checks complete", complete)
-        self.assertIn("needs: [selection, baseline, unit, ui, docs, clients]", complete)
+        self.assertIn("needs: [selection, baseline, unit, ui, docs, charts, clients]", complete)
         self.assertIn("if: ${{ always() }}", complete)
         self.assertIn("admission.py outcomes", complete)
         self.assertNotIn("continue-on-error:", complete)
         gate = complete.split("      - name: Require every selected check\n", 1)[1]
         self.assertNotRegex(gate, r"(?m)^        if:")
         bindings = re.findall(r'"(\w+)":"\$\{\{ needs\.(\w+)\.result \}\}"', complete)
-        self.assertCountEqual(bindings, [(job, job) for job in ("selection", "baseline", "unit", "ui", "docs", "clients")])
+        self.assertCountEqual(bindings, [(job, job) for job in ("selection", "baseline", "unit", "ui", "docs", "charts", "clients")])
         for job in ("baseline", "unit"):
             block = re.search(r"(?ms)^  " + job + r":\n(.*?)(?=^  \S|\Z)", source)[1]
             self.assertNotIn("if:", block)
@@ -462,6 +462,14 @@ class WorkflowSourcePolicyTests(unittest.TestCase):
         verify = release.index('make helm-oci-test HELM_OCI_QUALIFIED="$ARTIFACT_OUTPUT"')
         self.assertLess(release.index('release_delivery.py charts --directory "$ARTIFACT_OUTPUT"'), verify)
         self.assertLess(verify, release.index("Transfer the qualified charts"))
+
+    def test_contributions_require_chart_checks_and_both_go_examples(self):
+        contributions = (local.ROOT / ".github/workflows/contributions.yml").read_text()
+        charts = contributions.split("\n  charts:\n", 1)[1].split("\n  clients:\n", 1)[0]
+        self.assertIn("fromJSON(needs.selection.outputs.plan).charts", charts)
+        self.assertIn("run: make deploy-check", charts)
+        clients = (local.ROOT / ".github/workflows/clients.yml").read_text()
+        self.assertIn("make sdk-go-examples-check", clients)
 
     def test_lint_does_not_select_broad_regression_or_api_launcher_tests(self):
         source = (local.ROOT / ".github/workflows/quality.yml").read_text()

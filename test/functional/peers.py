@@ -641,8 +641,12 @@ class Peers:
             {"version": "2.0.0", "representations": [self.plugin_representation("a-plugin-v2")]}, 201)[0]
         self.publish_item(plugin)
         self.snapshot(self.publisher_client, PUBLIC_A)
+        published = registry_members(self.public)
+        assert [entry["version"] for entry in published if entry["identifier"] == plugin_identifier] == ["2.0.0"], "ARD List did not replace Plugin v1 with v2"
+        self.check_indexed_reader(source["id"], sealed)
         changed_plugin = self.synchronize(source)
-        self.check_index(changed_plugin, registry_members(self.public), ids, source)
+        self.check_index(changed_plugin, published, ids, source)
+        self.check_indexed_reader(source["id"], changed_plugin)
         previous = next(x for x in sealed if x["identifier"] == plugin_identifier)
         current = next(x for x in changed_plugin if x["identifier"] == plugin_identifier)
         assert current["normalizedEntryDigest"] != previous["normalizedEntryDigest"], "Plugin update reused the previous content"
@@ -660,8 +664,10 @@ class Peers:
         published = registry_members(self.public)
         assert all(entry["identifier"] != plugin_identifier for entry in published), "retired Plugin still published by A"
         remaining = ids - {plugin_identifier}
+        self.check_indexed_reader(source["id"], changed_plugin)
         remaining_index = self.synchronize(source)
         self.check_index(remaining_index, published, remaining, source)
+        self.check_indexed_reader(source["id"], [entry for entry in changed_plugin if entry["identifier"] != plugin_identifier])
         self.check_version_history(source["id"], plugin_identifier, [superseded, ("2.0.0", current["id"], "withdrawn")])
         for observation in (previous, current):
             raw, _ = self.b.request("GET", "/api/v1/observations/" + observation["id"] + "/raw", decode_body=False)
@@ -804,13 +810,15 @@ class Peers:
         versions = sorted((row["version"], row["id"], row["freshness"]) for row in page["items"] if row["identifier"] == identifier)
         assert versions == expected, "peer observation IDs, versions or withdrawal state differ from the expected history"
 
-    def check_outage_readers(self, source_id, indexed, *, peer_online):
+    def check_indexed_reader(self, source_id, indexed):
         before = self.stats()
         reader = Client(self.b.base_url, "local-reader")
         page, _ = reader.request("POST", "/api/v1/catalog/search", {"origins": ["indexed"], "tags": ["peers"], "limit": 20})
         check_indexed_search(page, indexed, source_id)
         self.assert_contacts(before, PUBLIC_A, 0)
 
+    def check_outage_readers(self, source_id, indexed, *, peer_online):
+        self.check_indexed_reader(source_id, indexed)
         query = {"query": {"text": "peer"}, "federation": "auto", "pageSize": 100}
         live = {item["identifier"] for item in indexed} if peer_online else set()
         for client, expected, partial, contacts in (
@@ -1233,21 +1241,32 @@ class Peers:
             occurrence = min((row for row in occurrences if row["snapshotId"] == snapshot_id and row["evidenceComplete"]), key=lambda row: (row["entryLocation"], row["retrievalDigest"]))
             target = self.b.request("GET", "/api/v1/observations/" + observation["id"] + "/adoption-target")[0]
             assert target["resourceId"] == previous["resource"]["id"], "wrong existing Resource"
+            changes_path = "/api/v1/upstream-changes?check=unadopted_version&observationId=" + observation["id"]
+            changes = self.b.request("GET", changes_path)[0]
+            assert len(changes["items"]) == 1 and not changes.get("nextCursor"), "expected one adoptable upstream change"
+            change = changes["items"][0]
+            assert change["outcome"] == "unadopted_version", "unexpected upstream change outcome"
+            assert change["target"] == target, "inventory disagrees with the adoption target"
+            assert change["occurrence"] == occurrence, "inventory selected a different snapshot occurrence"
             body = {field: occurrence[field] for field in ("snapshotId", "retrievalDigest", "entryLocation")}
             body.update(observationId=observation["id"], priorVersionRevisionId=target["priorVersionRevisionId"])
             path = "/api/v1/resources/" + target["resourceId"] + "/versions:adopt"
+            append_headers = None
             if previous["resource"]["kind"] == "agent":
                 directory = self.fixture / "peer-ui"
                 write_document(directory / "version-adoption.json", {"api": self.b.base_url, "observationId": observation["id"], "resourceId": target["resourceId"], "body": body, "reportDirectory": str(self.state.parent.parent)})
                 result = json.loads(command(["node", "catalog-ui/scripts/version-adoption-journey.mjs", str(directory)], self.env, 90, capture=True, failed_stdout=lambda raw: peer_drafts.failed_stage(raw, self.state / "peer-draft-failure.json")))
                 assert result == {"result": "passed", "cleanup": "passed"}, "browser adoption incomplete"
             else:
-                headers = {"Idempotency-Key": key("append-version")}
-                result = self.b.request("POST", path, body, expected=(201,), headers=headers)[0]
-                replay, replay_headers = self.b.request("POST", path, body, expected=(201,), headers=headers)
-                assert replay == result and header(replay_headers, "Idempotency-Replayed") == "true", "version replay changed result"
+                append_headers = {"Idempotency-Key": key("append-version")}
+                result = self.b.request("POST", path, body, expected=(201,), headers=append_headers)[0]
                 assert result["versionRevision"]["adoption"]["observationId"] == observation["id"], "new proof missing"
                 assert all(row["validationState"] == "valid" for row in result["versionRevision"]["representations"]), "new native content is not valid"
+            remaining = self.b.request("GET", changes_path)[0]
+            assert remaining["items"] == [] and not remaining.get("nextCursor"), "inventory still offers the adopted version"
+            if append_headers is not None:
+                replay, replay_headers = self.b.request("POST", path, body, expected=(201,), headers=append_headers)
+                assert replay == result and header(replay_headers, "Idempotency-Replayed") == "true", "version replay changed result"
             self.b.request("POST", path, body, expected=(409,), headers={"Idempotency-Key": key("duplicate-append")})
             retained_listing = self.b.request("GET", "/api/v1/catalog-listings/" + previous["listing"]["id"])[0]
             assert retained_listing == previous["listing"], "append modified Listing or its existing release"

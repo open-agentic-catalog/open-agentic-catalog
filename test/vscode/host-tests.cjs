@@ -335,9 +335,11 @@ exports.run = async () => {
         .items.length,
       0,
     );
+    await revokedBookmark(api, origin, namespace);
     await api.authenticate("reader");
     await api.browse();
     assert.equal(api.browsing().bookmarks.length, 1);
+    await switchBookmarkedRelease(api, detail.item, connection.label);
     await api.removeBookmark(0);
     await vscode.commands.executeCommand("openAgenticCatalog.signOut");
     assert.equal(api.snapshot(), undefined);
@@ -414,3 +416,177 @@ exports.run = async () => {
     await observed.finish();
   }
 };
+
+async function switchBookmarkedRelease(api, item, controlLabel) {
+  await api.reopen(0);
+  await vscode.commands.executeCommand("openAgenticCatalog.open");
+  const { webview } = require("./webview.cjs");
+  const web = await webview();
+  try {
+    const workbench = await webview(true);
+    try {
+      const { pick } = require("./native-input.cjs").nativeInput(workbench);
+      const switchTo = async (label) => {
+        const selecting = vscode.commands.executeCommand(
+          "openAgenticCatalog.connect",
+        );
+        await pick("Catalog connections on this host", label);
+        await selecting;
+      };
+      const sameAgent = `document.querySelector(".detail code")?.textContent === ${JSON.stringify(item.identifier)}`;
+      const origin = 'document.querySelector(".detail .metadata")?.textContent';
+      const feedback =
+        '[...document.querySelectorAll(".detail button")].some(b => b.textContent === "Private item feedback")';
+      const localDetail = `${sameAgent} && ${origin}.includes(" · local · ") && ${feedback}`;
+      const bookmark = `[...document.querySelectorAll("#saved-references button")].find(b => b.textContent === ${JSON.stringify("Release " + item.releaseId)})`;
+      await web.until(`${localDetail} && !!(${bookmark})`);
+
+      await switchTo("published-real");
+      await web.until(
+        'document.getElementById("catalog-account-state")?.textContent.includes("published-real · Published ARD") && !document.querySelector(".detail, article, #saved-references")',
+      );
+      await web.evaluate(
+        '{ const kind = document.getElementById("kind"); kind.value = "agent"; kind.dispatchEvent(new Event("input", { bubbles: true })); }',
+      );
+      await web.until('!document.getElementById("search-submit").disabled');
+      await web.evaluate('document.getElementById("search-submit").click()');
+      await web.until(
+        'document.querySelectorAll("article").length === 1 && !document.querySelector("article .title").disabled',
+      );
+      await web.evaluate('document.querySelector("article .title").click()');
+      await web.until(
+        `${sameAgent} && ${origin}.includes(" · published · ") && !(${feedback}) && !document.getElementById("saved-references")`,
+      );
+
+      await switchTo(controlLabel);
+      await vscode.commands.executeCommand("openAgenticCatalog.refresh");
+      await web.until(
+        `document.getElementById("catalog-account-state")?.textContent.startsWith(${JSON.stringify(controlLabel + " · Control API")}) && !document.querySelector(".detail") && !!(${bookmark})`,
+      );
+      await web.evaluate(
+        'if (!document.getElementById("saved-references").open) document.querySelector("#saved-references summary").click()',
+      );
+      await web.until(
+        `document.getElementById("saved-references").open && !(${bookmark}).disabled`,
+      );
+      await web.evaluate(`(${bookmark}).click()`);
+      await web.until(localDetail);
+      assert.equal(api.browsing().detail.item.releaseId, item.releaseId);
+      console.log(
+        "Connection switch hid the private reference; returning to Control reopened the exact release",
+      );
+    } finally {
+      workbench.close();
+    }
+  } finally {
+    web.close();
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+  }
+}
+
+async function revokedBookmark(api, origin, namespaceId) {
+  const identity = api.snapshot().identity;
+  assert.equal(identity.subject, "scoped");
+  const assignments = "/api/v1/role-assignments";
+  const admin = { Authorization: "Bearer admin" };
+  const roles = await fetch(
+    origin + assignments + "?membershipId=" + identity.membershipId,
+    { headers: admin },
+  );
+  assert.equal(roles.status, 200);
+  const grants = (await roles.json()).items.filter(
+    (item) =>
+      item.role === "reader" &&
+      item.state === "active" &&
+      item.namespaceId === namespaceId,
+  );
+  assert.equal(grants.length, 1);
+  const [grant] = grants;
+  const page = await api.browse({ namespace: namespaceId, kind: "agent" });
+  assert.equal(page.items.length, 1);
+  const { item } = await api.detail(page.items[0].key);
+  await api.saveBookmark();
+  const saved = { releaseId: item.releaseId };
+  assert.deepEqual(api.browsing().bookmarks, [saved]);
+  const row = { saved: 0, reference: saved, scope: api.browsing().scope };
+  const path = "/api/v1/catalog/resources/" + item.releaseId;
+  const reopen = () =>
+    vscode.commands.executeCommand("openAgenticCatalog.reopen", row);
+
+  await vscode.commands.executeCommand("openAgenticCatalog.open");
+  const web = await require("./webview.cjs").webview();
+  const detail = `document.querySelector(".detail code")?.textContent === ${JSON.stringify(item.identifier)} && [...document.querySelectorAll(".detail button")].some(b => b.textContent === "Copy exact reference")`;
+  const changeRole = (path, key, body, extraHeaders = {}) =>
+    fetch(origin + path, {
+      method: "POST",
+      headers: {
+        ...admin,
+        "Content-Type": "application/json",
+        "Idempotency-Key": key,
+        ...extraHeaders,
+      },
+      body: JSON.stringify(body),
+    });
+  try {
+    await web.until(detail);
+    const revoked = await changeRole(
+      assignments + "/" + grant.id + ":revoke",
+      "editor-revoke-reader",
+      { reason: "Check a saved release after scoped access ends" },
+      { "If-Match": `"rev-${grant.revision}"` },
+    );
+    assert.equal(revoked.status, 200);
+    try {
+      const stillPublished = await fetch(origin + path, { headers: admin });
+      assert.equal(stillPublished.status, 200);
+      assert.equal((await stillPublished.json()).release.id, saved.releaseId);
+
+      // Observe the installed command's real SDK exchanges without recording credentials.
+      const headers = require("node:diagnostics_channel").channel(
+        "undici:request:headers",
+      );
+      const replies = [];
+      const observed = ({ request, response }) => {
+        if (
+          String(request.origin) === origin &&
+          request.method === "GET" &&
+          ["/api/v1/me", "/api/v1/capabilities", path].includes(request.path)
+        )
+          replies.push([request.path, response.statusCode]);
+      };
+      headers.subscribe(observed);
+      try {
+        await reopen();
+      } finally {
+        headers.unsubscribe(observed);
+      }
+      assert.deepEqual(replies, [
+        ["/api/v1/me", 200],
+        ["/api/v1/capabilities", 200],
+        [path, 403],
+      ]);
+      assert.equal(api.snapshot().identity.membershipId, identity.membershipId);
+      assert.equal(api.browsing().error, "access_refused");
+      assert.deepEqual(api.browsing().bookmarks, [saved]);
+      await web.until(
+        'document.getElementById("read-error")?.textContent.includes("access_refused") && !document.querySelector(".detail, article")',
+      );
+    } finally {
+      const restored = await changeRole(assignments, "editor-restore-reader", {
+        subject: identity.subject,
+        actorType: "human",
+        role: "reader",
+        namespaceId,
+        reason: "Restore the scoped editor reader",
+      });
+      assert.equal(restored.status, 201);
+    }
+    await reopen();
+    assert.equal(api.browsing().detail?.item.releaseId, saved.releaseId);
+    await web.until(detail);
+    await api.removeBookmark(0);
+  } finally {
+    web.close();
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+  }
+}

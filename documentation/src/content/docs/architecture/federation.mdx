@@ -130,7 +130,7 @@ These are the accepted v1 defaults and ceilings. The active fetch policy can low
 | Live federation limit | Default | Accepted ceiling | Current enforcement note |
 | --- | --- | --- | --- |
 | Direct upstream Registries | 3 | 8 | Bounded again by total fan-out. |
-| Approved referral depth | 0 | 2 | Requires explicit approved edges and per-source hop policy. |
+| Approved referral depth | 0 with referrals disabled, 1 when enabled without an explicit source limit | 2 | The deployment defaults to a two-hop ceiling. Traversal also requires approved edges and respects the source's lower limit. |
 | Total Registries contacted | 3 | 12 | One configuration bound covers the complete request. |
 | Overall deadline | 2 seconds | 5 seconds | One end-to-end context, not a fresh timeout per source. |
 | Search pages per peer | 1 | 5 | The initial request counts as one. Three is an explicit operator choice. |

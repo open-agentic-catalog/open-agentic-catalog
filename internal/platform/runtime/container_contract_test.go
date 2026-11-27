@@ -511,8 +511,19 @@ func TestComposeUsesHardenedCanonicalContainerBuild(t *testing.T) {
 		"$(COMPOSE) --env-file /dev/null -f compose.yaml -p open-agentic-catalog-compose-check config --quiet",
 		"$(COMPOSE) --env-file /dev/null -f compose.integration.yaml -p open-agentic-catalog-integration-check config --quiet",
 		"-f compose.yaml -f test/functional/compose.yaml -p open-agentic-catalog-functional-check config --quiet",
-		"check: lint docs-check yaml-check container-check compose-check",
 	})
+	var prerequisites []string
+	for line := range strings.SplitSeq(makefile, "\n") {
+		if rest, ok := strings.CutPrefix(line, "check:"); ok {
+			deps, _, _ := strings.Cut(rest, "#")
+			prerequisites = append(prerequisites, strings.Fields(deps)...)
+		}
+	}
+	for _, required := range []string{"lint", "docs-check", "yaml-check", "container-check", "compose-check"} {
+		if !slices.Contains(prerequisites, required) {
+			t.Errorf("make check must run %s", required)
+		}
+	}
 
 	roles := string(readTestFile(t, repository, "deployments/postgres/init.sql"))
 	requireTextFragments(t, roles, []string{

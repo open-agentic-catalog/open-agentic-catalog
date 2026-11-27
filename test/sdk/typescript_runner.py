@@ -224,8 +224,12 @@ def build_package(work, stamp):
     return package, archive
 
 
+def handwritten_sources():
+    return sorted(path for path in (SDK / "src").rglob("*.ts") if path != SDK / "src/schema.d.ts")
+
+
 def package_sources():
-    return [ROOT / "VERSION", ROOT / "api/openapi/control-v1.yaml", *sorted(SDK.glob("src/*.ts")), *(SDK / name for name in ("package.json", "package-lock.json", "tsconfig.json", "README.md", "LICENSE", "NOTICE"))]
+    return [ROOT / "VERSION", ROOT / "api/openapi/control-v1.yaml", *sorted((SDK / "src").rglob("*.ts")), *(SDK / name for name in ("package.json", "package-lock.json", "tsconfig.json", "README.md", "LICENSE", "NOTICE"))]
 
 
 def package():
@@ -266,7 +270,7 @@ def check_runtime(action, stamp):
     manifest = json.loads((SDK / "package.json").read_text())
     if manifest["version"] != (ROOT / "VERSION").read_text().strip():
         raise RuntimeError("SDK version differs from VERSION")
-    watched = [ROOT / "api/openapi/control-v1.yaml", ROOT / "VERSION", ROOT / "test/packaging/completion.py", ROOT / "catalog-ui/scripts/native-test-completion.mjs", ROOT / "test/vscode/listen.mjs", HERE / "runner.py", *(SDK / name for name in ("README.md", "LICENSE", "NOTICE")), SDK / "package.json", SDK / "package-lock.json", SDK / "tsconfig.json", SDK / "eslint.config.mjs", *SDK.glob("src/*.ts"), *PROJECT.glob("*.mjs"), *PROJECT.glob("*.ts"), Path(__file__), HERE / "typescript_consumer_functional_test.go.txt"]
+    watched = [ROOT / "api/openapi/control-v1.yaml", ROOT / "VERSION", ROOT / "test/packaging/completion.py", ROOT / "catalog-ui/scripts/native-test-completion.mjs", ROOT / "test/vscode/listen.mjs", HERE / "runner.py", *(SDK / name for name in ("README.md", "LICENSE", "NOTICE")), SDK / "package.json", SDK / "package-lock.json", SDK / "tsconfig.json", SDK / "eslint.config.mjs", *(SDK / "src").rglob("*.ts"), *PROJECT.glob("*.mjs"), *PROJECT.glob("*.ts"), Path(__file__), HERE / "typescript_consumer_functional_test.go.txt"]
     watched.extend(p for p in ard_example_sources() if p.is_file())
     original = {p: digest(p) for p in watched}
     parent = ROOT / "output/sdk"
@@ -285,8 +289,9 @@ def check_runtime(action, stamp):
             # Test output resolves the installed SDK-only dependencies, never UI packages.
             (package / "node_modules").symlink_to(SDK / "node_modules", target_is_directory=True)
             env = dict(environment(), CATALOG_SDK_ENTRY=str(package / "dist/index.js"), CATALOG_SDK_WORK=str(work))
-            run([node, SDK / "node_modules/prettier/bin/prettier.cjs", "--check", SDK / "src/index.ts", SDK / "eslint.config.mjs", SDK / "package.json", SDK / "tsconfig.json", *sorted(PROJECT.glob("*.mjs")), *sorted(PROJECT.glob("*.ts"))])
-            run([node, SDK / "node_modules/eslint/bin/eslint.js", "--config", SDK / "eslint.config.mjs", "--no-config-lookup", "--max-warnings=0", SDK / "src/index.ts", SDK / "eslint.config.mjs", *sorted(PROJECT.glob("*.mjs"))])
+            sources = handwritten_sources()
+            run([node, SDK / "node_modules/prettier/bin/prettier.cjs", "--check", *sources, SDK / "eslint.config.mjs", SDK / "package.json", SDK / "tsconfig.json", *sorted(PROJECT.glob("*.mjs")), *sorted(PROJECT.glob("*.ts"))])
+            run([node, SDK / "node_modules/eslint/bin/eslint.js", "--config", SDK / "eslint.config.mjs", "--no-config-lookup", "--max-warnings=0", *sources, SDK / "eslint.config.mjs", *sorted(PROJECT.glob("*.mjs"))])
             run([node, SDK / "node_modules/prettier/bin/prettier.cjs", "--check", ARD_EXAMPLE / "index.mts", ARD_EXAMPLE / "package.json", *sorted((PROJECT / "ard-example").glob("*.mjs"))])
             run([node, SDK / "node_modules/eslint/bin/eslint.js", "--config", SDK / "eslint.config.mjs", "--no-config-lookup", "--max-warnings=0", ARD_EXAMPLE / "index.mts", *sorted((PROJECT / "ard-example").glob("*.mjs"))])
             run([node, PROJECT / "required-tests.mjs", "unit", package / "dist/index.js", *sorted(PROJECT.glob("*.unit.test.mjs"))], env=env)

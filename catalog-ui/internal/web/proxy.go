@@ -65,7 +65,7 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request, path string) {
 	}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		problem(w, 413, "request_too_large")
+		requestBodyProblem(w, err)
 		return
 	}
 	request, err := s.apiRequest(r.Context(), r.Method, path, r.URL.RawQuery, bytes.NewReader(body))

@@ -449,13 +449,34 @@ func (h *harness) verifyBackupRestore(baseURL string, smoke []byte) error {
 	if err != nil || denied.Status != http.StatusNotFound {
 		return errors.New("restored namespace crossed the tenant boundary")
 	}
+	if err := h.verifyRestoredNamespaceWrite(baseURL); err != nil {
+		return err
+	}
 	stopped, err := h.kubectl("confirm original database is still stopped", "-n", h.catalogNamespace(), "get", "statefulset/postgres", "-o", "jsonpath={.spec.replicas}")
 	if err != nil || string(stopped) != "0" {
 		return errors.New("original database is no longer fenced")
 	}
 	report.SourceStopped = true
 	h.report.BackupRestore = report
-	h.report.Checks = append(h.report.Checks, "logical-backup-into-separate-postgresql-volume", "all-tenant-restore-verification-and-table-digests", "restored-helm-reads-exact-replay-and-tenant-denial")
+	h.report.Checks = append(h.report.Checks, "logical-backup-into-separate-postgresql-volume", "all-tenant-restore-verification-and-table-digests", "restored-helm-reads-exact-replay-and-tenant-denial", "restored-api-write-and-database-readback")
+	return nil
+}
+
+func (h *harness) verifyRestoredNamespaceWrite(baseURL string) error {
+	const slug = "post-restore-write"
+	const displayName = "Created after recovery"
+	id, err := h.createAndReadNamespace(baseURL, slug, displayName)
+	if err != nil {
+		return err
+	}
+	const query = "SELECT id FROM namespaces WHERE tenant_id='" + primaryTenantID + "' AND slug='" + slug + "' AND display_name='" + displayName + "' AND revision=1;"
+	row, err := h.backupSQL(restoredPostgres+"-0", query)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(string(row)) != id {
+		return errors.New("new namespace is missing or changed in restored PostgreSQL")
+	}
 	return nil
 }
 
@@ -549,6 +570,11 @@ func (h *harness) verifyBackupVolumes(report *backupRestoreReport) error {
 	if err != nil {
 		return err
 	}
+	report.VolumeUIDs, err = backupVolumeUIDs(raw)
+	return err
+}
+
+func backupVolumeUIDs(raw []byte) ([]string, error) {
 	var claims struct {
 		Items []struct {
 			Metadata struct {
@@ -557,12 +583,22 @@ func (h *harness) verifyBackupVolumes(report *backupRestoreReport) error {
 			Spec struct {
 				VolumeName string `json:"volumeName"`
 			} `json:"spec"`
+			Status struct {
+				Phase string `json:"phase"`
+			} `json:"status"`
 		} `json:"items"`
 	}
-	if err := json.Unmarshal(raw, &claims); err != nil || len(claims.Items) != 2 || claims.Items[0].Metadata.UID == "" || claims.Items[1].Metadata.UID == "" ||
-		claims.Items[0].Metadata.UID == claims.Items[1].Metadata.UID || claims.Items[0].Spec.VolumeName == "" || claims.Items[0].Spec.VolumeName == claims.Items[1].Spec.VolumeName {
-		return errors.New("restore requires separately allocated persistent volumes")
+	if err := json.Unmarshal(raw, &claims); err != nil || len(claims.Items) != 2 {
+		return nil, errors.New("restore requires both persistent volume claims")
 	}
-	report.VolumeUIDs = []string{claims.Items[0].Metadata.UID, claims.Items[1].Metadata.UID}
-	return nil
+	for _, claim := range claims.Items {
+		if claim.Metadata.UID == "" || claim.Spec.VolumeName == "" || claim.Status.Phase != "Bound" {
+			return nil, errors.New("restore requires both persistent volume claims to be bound")
+		}
+	}
+	source, destination := claims.Items[0], claims.Items[1]
+	if source.Metadata.UID == destination.Metadata.UID || source.Spec.VolumeName == destination.Spec.VolumeName {
+		return nil, errors.New("restore requires separately allocated persistent volumes")
+	}
+	return []string{source.Metadata.UID, destination.Metadata.UID}, nil
 }

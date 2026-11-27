@@ -499,3 +499,58 @@ func TestPersonalFollowRestoreRepeatedIdentityBindsTheSameListing(t *testing.T) 
 		}
 	}
 }
+
+func TestPersonalRestoreDecodesAlreadyFollowedAcknowledgements(t *testing.T) {
+	first := personal.Input{Type: "follow", Label: "First", ListingID: "00000000-0000-7000-8000-00000000000a"}
+	other := personal.Input{Type: "follow", Label: "Second", ListingID: "00000000-0000-7000-8000-00000000000b"}
+	const firstAck = "00000000-0000-7000-8000-000000000010"
+	const otherAck = "00000000-0000-7000-8000-000000000011"
+	for _, tc := range []struct {
+		name      string
+		second    personal.Input
+		secondAck string
+		state     string
+		wantValid bool
+	}{
+		{"same Listing and saved item", first, firstAck, "already-followed", true},
+		{"different Listing reuses saved item", other, firstAck, "already-followed", false},
+		{"bookmark with its own saved item", personalTestFile().Items[1], otherAck, "acknowledged", true},
+		{"bookmark claims already-followed with its own saved item", personalTestFile().Items[1], otherAck, "already-followed", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			file := personalTestFile()
+			file.Items = []personal.Input{first, tc.second}
+			input := personalTestBytes(t, file)
+			selected := []bool{true, true}
+			receipt, err := newPersonalRestore(file, input, selected, importTestPrincipal)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := range receipt.Steps {
+				step := &receipt.Steps[i]
+				step.FirstAttempt = time.Unix(10, 0).UTC()
+				step.Path = personalSavePath
+				step.BodyDigest = importDigest(personalTestBytes(t, file.Items[i]))
+				step.RequestID = fmt.Sprintf("save-%d", i)
+				step.Ack = importAcknowledgement{ID: firstAck, ETag: `"rev-1"`}
+			}
+			receipt.Steps[0].State = "acknowledged"
+			receipt.Steps[1].State = tc.state
+			receipt.Steps[1].Ack.ID = tc.secondAck
+			encoded := personalTestBytes(t, personalRestoreFile{receipt, importDigest(personalTestBytes(t, receipt))})
+			got, err := decodePersonalRestore(encoded, file, input, selected)
+			if !tc.wantValid {
+				if err == nil {
+					t.Fatalf("accepted invalid restore acknowledgements: %+v", got.Steps)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Steps) != 2 || got.Steps[0].Ack.ID != firstAck || got.Steps[1].Ack.ID != tc.secondAck || got.Steps[1].State != tc.state {
+				t.Fatalf("decoded steps = %+v", got.Steps)
+			}
+		})
+	}
+}

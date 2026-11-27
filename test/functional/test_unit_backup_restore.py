@@ -73,20 +73,26 @@ class BackupTests(unittest.TestCase):
     def test_restore_requires_populated_exact_inputs_and_both_owner_denials(self):
         plugin_reads = [("/api/v1/" + name + "/id", {"id": name, "retained": "document"}, '"rev-1"')
                         for name in ("resources", "resource-versions", "version-revisions")]
+        inputs = {"search": {"search": {"text": "order", "origins": ["local"]}},
+                  "resource": {"reference": {"origin": "local", "releaseId": "release", "versionRevisionId": "revision"}},
+                  "follow": {"listingId": "listing"}}
         personal = [("/api/v1/personal/items/" + kind, {"id": kind, "type": kind, "label": "Private " + kind,
                      "revision": 1, "createdAt": "2026-10-27T10:00:00Z", "updatedAt": "2026-10-27T10:00:00Z",
-                     **({"search": {"text": "order", "origins": ["local"]}} if kind == "search" else {
-                         "reference": {"origin": "local", "releaseId": "release", "versionRevisionId": "revision"}})}, '"rev-1"')
-                    for kind in ("search", "resource")]
-        for index in range(5):
+                     **fields}, '"rev-1"') for kind, fields in inputs.items()]
+        observation = {"releaseId": "release", "revision": 2}
+        paths = plugin_reads + personal
+        for index in range(len(paths)):
             faults = (None, "value", "etag") + (("cache",) if index >= 3 else ())
+            if index == len(paths) - 1:
+                faults += ("unacknowledged", "different-release", "different-revision")
             for fault in faults:
                 instance = object.__new__(backup.BackupRestore)
                 instance.base = "http://inert.invalid"
                 instance.plugin_reads, instance.personal_items = plugin_reads, personal
+                instance.follow_observation = observation
                 instance.api, instance.other = mock.Mock(), mock.Mock()
                 answers = []
-                for number, (_, expected, etag) in enumerate(plugin_reads + personal):
+                for number, (_, expected, etag) in enumerate(paths):
                     current = copy.deepcopy(expected)
                     headers = {"ETag": etag, "Cache-Control": "no-store"}
                     if number == index:
@@ -95,6 +101,8 @@ class BackupTests(unittest.TestCase):
                                 current["search"]["text"] = "changed"
                             elif "reference" in current:
                                 current["reference"]["versionRevisionId"] = "changed"
+                            elif "listingId" in current:
+                                current["listingId"] = "changed"
                             else:
                                 current["retained"] = "changed"
                         elif fault == "etag":
@@ -102,26 +110,64 @@ class BackupTests(unittest.TestCase):
                         elif fault == "cache":
                             headers["Cache-Control"] = "public"
                     answers.append((current, headers))
+                resolution = {"status": "available", "change": "unchanged", "current": observation}
+                if fault == "unacknowledged":
+                    resolution["change"] = fault
+                elif fault == "different-release":
+                    resolution["current"] = dict(observation, releaseId="other")
+                elif fault == "different-revision":
+                    resolution["current"] = dict(observation, revision=1)
+                answers.append((resolution, {}))
                 instance.api.request.side_effect = answers
                 with self.subTest(index=index, fault=fault), mock.patch.object(backup, "Client") as client:
                     if fault:
                         with self.assertRaises(AssertionError):
                             instance.verify_retained_inputs()
-                        self.assertEqual(instance.api.request.call_count, index + 1)
+                        self.assertEqual(instance.api.request.call_count, len(answers) if fault in (
+                            "unacknowledged", "different-release", "different-revision") else index + 1)
                     else:
                         instance.verify_retained_inputs()
                         client.assert_called_once_with(instance.base, "local-reader")
+                        resolve = personal[-1][0] + "/resolve"
+                        instance.api.request.assert_called_with("POST", resolve, {})
+                        refusal = mock.call("POST", resolve, {}, expected=(404,))
                         self.assertEqual(instance.other.request.call_args_list,
-                                         [mock.call("GET", path, expected=(404,)) for path, _, _ in plugin_reads + personal])
+                                         [mock.call("GET", path, expected=(404,)) for path, _, _ in paths] + [refusal])
                         self.assertEqual(client.return_value.request.call_args_list,
-                                         [mock.call("GET", path, expected=(404,)) for path, _, _ in personal])
+                                         [mock.call("GET", path, expected=(404,)) for path, _, _ in personal] + [refusal])
         for plugins, items in (([], personal), (plugin_reads, []), (plugin_reads, personal[:1]),
-                               (plugin_reads, [personal[0], personal[0]])):
+                               (plugin_reads, [personal[0], personal[1], personal[0]])):
             instance.plugin_reads, instance.personal_items = plugins, items
             instance.api.reset_mock()
             with self.assertRaises(AssertionError):
                 instance.verify_retained_inputs()
             instance.api.request.assert_not_called()
+
+    def test_recovered_job_rejects_pre_backup_snapshot_and_reused_occurrence(self):
+        recovery = object.__new__(backup.BackupRestore)
+        recovery.api = mock.Mock()
+        recovery.source_id, recovery.initial_snapshot = "source", "original"
+        result = {"type": "source_snapshot", "sourceId": "source", "state": "complete", "snapshotId": "original"}
+        with self.assertRaisesRegex(AssertionError, "pre-backup snapshot"):
+            recovery.verify_sync_result(result)
+        recovery.api.request.assert_not_called()
+
+        result["snapshotId"] = "restored"
+        recovery.sync_member = {"identifier": "agent", "versionPresent": False, "exactEntryDigest": "digest"}
+        original = {"identifier": "agent", "versionPresent": False, "version": "",
+                    "occurrence": {"snapshotId": "original", "exactEntryDigest": "digest"}}
+        restored = copy.deepcopy(original)
+        comparison = {"sourceId": "source", "before": {"id": "original"}, "after": {"id": "restored"},
+                      "items": [{"change": "unchanged", "before": original, "after": restored}]}
+        reads = [({"lastCompleteSnapshotId": "restored"}, {}),
+                 ({"id": "restored", "sourceId": "source", "state": "complete"}, {}), (comparison, {})]
+        recovery.api.request.side_effect = reads
+        with self.assertRaisesRegex(AssertionError, "occurrence"):
+            recovery.verify_sync_result(result)
+        restored["occurrence"]["snapshotId"] = "restored"
+        recovery.api.request.side_effect = reads
+        recovery.verify_sync_result(result)
+        recovery.api.request.assert_called_with("GET", "/api/v1/federation/snapshots/original/comparison?otherSnapshotId=restored&view=all")
 
     def test_inventory_bounds_precede_hashing(self):
         for names in ("", "invalid-name", "valid\nquoted\"name", "\n".join(["valid"] * 151)):

@@ -33,7 +33,8 @@ func ARDSubjectValuesWithValidation(fields map[string]json.RawMessage, validate 
 			return nil, false, errors.New("ARD subject context is invalid")
 		}
 	}
-	needsContext := false
+	// Even the full subject IRI can inherit language or type information.
+	needsContext := present && localContext != nil
 	for key := range fields {
 		if !strings.HasPrefix(key, "@") && key != ARDSubjectIRI {
 			if _, core := canonicalARDTerms[ardNamespace+key]; !core && key != "type" && key != "score" && key != "source" {
@@ -48,12 +49,13 @@ func ARDSubjectValuesWithValidation(fields map[string]json.RawMessage, validate 
 		needsContext = true
 	}
 	var active *ld.Context
+	var options *ld.JsonLdOptions
 	if needsContext {
 		base, err := loadBaseContext()
 		if err != nil {
 			return nil, false, err
 		}
-		options := ld.NewJsonLdOptions("")
+		options = ld.NewJsonLdOptions("")
 		options.DocumentLoader = &boundedContextLoader{baseContext: base}
 		baseDocument, ok := base.(map[string]any)
 		if !ok {
@@ -80,10 +82,8 @@ func ARDSubjectValuesWithValidation(fields map[string]json.RawMessage, validate 
 			continue
 		}
 		present = true
-		if active != nil {
-			if definition := active.GetTermDefinition(key); definition != nil && (definition.Reverse || definition.Type == "@id" || definition.Type == "@vocab") {
-				return nil, true, errors.New("ARD subject declarations must be forward literal topics")
-			}
+		if active != nil && !plainSubjectTerm(active, options, key) {
+			return nil, true, errors.New("ARD subject declarations must be forward literal topics")
 		}
 		if validate != nil {
 			if err := validate(raw); err != nil {
@@ -119,4 +119,19 @@ func ARDSubjectValuesWithValidation(fields map[string]json.RawMessage, validate 
 	}
 	sort.Strings(values)
 	return values, present, nil
+}
+
+// A term can name the subject IRI yet coerce its values into a list, node
+// reference or typed/language-tagged literal. Expand one string under the
+// effective context to check the mapping without expanding the peer document.
+func plainSubjectTerm(active *ld.Context, options *ld.JsonLdOptions, key string) bool {
+	const label = "topic"
+	expanded, err := ld.NewJsonLdApi().Expand(active, "", map[string]any{key: label}, options, false, nil)
+	node, _ := expanded.(map[string]any)
+	items, _ := node[ARDSubjectIRI].([]any)
+	if err != nil || len(items) != 1 {
+		return false
+	}
+	literal, _ := items[0].(map[string]any)
+	return len(literal) == 1 && literal["@value"] == label
 }

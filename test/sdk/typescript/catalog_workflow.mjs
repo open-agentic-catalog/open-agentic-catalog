@@ -786,12 +786,38 @@ for (const expected of corpus.cases) {
   if (expected.data) assert.deepEqual(rep.data, expected.data);
   if (expected.description)
     assert.equal(rep.normalizedFacts.description, expected.description);
-  if (expected.text) {
-    const content = await corpusReader.raw(
-      `/api/v1/artifacts/${rep.artifactId}/content`,
+  if (expected.name === "hf-cli") {
+    const source = Buffer.from(expected.text, "utf8");
+    const download = {
+      params: { path: { artifactId: rep.artifactId } },
+      parseAs: "arrayBuffer",
+    };
+    const content = await corpusReader.api.GET(
+      "/api/v1/artifacts/{artifactId}/content",
+      download,
     );
-    assert.equal(content.status, 200);
-    assert.deepEqual(Buffer.from(content.bytes), Buffer.from(expected.text));
+    assert.equal(content.response.status, 200);
+    assert.deepEqual(Buffer.from(content.data), source);
+    const headers = content.response.headers;
+    assert.equal(
+      headers.get("Content-Type"),
+      expected.representation.mediaType,
+    );
+    assert.equal(headers.get("Content-Length"), String(source.length));
+    assert.equal(headers.get("Content-Digest"), expected.artifactContentDigest);
+    const denied = await corpusOther.api.GET(
+      "/api/v1/artifacts/{artifactId}/content",
+      download,
+    );
+    assert.equal(denied.response.status, 404);
+    assert.equal(denied.data, undefined);
+    assert.equal(denied.error.status, 404);
+    assert.equal(denied.error.code, "NOT_FOUND");
+    assert.ok(denied.error.requestId);
+    assert.equal(
+      denied.error.requestId,
+      denied.response.headers.get("X-Request-ID"),
+    );
   }
   if (expected.fileCount)
     assert.equal(
@@ -813,6 +839,33 @@ for (const expected of corpus.cases) {
     { params: { path: { catalogRecordId: expected.releaseId } } },
   );
   assert.equal(denied.response.status, 404);
+}
+for (const { text, expectedListingIds } of corpus.collection.selections) {
+  let memberCursor;
+  for (const [index, expected] of expectedListingIds.entries()) {
+    const page = await corpusReader.api.GET(
+      "/api/v1/collections/{collectionId}/members",
+      {
+        params: {
+          path: { collectionId: corpus.collection.id },
+          query: {
+            limit: 1,
+            text,
+            kinds: ["agent", "skill"],
+            cursor: memberCursor,
+          },
+        },
+      },
+    );
+    assert.equal(page.response.status, 200);
+    assert.deepEqual(
+      page.data.items.map((member) => member.listing.id),
+      [expected],
+    );
+    memberCursor = page.data.nextCursor;
+    if (index + 1 < expectedListingIds.length) assert.ok(memberCursor);
+  }
+  assert.equal(memberCursor, undefined);
 }
 const sourceListing = corpus.cases.find(
   (item) => item.name === "context7-plugin",

@@ -30,7 +30,7 @@ jobs:
         run: |
           if [[ -z "$BASE" || "$BASE" == 0000000000000000000000000000000000000000 ]]; then
             # Manual/initial push selects every maintained conditional gate.
-            plan='{"ui":true,"docs":true,"languages":["go","python","typescript","rust"]}'
+            plan='{"ui":true,"docs":true,"charts":true,"languages":["go","python","typescript","rust"]}'
           else
             plan="$(python3 -B test/ci/admission.py select --base "$BASE")"
           fi
@@ -57,6 +57,23 @@ jobs:
     uses: ./.github/workflows/quality.yml
     with:
       suite: docs
+  charts:
+    needs: selection
+    if: ${{ fromJSON(needs.selection.outputs.plan).charts }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CATALOG_ENV_FILE: /dev/null
+      DEV_PYTHON: python3.12
+      GOTELEMETRY: 'off'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3.12 -B test/ci/tools.py preflight --profile charts
+      - run: python3.12 -B test/ci/tools.py install --profile charts
+      - run: make dev-tools-install
+      - run: make deploy-check
   clients:
     needs: selection
     if: ${{ fromJSON(needs.selection.outputs.plan).languages[0] != null }}
@@ -70,7 +87,7 @@ jobs:
       language: ${{ matrix.language }}
   complete:
     name: Contribution checks complete
-    needs: [selection, baseline, unit, ui, docs, clients]
+    needs: [selection, baseline, unit, ui, docs, charts, clients]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -83,5 +100,5 @@ jobs:
           PLAN: ${{ needs.selection.outputs.plan }}
           RESULTS: >-
             {"selection":"${{ needs.selection.result }}","baseline":"${{ needs.baseline.result }}","unit":"${{ needs.unit.result }}",
-            "ui":"${{ needs.ui.result }}","docs":"${{ needs.docs.result }}","clients":"${{ needs.clients.result }}"}
+            "ui":"${{ needs.ui.result }}","docs":"${{ needs.docs.result }}","charts":"${{ needs.charts.result }}","clients":"${{ needs.clients.result }}"}
         run: python3 -B test/ci/admission.py outcomes --plan "$PLAN" --results "$RESULTS" >> "$GITHUB_STEP_SUMMARY"

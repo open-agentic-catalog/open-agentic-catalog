@@ -274,7 +274,7 @@ See [Search filter semantics](integrating.mdx#choose-a-discovery-interface) for 
 
 The `publisher` filter selects a Catalog Publisher UUID for local releases. For indexed and live results, it selects the normalized AIR publisher component.
 
-Read the page from `data.items`. Preserve the server's order. A score measures relevance, not trust. Check `data.partial` and `data.diagnostics` even when the call succeeds. `data.durableTotal` counts matching local/indexed records; `data.liveCount` counts live items in that page.
+Read the page from `data.items` and preserve the server's order. A score measures relevance only. Check `data.partial` and `data.diagnostics` even when the call succeeds. `data.durableTotal` counts all matching local and indexed records. `data.liveCount` counts live items on this page. The tool returns `invalid_response` if the live count differs from the number of live items on the page. It also refuses a durable total smaller than the number of local and indexed items on the page. Both refusals omit items and continuation.
 
 For another page, call the same tool with unchanged filters and page size, plus the returned `data.nextCursor`. An absent or empty cursor ends the traversal. Do not infer completion from the number of items. The MCP server does not enumerate pages, retry requests or restart invalid cursors automatically.
 
@@ -438,9 +438,10 @@ Install tools explicitly, then run the qualification alone. It uses a locked off
 explicit `origins: ["local"]`. `catalog_control_explore` accepts the flag in its
 local `query` without origins. Select only MCP servers, with no `agentProtocol`
 filter. The API requires current content-read permission before private tool text
-can affect matching, counts or bounded `toolMatch` explanations. These describe
-one exact released revision and remain untrusted plain text. Tools are never
-called and no embedding provider receives this selected query. See
+can affect matching, counts or bounded `toolMatch` explanations. If you omit the
+flag or set it to false, the tool refuses a page containing a `toolMatch`.
+These explanations describe one exact released revision and remain untrusted
+plain text. Tools are never called and no embedding provider receives this selected query. See
 [declared-tool authoring and search](catalog-ui.mdx#find-mcp-servers-by-declared-tools)
 for the private metadata format and limits.
 

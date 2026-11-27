@@ -142,6 +142,37 @@ func TestPersonalHandlerGetAndStoreErrors(t *testing.T) {
 	}
 }
 
+func TestPersonalItemHeadRequiresTheSameReadScopeAsGet(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		for _, scope := range []string{"catalog.read", "personal.write"} {
+			t.Run(method+"/"+scope, func(t *testing.T) {
+				reads := 0
+				server, _ := personalHandlerFixture(t, personalHandlerStore{get: func(_ context.Context, _ identity.Actor, key string) (personal.Item, error) {
+					reads++
+					return personal.Item{ID: key, Revision: 7}, nil
+				}})
+				router := http.NewServeMux()
+				server.personalRoutes(router)
+				actor := projectionActor(identity.RoleReader)
+				actor.Claims = map[string]string{"scope:" + scope: "true"}
+				req := httptest.NewRequestWithContext(identityfixture.WithActor(t.Context(), actor), method, "/api/v1/personal/items/"+personalHandlerID, nil)
+				w := httptest.NewRecorder()
+				authorizationScopes(true, router).ServeHTTP(w, req)
+
+				if scope == "catalog.read" {
+					if w.Code != http.StatusOK || reads != 1 || w.Header().Get("ETag") != `"rev-7"` {
+						t.Fatalf("read scope: status=%d reads=%d headers=%v", w.Code, reads, w.Header())
+					}
+					return
+				}
+				if w.Code != http.StatusForbidden || reads != 0 || w.Header().Get("ETag") != "" || w.Header().Get("WWW-Authenticate") != `Bearer error="insufficient_scope", scope="catalog.read"` {
+					t.Fatalf("write-only scope: status=%d reads=%d headers=%v", w.Code, reads, w.Header())
+				}
+			})
+		}
+	}
+}
+
 func TestPersonalHandlerCommandReceipts(t *testing.T) {
 	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodDelete} {
 		t.Run(method, func(t *testing.T) {

@@ -129,6 +129,91 @@ func TestLiveControlKnownNonmatchesRemainHealthy(t *testing.T) {
 	}
 }
 
+func TestLiveControlTagsUseNormalizedAllValuesAcrossExactARDPages(t *testing.T) {
+	manager, _, outbound, _ := newLivePagingFixture(t, 3, "peer")
+	entry := func(name, tags string) string {
+		return strings.TrimSuffix(livePagingEntry(name, 80), "}") + `,"tags":` + tags + "}"
+	}
+	match := entry("both", `[" TOOLS ","CAFÉ"]`)
+	outbound.respond = func(_ context.Context, request fetcher.Request) (fetcher.Result, error) {
+		var wire struct {
+			Query struct {
+				Filter map[string]json.RawMessage `json:"filter"`
+			} `json:"query"`
+			PageToken string `json:"pageToken"`
+		}
+		if err := json.Unmarshal(request.Body, &wire); err != nil {
+			t.Fatal(err)
+		}
+		// A peer can compare the original spelling before returning results.
+		if len(wire.Query.Filter) != 0 {
+			t.Fatalf("sent a lossy ARD filter on page %q: %v", wire.PageToken, wire.Query.Filter)
+		}
+		switch wire.PageToken {
+		case "":
+			return livePagingPage(t, "second", entry("only-cafe", `["café"]`)), nil
+		case "second":
+			return livePagingPage(t, "third", entry("only-tools", `["tools"]`)), nil
+		case "third":
+			return livePagingPage(t, "", match), nil
+		default:
+			t.Fatalf("unexpected page token %q", wire.PageToken)
+			return fetcher.Result{}, nil
+		}
+	}
+	page, err := manager.SearchLiveCatalog(livePagingContext(t), catalog.FederatedCatalogSearchRequest{
+		Query: catalog.SearchQuery{Text: "agent", Tags: []string{"café", "tools"}}, IncludeLive: true, Limit: 1,
+	})
+	if err != nil || page.Partial || len(page.Diagnostics) != 0 || len(outbound.requests) != 3 || len(page.Live) != 1 {
+		t.Fatalf("live=%d partial=%t diagnostics=%+v requests=%d err=%v", len(page.Live), page.Partial, page.Diagnostics, len(outbound.requests), err)
+	}
+	item := page.Live[0]
+	if item.Identifier != "urn:air:remote.example:agent:both" || !slices.Equal(item.Tags, []string{"café", "tools"}) || item.Live == nil || string(item.Live.Entry) != match {
+		t.Fatalf("wrong tag projection or original evidence: %+v", item)
+	}
+}
+
+func TestLiveControlTagsDistinguishSparseAndKnownNonmatches(t *testing.T) {
+	query := catalog.SearchQuery{Text: "agent", Tags: []string{"tools"}, License: "MIT"}
+	for _, tc := range []struct {
+		name, fields string
+		matches      bool
+		partial      bool
+	}{
+		{"both match", `,"tags":["tools"],"metadata":{"license":"MIT"}`, true, false},
+		{"tags absent", `,"metadata":{"license":"MIT"}`, false, true},
+		{"unrelated tag extension", `,"Tags":["tools"],"metadata":{"license":"MIT"}`, false, true},
+		{"explicitly empty tags and absent license", `,"tags":[]`, false, false},
+		{"absent tags with wrong license", `,"metadata":{"license":"other"}`, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			manager, _, outbound, _ := newLivePagingFixture(t, 1, "peer")
+			outbound.respond = func(context.Context, fetcher.Request) (fetcher.Result, error) {
+				entry := strings.TrimSuffix(livePagingEntry("result", 80), "}") + tc.fields + "}"
+				return livePagingPage(t, "", entry), nil
+			}
+			page, err := manager.SearchLiveCatalog(livePagingContext(t), catalog.FederatedCatalogSearchRequest{Query: query, IncludeLive: true, Limit: 1})
+			if err != nil || page.Partial != tc.partial || len(outbound.requests) != 1 {
+				t.Fatalf("page=%+v requests=%d err=%v", page, len(outbound.requests), err)
+			}
+			if tc.matches {
+				if len(page.Live) != 1 || page.Live[0].Identifier != "urn:air:remote.example:agent:result" {
+					t.Fatalf("lost result matching both declarations: %+v", page.Live)
+				}
+			} else if len(page.Live) != 0 {
+				t.Fatalf("admitted result without both declarations: %+v", page.Live)
+			}
+			if tc.partial {
+				if len(page.Diagnostics) != 1 || page.Diagnostics[0].Status != "insufficient_evidence" {
+					t.Fatalf("expected missing declaration: %+v", page.Diagnostics)
+				}
+			} else if len(page.Diagnostics) != 0 {
+				t.Fatalf("known nonmatch was diagnosed as a peer failure: %+v", page.Diagnostics)
+			}
+		})
+	}
+}
+
 func TestLiveControlSingleDeclarationFilters(t *testing.T) {
 	for _, tc := range []struct {
 		name, license, match, nonmatch string

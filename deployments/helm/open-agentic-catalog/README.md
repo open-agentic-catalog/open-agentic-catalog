@@ -76,7 +76,7 @@ secrets:
 
 The default runtime login names are `catalog_api` and `catalog_worker`. If your database uses other names, set `databaseRoles.api` and `databaseRoles.worker` to match the respective DSNs. For private certificate authorities, configure `databaseTrustBundleConfigMap` for database TLS and `auth.trustBundleConfigMap` for the API's OIDC connection as needed.
 
-Use Helm 3 (3.15 or later) or Helm 4. The coordinator also requires kubectl and the repository's Go toolchain. Run both commands from the repository root with the same local chart and complete values file. The example selects the [packaged chart](#image-selection). For an existing database, review pending changes with `catalogctl migrate plan` from the exact release image first. Set the deployment timeout above `migration.activeDeadlineSeconds` to allow for image pulls and scheduling.
+Install Helm 3 (3.15 or later) or Helm 4. The [packaged deployment coordinator](../../../documentation/src/content/docs/operations/maintenance.mdx#coordinated-release-deployment) needs Helm and kubectl on your path. The Make commands below also need the repository's Go toolchain to run the coordinator from source. Run both commands from the repository root with the same local chart and complete values file. The example selects the [packaged chart](#image-selection). For an existing database, review pending changes with `catalogctl migrate plan` from the exact release image first. Set the deployment timeout above `migration.activeDeadlineSeconds` to allow for image pulls and scheduling.
 
 ```sh
 chart=output/artifacts/open-agentic-catalog-0.1.3.tgz

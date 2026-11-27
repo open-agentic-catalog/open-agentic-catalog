@@ -4,7 +4,7 @@ This directory contains the implemented HTTP contract, webhook event schema and 
 
 Personal-library listing accepts an optional literal `label` filter alongside `type`. Matching preserves case, significant spaces and Unicode spelling; filtering precedes page limits and is bound into owner/current-authority cursors. Omit either filter to include all values for it. An explicitly empty `type` or `label` returns `400 INVALID_ARGUMENT`. The [personal-workspace guide](../documentation/src/content/docs/guides/catalog-ui.mdx#save-resources-and-searches) explains the UI, supported criteria and independent target admission.
 
-For example, authenticated `GET /api/v1/personal/items?type=search&label=%20Support%20&limit=25` finds the current human's named searches labelled exactly ` Support `, including the two spaces. Follow its returned cursor with the same filters; labels need not be unique. Changing or omitting either filter starts a new page sequence.
+For example, authenticated `GET /api/v1/personal/items?type=search&label=%20Support%20&limit=25` finds the current human's named searches whose label is the JSON string `" Support "`, including its leading and trailing spaces. Labels need not be unique. Keep both filters when following the returned cursor. If you change or remove a filter, omit the cursor to start again.
 
 Optional ANS registration assessments use explicit source-administrator commands and durable Jobs. Private result reads require current evidence permission and an audit write before disclosure. Generic Jobs omit assessment evidence. Follow the [assessment procedure](../documentation/src/content/docs/operations/federation.mdx#request-an-ans-registration-assessment); ordinary discovery never starts these checks.
 

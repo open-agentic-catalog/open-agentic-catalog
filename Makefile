@@ -140,7 +140,7 @@ $(error Go-client compatibility targets must run alone)
 endif
 override CATALOG_ENV_FILE := /dev/null
 endif
-ifneq ($(filter sdk-tools-install sdk-generate sdk-check sdk-package sdk-rust-audit-tools-install sdk-rust-audit webhook-report-build webhook-report-check test-webhook-report test-webhook-report-dsn mcp-scanner-receiver-build mcp-scanner-receiver-check test-mcp-scanner-receiver test-mcp-scanner-receiver-dsn,$(MAKECMDGOALS)),)
+ifneq ($(filter sdk-tools-install sdk-generate sdk-check sdk-package sdk-rust-audit-tools-install sdk-rust-audit sdk-go-examples-check webhook-report-build webhook-report-check test-webhook-report test-webhook-report-dsn mcp-scanner-receiver-build mcp-scanner-receiver-check test-mcp-scanner-receiver test-mcp-scanner-receiver-dsn,$(MAKECMDGOALS)),)
 ifneq ($(words $(MAKECMDGOALS)),1)
 $(error SDK targets must run alone)
 endif
@@ -625,7 +625,7 @@ help: ## List the supported development commands
 			printf "  %-40s %s\n", $$1, description \
 		}' $(MAKEFILE_LIST)
 
-check: lint docs-check yaml-check container-check compose-check api-check python-lint json-check version-check workflow-check ## Run source, API and repository linters (Ruff, validation and workflow tools must be installed)
+check: lint-inventory-check lint docs-check yaml-check container-check compose-check api-check python-lint json-check version-check workflow-check ## Run source, API and repository linters (Ruff, validation and workflow tools must be installed)
 
 test: test-functional-local ## Run the broad local Go and tooling regression suite
 
@@ -815,7 +815,6 @@ workflow-check: ## Validate GitHub Actions files with installed actionlint (no a
 
 .PHONY: git-draft-delivery-check
 git-draft-delivery-check: build workflow-check ## Test committed draft inputs and lint the two inactive Actions examples
-	.tools/ci/bin/actionlint -shellcheck=shellcheck examples/git-draft-delivery/preview.yml examples/git-draft-delivery/deliver.yml
 	$(PYTHON) -B -m unittest discover -s test/git_draft_delivery -p 'test_functional_*.py'
 
 .PHONY: workflow-local-tools-install workflow-local-list workflow-local-lint workflow-local-unit workflow-local-ui workflow-local-docs workflow-local-charts workflow-local-image workflow-local-security workflow-local-postgres
@@ -878,7 +877,19 @@ test-deployment-compile: ## Compile the Helm and Minikube harness variants witho
 architecture-check: ## Enforce package ownership and outbound HTTP construction boundaries
 	$(PYTHON) -B test/packaging/completion.py go --required TestArchitectureContracts --required TestArchitectureAnalyzer --required TestArchitectureDomainOwnership -- $(GO) test ./internal/platform/runtime -run '^TestArchitecture' -count=1 -json
 
-shell-check: ## Lint maintained shell workflows
+.PHONY: lint-inventory-check shell-inventory-check container-inventory-check python-inventory-check
+lint-inventory-check: shell-inventory-check container-inventory-check python-inventory-check ## Check Git-visible source against its Make and hook lint owners
+
+shell-inventory-check: ## Verify that shell sources are selected by Make and the pre-commit hook
+	PYTHONPATH=test/packaging $(PYTHON) -B -m unittest test_functional_make.MakeScopeTests.test_shell_sources_have_a_shell_check_owner_in_make_and_the_hook
+
+container-inventory-check: ## Verify that container build files are selected by Make and the pre-commit hook
+	PYTHONPATH=test/packaging $(PYTHON) -B -m unittest test_functional_make.MakeScopeTests.test_container_sources_have_a_container_check_owner_in_make_and_the_hook
+
+python-inventory-check: ## Verify that Make and the pre-commit hook cover first-party Python sources
+	PYTHONPATH=test/packaging $(PYTHON) -B -m unittest test_functional_make.MakeScopeTests.test_python_lint_roots_match_the_staged_hook_and_cover_first_party_python
+
+shell-check: shell-inventory-check ## Lint maintained shell workflows
 	$(SHELLCHECK) test/functional/housekeeping.sh test/functional/restore.sh test/functional/pitr_archive.sh deployments/container/licenses.sh test/hooks/pre-commit
 
 dead-code-report: ## Report unreachable Go functions across shipped and test selections
@@ -903,7 +914,7 @@ json-check: ## Validate current JSON and JSON-LD syntax, UTF-8 and unique object
 yaml-check: api-yaml-check ## Lint current standalone YAML; syntax-check immutable upstream YAML
 	$(PYTHON) -B test/packaging/data_checks.py yaml --yamllint "$(YAMLLINT)"
 
-python-lint: ## Check maintained Python with installed Ruff (version pinned in ruff.toml)
+python-lint: python-inventory-check ## Check maintained Python with installed Ruff (version pinned in ruff.toml)
 	@command -v "$(RUFF)" >/dev/null 2>&1 || { printf '%s\n' 'Ruff is required. Install the version in ruff.toml and set RUFF=/path/to/ruff if needed; see documentation/src/content/docs/contributing/testing.md#python-linting.' >&2; exit 1; }
 	"$(RUFF)" check --config ruff.toml --no-cache --no-fix test extensions/vscode/tooling examples/langgraph examples/tutorials/local-oidc examples/mcp-scanner examples/git-draft-delivery
 
@@ -1283,8 +1294,13 @@ webhook-report-build: ## Build the independent Go SDK publication-report example
 	@mkdir -p bin/examples
 	cd examples/publication-report && $(GO) build -mod=readonly -trimpath -o ../../bin/examples/publication-report .
 
-webhook-report-check: ## Check the Go receiver example, SDK, isolated units and source analyzers
+.PHONY: sdk-go-examples-check check-go-example-sdk
+sdk-go-examples-check: webhook-report-check mcp-scanner-receiver-check ## Check the Go SDK and both independent webhook receiver examples
+
+check-go-example-sdk: ## Run Go SDK qualification for the standalone receiver examples
 	$(MAKE) --no-print-directory sdk-check SDK_LANGUAGE=go
+
+webhook-report-check: check-go-example-sdk ## Check the Go receiver example, SDK, isolated units and source analyzers
 	cmp examples/webhookreceiver/verify.go examples/publication-report/internal/webhookreceiver/verify.go
 	cmp LICENSE examples/publication-report/LICENSE
 	cmp sdk/go/NOTICE examples/publication-report/SDK-NOTICE
@@ -1314,8 +1330,7 @@ mcp-scanner-receiver-build: ## Build the standalone signed-webhook MCP scanner r
 	@mkdir -p bin/examples
 	cd examples/mcp-scanner/receiver && $(GO) build -mod=readonly -trimpath -o ../../../bin/examples/mcp-scan-receiver .
 
-mcp-scanner-receiver-check: ## Check receiver units, local MCP/TLS transport, analyzers, SDK and licenses
-	$(MAKE) --no-print-directory sdk-check SDK_LANGUAGE=go
+mcp-scanner-receiver-check: check-go-example-sdk ## Check receiver units, local MCP/TLS transport, analyzers, SDK and licenses
 	cmp examples/webhookreceiver/verify.go examples/mcp-scanner/receiver/internal/webhookreceiver/verify.go
 	cmp LICENSE examples/mcp-scanner/receiver/LICENSE
 	cmp sdk/go/NOTICE examples/mcp-scanner/receiver/SDK-NOTICE
@@ -1932,7 +1947,7 @@ container-sync-check: ## Verify compatibility files match the canonical containe
 	@cmp -s "$(CONTAINERFILE)" "$(COMPAT_DOCKERFILE)" || { printf '%s\n' 'Containerfile and compatibility Dockerfile differ.' >&2; exit 1; }
 	@cmp -s .containerignore .dockerignore || { printf '%s\n' '.containerignore and .dockerignore differ.' >&2; exit 1; }
 
-container-check: container-sync-check ## Verify compatibility files and lint every Containerfile
+container-check: container-sync-check container-inventory-check ## Verify compatibility files and lint every Containerfile
 	$(HADOLINT) "$(CONTAINERFILE)" "$(FUNCTIONAL_CONTAINERFILE)" catalog-ui/Containerfile test/ci/Containerfile.act test/interoperability/Containerfile test/embeddings/Containerfile test/interoperability/mcp/Containerfile test/interoperability/a2a/Containerfile test/interoperability/adk/Containerfile test/interoperability/skills/Containerfile test/interoperability/plugins/Containerfile test/interoperability/agntcy/router/Containerfile test/interoperability/ans/Containerfile test/interoperability/ard-registry/Containerfile test/interoperability/agentfield/Containerfile test/mcp-scanner/Containerfile examples/tutorials/local-oidc/Containerfile test/interoperability/mcp/catalog/Containerfile
 
 container-build: container-sync-check ## Build the minimal OCI runtime image with Docker or Podman

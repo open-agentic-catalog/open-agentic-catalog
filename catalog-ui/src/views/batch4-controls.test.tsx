@@ -389,7 +389,12 @@ it("supports bounded audience assignments with semantic JSON preservation and in
   });
   click("Use guided topology");
   const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  const remove = screen.getByRole("button", {
+    name: "Remove discovery assignment 1",
+  });
+  remove.focus();
   click("Remove discovery assignment 1");
+  expect(document.activeElement).toBe(remove);
   expect(screen.getByLabelText("Discovery host 1")).toBeTruthy();
   confirm.mockReturnValue(true);
   click("Remove discovery assignment 1");
@@ -397,6 +402,7 @@ it("supports bounded audience assignments with semantic JSON preservation and in
   const addAssignment = screen.getByRole("button", {
     name: "Add discovery assignment",
   });
+  expect(document.activeElement).toBe(addAssignment);
   for (let i = 0; i < 16; i++) fireEvent.click(addAssignment);
   expect(
     screen.getByRole("button", { name: "Add discovery assignment" }),
@@ -555,6 +561,9 @@ it("preserves multiple source rows and accepts a topology without optional assig
   change("Discovery host 1", "catalog.example");
   change("Discovery audience 1", "authenticated");
   click("Remove discovery assignment 2");
+  expect(document.activeElement).toBe(
+    screen.getByLabelText("Discovery host 1"),
+  );
   click("Load configured host choices");
   await screen.findByRole("alert");
   change("Configured discovery host 1", "");

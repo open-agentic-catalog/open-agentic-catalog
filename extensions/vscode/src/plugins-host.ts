@@ -179,16 +179,21 @@ export class CatalogPlugins implements vscode.Disposable {
       }
     }
     const admitted = new Set(this.stores().map((store) => store.workspace));
+    const currentRows = rows.filter((row) =>
+      admitted.has(
+        "pluginStore" in row ? row.pluginStore.workspace : row.workspace,
+      ),
+    );
     for (const folder of vscode.workspace.workspaceFolders ?? [])
       if (!admitted.has(folder.uri.fsPath))
-        rows.push({
+        currentRows.push({
           issue: ["file", "vscode-remote"].includes(folder.uri.scheme)
             ? "workspace_root_limit"
             : "filesystem_workspace_required",
           workspace: folder.name,
           kind: "plugin",
         });
-    return rows;
+    return currentRows;
   }
   private async workspace(path?: string): Promise<SkillStore | undefined> {
     this.trusted();
@@ -454,7 +459,9 @@ export class CatalogPlugins implements vscode.Disposable {
     row: PluginRow,
     expected?: SkillSummary,
   ): Promise<SkillReceipt> {
+    this.guard(row.pluginStore);
     const current = await row.pluginStore.get(row.receipt.name);
+    this.guard(row.pluginStore);
     if (
       !current ||
       receiptSummary(current).fingerprint !==
@@ -506,6 +513,7 @@ export class CatalogPlugins implements vscode.Disposable {
         locations = this.locations(destination),
         guard = () => this.guard(store);
       let disabled = false;
+      guard();
       await store.remove(
         row.receipt.name,
         () => {

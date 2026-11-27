@@ -168,7 +168,10 @@ func TestWorkerHonorsRetryMinimumFromAttemptCompletion(t *testing.T) {
 			calls++
 			if calls == 1 {
 				fakeClock.Advance(2 * time.Second)
-				return nil, &HandlerError{Class: FailureRateLimited, Safe: "Retry after the upstream limit resets.", RetryAfter: 3 * time.Minute, Cause: errors.New("private upstream response")}
+				return nil, fmt.Errorf("source sync: %w", &HandlerError{
+					Class: FailureRateLimited, Safe: "Retry after the upstream limit resets.",
+					RetryAfter: 3 * time.Minute, Cause: errors.New("private upstream response"),
+				})
 			}
 			return map[string]bool{"ok": true}, nil
 		},
@@ -197,6 +200,40 @@ func TestWorkerHonorsRetryMinimumFromAttemptCompletion(t *testing.T) {
 	completed, err := store.Get(t.Context(), job.TenantID, job.ID)
 	if err != nil || completed.State != StateSucceeded || len(observer.retries) != 1 || completed.Attempt != 2 || calls != 2 || completed.SafeError != "" || completed.FailureClass != "" || string(completed.Result) != `{"ok":true}` {
 		t.Fatalf("retry did not complete cleanly: %#v, calls=%d err=%v", completed, calls, err)
+	}
+}
+
+func TestWorkerDoesNotRetryWrappedPolicyFailure(t *testing.T) {
+	now := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	fake := clock.NewFake(now)
+	store := NewMemoryStore()
+	job := Job{ID: "denied-sync", TenantID: "tenant", Kind: "source.sync", State: StateQueued, AttemptLimit: 3, NotBefore: now, CreatedAt: now, UpdatedAt: now}
+	if _, _, err := store.Enqueue(t.Context(), job); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	const safe = "Source policy denied synchronization."
+	worker, err := NewWorker(store, fake, "worker", time.Minute, time.Second, time.Hour, map[string]Handler{
+		job.Kind: func(context.Context, Job, func(int) error) (any, error) {
+			calls++
+			return nil, fmt.Errorf("source sync: %w", &HandlerError{
+				Class: FailurePolicyDenied, Safe: safe, Cause: errors.New("private upstream detail"),
+			})
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.RunOnce(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	retained, err := store.Get(t.Context(), job.TenantID, job.ID)
+	if err != nil || retained.State != StateFailed || retained.FailureClass != FailurePolicyDenied || retained.SafeError != safe {
+		t.Errorf("retained state = %s, class = %s, safe error = %q, err = %v", retained.State, retained.FailureClass, retained.SafeError, err)
+	}
+	fake.Advance(24 * time.Hour)
+	if err := worker.RunOnce(t.Context()); err != nil || calls != 1 {
+		t.Fatalf("handler called %d times after a policy refusal, err = %v", calls, err)
 	}
 }
 

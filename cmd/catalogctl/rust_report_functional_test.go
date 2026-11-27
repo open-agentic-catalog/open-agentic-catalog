@@ -7,10 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -52,11 +54,10 @@ func TestRustReportCurated(t *testing.T) {
 		}
 		return output.String()
 	}
-	output := run()
-	if !strings.Contains(output, "Complete (2 pages, 12 releases)") {
-		t.Fatal("curated paging/count failed", output)
-	}
-	counts := map[string]int{}
+	rowsByKey := map[string]string{}
+	rowsByKind := map[string][]string{}
+	// The values come from independent exact reads of the releases in the seed receipt.
+	escape := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\\", "\\\\", "|", "\\|", "_", "\\_", "[", "\\[", "]", "\\]", "(", "\\(", ")", "\\)", "`", "\\`", "*", "\\*", "!", "\\!", "#", "\\#", "~", "\\~").Replace
 	for _, item := range receipt.Items {
 		if item.State != "published" {
 			continue
@@ -91,38 +92,49 @@ func TestRustReportCurated(t *testing.T) {
 		if e != nil || response.StatusCode != http.StatusOK {
 			t.Fatal("exact record readback failed", e, response.StatusCode)
 		}
-		// Curated names contain no control characters. This independent encoder
-		// checks each actual Markdown row, not merely UUID presence or row count.
-		escape := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\\", "\\\\", "|", "\\|", "_", "\\_", "[", "\\[", "]", "\\]", "(", "\\(", ")", "\\)", "`", "\\`", "*", "\\*", "!", "\\!", "#", "\\#", "~", "\\~").Replace
+		if record.Release.ID != item.ReleaseID {
+			t.Fatalf("requested release %s, got %s", item.ReleaseID, record.Release.ID)
+		}
 		license := record.ListingRevision.License
 		if license == "" {
 			license = "not declared"
 		}
 		row := fmt.Sprintf("| %s | %s | %s | %s | %s | %s |", escape(record.ListingRevision.DisplayName), escape(record.Resource.Kind), escape(record.Version.Version), record.Release.ID, escape(record.Resource.Identifier), escape(license))
-		if strings.Count(output, row) != 1 {
-			t.Fatal("row disagrees with exact API readback", row)
-		}
-		counts[record.Resource.Kind]++
+		rowsByKey[item.Key] = row
+		rowsByKind[record.Resource.Kind] = append(rowsByKind[record.Resource.Kind], row)
 	}
 	for _, kind := range []string{"agent", "mcp_server", "skill", "plugin"} {
-		if counts[kind] != 3 {
-			t.Fatal("four-kind inventory mismatch", kind, counts)
+		if len(rowsByKind[kind]) != 3 {
+			t.Fatalf("expected three published %s releases, got %d", kind, len(rowsByKind[kind]))
 		}
 	}
-	query := run("--query", "testing")
-	if !strings.Contains(query, "Web Application Testing") {
-		t.Fatal("worked testing query did not match")
+	if !strings.HasPrefix(rowsByKey["webapp-testing"], "| Web Application Testing | skill |") ||
+		!strings.HasPrefix(rowsByKey["web-testing-toolkit"], "| Web Testing Toolkit | plugin |") {
+		t.Fatal("curated records differ from the Skill and Plugin in the worked example")
 	}
-	kind := run("--kind", "skill")
-	if strings.Count(kind, "| skill |") != 3 || !strings.Contains(kind, "Complete (1 page, 3 releases)") {
-		t.Fatal("kind filter failed", kind)
+	checkRows := func(output, status string, want ...string) {
+		t.Helper()
+		_, table, ok := strings.Cut(output, "| --- | --- | --- | --- | --- | --- |\n")
+		if !ok || !strings.Contains(output, "\nStatus: Complete ("+status+").\n") {
+			t.Fatalf("expected a complete report for %s, got:\n%s", status, output)
+		}
+		got := strings.Split(strings.TrimSuffix(table, "\n"), "\n")
+		slices.Sort(got)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Fatalf("report rows differ from exact Catalog records:\ngot %q\nwant %q", got, want)
+		}
 	}
+	checkRows(run(), "2 pages, 12 releases", slices.Collect(maps.Values(rowsByKey))...)
+	checkRows(run("--query", "testing"), "1 page, 2 releases", rowsByKey["webapp-testing"], rowsByKey["web-testing-toolkit"])
+	checkRows(run("--kind", "skill"), "1 page, 3 releases", rowsByKind["skill"]...)
+	checkRows(run("--query", "testing", "--kind", "skill"), "1 page, 1 release", rowsByKey["webapp-testing"])
 	empty := run("--query", "no-matching-release-987654321")
-	if !strings.Contains(empty, "No authorized matches.") {
+	if !strings.Contains(empty, "\nStatus: Complete (1 page, 0 releases).\n") || !strings.Contains(empty, "\nNo authorized matches.\n") || strings.Contains(empty, "\n|") {
 		t.Fatal("empty query failed", empty)
 	}
 	if writes.Load() != before {
 		t.Fatal("report mutated the Catalog")
 	}
-	t.Log("Rust report: twelve exact curated rows, three per kind, real two-page Search, testing/kind/empty queries and no authoring mutation; owned memory/API/TLS archive fixtures cleaned.")
+	t.Log("Rust report verified 12 exact curated rows, the tutorial's combined query and kind, an empty result and zero authoring writes.")
 }

@@ -25,8 +25,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/tenantsettings"
 )
 
-// This exact private origin belongs only to the process fixture. Empty, valid
-// manifests keep the qualification focused on scheduling rather than indexing.
+// The two private paths publish distinguishable entries with a common search term.
 func configureProcessTenantSettings(t *testing.T, f processFixture, cfg *config.Config) string {
 	t.Helper()
 	peer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +35,17 @@ func configureProcessTenantSettings(t *testing.T, f processFixture, cfg *config.
 			return
 		}
 		w.Header().Set("Content-Type", "application/ard+json")
-		_, _ = io.WriteString(w, `{"entries":[]}`)
+		switch r.URL.Path {
+		case "/paused-primary":
+			_, _ = io.WriteString(w, `{"entries":[
+				{"identifier":"urn:air:fixture.example:private:amber","displayName":"Ledger Amber","type":"application/a2a-agent-card+json","data":{"name":"Amber"}},
+				{"identifier":"urn:air:fixture.example:private:cedar","displayName":"Ledger Cedar","type":"application/a2a-agent-card+json","data":{"name":"Cedar"}}]}`)
+		case "/active-secondary":
+			_, _ = io.WriteString(w, `{"entries":[
+				{"identifier":"urn:air:fixture.example:private:birch","displayName":"Ledger Birch","type":"application/a2a-agent-card+json","data":{"name":"Birch"}}]}`)
+		default:
+			_, _ = io.WriteString(w, `{"entries":[]}`)
+		}
 	}))
 	t.Cleanup(peer.Close)
 	trustFile := filepath.Join(f.directory, "settings-peer-ca.pem")
@@ -136,16 +145,22 @@ func qualifyProcessTenantSettings(ctx context.Context, t *testing.T, f processFi
 	if saved.Revision != 1 || other.Revision != 0 || other.Effective.NewJobMaxAttempts != cfg.Jobs.MaxAttempts {
 		t.Fatal("initial isolation/defaults")
 	}
-	source := func(token, name string) federation.Source {
+	source := func(token, path, displayName string) federation.Source {
 		t.Helper()
 		var inspected federation.Inspection
-		decodeProcessJSON(t, f.request(ctx, cfg.HTTP.Address, "POST", "/api/v1/federation/source-inspections", token, `{"url":"`+peerURL+`/`+name+`","networkProfile":"process-settings"}`, 201, map[string]string{"Idempotency-Key": "settings-inspect-" + name}), &inspected)
+		decodeProcessJSON(t, f.request(ctx, cfg.HTTP.Address, "POST", "/api/v1/federation/source-inspections", token, `{"url":"`+peerURL+`/`+path+`","networkProfile":"process-settings"}`, 201, map[string]string{"Idempotency-Key": "settings-inspect-" + path}), &inspected)
 		var created federation.Source
-		decodeProcessJSON(t, f.request(ctx, peerCfg.HTTP.Address, "POST", "/api/v1/federation/sources", token, `{"inspectionId":"`+inspected.ID+`","displayName":"`+name+`","retrievalMode":"indexed","updateMode":"automatic","scope":{"kinds":["agent"]},"networkProfile":"process-settings","reason":"Owned process source"}`, 201, map[string]string{"Idempotency-Key": "settings-source-" + name}), &created)
+		decodeProcessJSON(t, f.request(ctx, peerCfg.HTTP.Address, "POST", "/api/v1/federation/sources", token, `{"inspectionId":"`+inspected.ID+`","displayName":"`+displayName+`","retrievalMode":"indexed","updateMode":"automatic","scope":{"kinds":["agent"]},"networkProfile":"process-settings","reason":"Owned process source"}`, 201, map[string]string{"Idempotency-Key": "settings-source-" + path}), &created)
 		return created
 	}
-	first := source("local-admin", "paused-primary")
-	second := source("other-tenant-admin", "active-secondary")
+	const sharedName = "Team directory"
+	first := source("local-admin", "paused-primary", sharedName)
+	second := source("other-tenant-admin", "active-secondary", sharedName)
+	if !t.Run("private source isolation across tenants", func(t *testing.T) {
+		qualifyPrivateSourceIsolation(ctx, t, f, cfg, peerCfg.HTTP.Address, sharedName, &first, &second)
+	}) {
+		t.FailNow()
+	}
 	workers := make([]config.Config, 2)
 	stops := make([]func(), 2)
 	for i := range workers {
@@ -238,7 +253,7 @@ func qualifyProcessTenantSettings(ctx context.Context, t *testing.T, f processFi
 		})
 		return identifier
 	}
-	awaitJob(second, "automatic", cfg.Jobs.MaxAttempts, "")
+	secondaryJob := awaitJob(second, "automatic", cfg.Jobs.MaxAttempts, "")
 	if countJobs(first) != 0 {
 		t.Fatal("paused tenant admitted automatic work")
 	}
@@ -265,6 +280,17 @@ func qualifyProcessTenantSettings(ctx context.Context, t *testing.T, f processFi
 	}
 	manualID := manual(first, peerCfg.HTTP.Address, "settings-manual", 202)
 	awaitJob(first, "manual", 4, manualID)
+	primary := tenantSyncResults{"local-admin", first, []string{"Amber", "Cedar"}, []string{manualID, automatic}}
+	secondary := tenantSyncResults{"other-tenant-admin", second, []string{"Birch"}, []string{secondaryJob}}
+	t.Run("tenant-scoped indexed search and jobs", func(t *testing.T) {
+		fixture := f
+		fixture.t = t
+		for _, pair := range [][2]tenantSyncResults{{primary, secondary}, {secondary, primary}} {
+			own, foreign := pair[0], pair[1]
+			qualifyTenantSearchPages(ctx, fixture, peerCfg.HTTP.Address, own, foreign)
+			qualifyTenantJobPages(ctx, fixture, cfg.HTTP.Address, own, foreign)
+		}
+	})
 	var retained int
 	if err := owner.QueryRow(ctx, `SELECT attempt_limit FROM jobs WHERE tenant_id=$1 AND id=$2`, tenant, automatic).Scan(&retained); err != nil || retained != 3 {
 		t.Fatal("retained budget changed", err)
@@ -314,28 +340,68 @@ func qualifyProcessTenantSettings(ctx context.Context, t *testing.T, f processFi
 	if wins != 1 || conflicts != 1 {
 		t.Fatal("concurrent settings lost update")
 	}
-	// A temporary custom delegate may save, but a revoked assignment cannot replay.
+	// The delegate's saved receipt and the administrator's current settings must be distinguishable.
 	var role identity.RoleDefinition
 	decodeProcessJSON(t, f.request(ctx, cfg.HTTP.Address, "POST", "/api/v1/access/roles", "local-admin", `{"name":"Settings delegate","permissions":["settings.read","settings.manage"],"reason":"Owned settings delegate"}`, 201, map[string]string{"Idempotency-Key": "settings-delegate-role"}), &role)
-	var member struct {
-		MembershipID string `json:"membershipId"`
+	readerMembership := func(address string) string {
+		t.Helper()
+		var member struct {
+			MembershipID string `json:"membershipId"`
+		}
+		decodeProcessJSON(t, f.request(ctx, address, http.MethodGet, "/api/v1/me", "local-reader", "", 200), &member)
+		if !identity.ValidTenantID(member.MembershipID) {
+			t.Fatal("reader has no valid membership ID")
+		}
+		return member.MembershipID
 	}
-	decodeProcessJSON(t, f.request(ctx, cfg.HTTP.Address, "GET", "/api/v1/me", "local-reader", "", 200), &member)
+	memberID := readerMembership(cfg.HTTP.Address)
 	var grant identity.AccessAssignment
-	decodeProcessJSON(t, f.request(ctx, cfg.HTTP.Address, "POST", "/api/v1/access/assignments", "local-admin", `{"roleDefinitionId":"`+role.ID+`","membershipId":"`+member.MembershipID+`","reason":"Owned settings delegate"}`, 201, map[string]string{"Idempotency-Key": "settings-delegate-grant"}), &grant)
-	_, tag = read(peerCfg.HTTP.Address, "local-reader")
-	body := `{"overrides":{"automaticSourceSyncEnabled":false,"newJobMaxAttempts":4},"reason":"Delegated settings save"}`
-	original := exchange(peerCfg.HTTP.Address, "local-reader", http.MethodPost, body, "settings-delegate-save", tag, 200)
-	replay := exchange(cfg.HTTP.Address, "local-reader", http.MethodPost, body, "settings-delegate-save", tag, 200)
+	decodeProcessJSON(t, f.request(ctx, cfg.HTTP.Address, "POST", "/api/v1/access/assignments", "local-admin", `{"roleDefinitionId":"`+role.ID+`","membershipId":"`+memberID+`","reason":"Owned settings delegate"}`, 201, map[string]string{"Idempotency-Key": "settings-delegate-grant"}), &grant)
+	previousSettings, delegateTag := read(peerCfg.HTTP.Address, "local-reader")
+	delegateSave := func(address string, status int) settingsExchange {
+		t.Helper()
+		return exchange(address, "local-reader", http.MethodPost, `{"overrides":{"automaticSourceSyncEnabled":false,"newJobMaxAttempts":9},"reason":"Delegated settings save"}`, "settings-delegate-save", delegateTag, status)
+	}
+	original := delegateSave(peerCfg.HTTP.Address, 200)
+	var receipt tenantsettings.View
+	decodeProcessJSON(t, original.body, &receipt)
+	if receipt.TenantID != tenant || receipt.Revision != previousSettings.Revision+1 || receipt.Effective.NewJobMaxAttempts != 9 {
+		t.Fatal("delegate did not save the expected settings revision")
+	}
+	latest := save(cfg.HTTP.Address, `{"automaticSourceSyncEnabled":false,"newJobMaxAttempts":4}`)
+	visible, latestTag := read(peerCfg.HTTP.Address, "local-reader")
+	if latest.Revision != receipt.Revision+1 || latest.Effective.NewJobMaxAttempts != 4 || !bytes.Equal(mustSettingsJSON(t, latest), mustSettingsJSON(t, visible)) {
+		t.Fatal("delegate could not read the administrator's newer settings")
+	}
+	replay := delegateSave(cfg.HTTP.Address, 200)
 	if !bytes.Equal(original.body, replay.body) || replay.headers.Get("Idempotency-Replayed") != "true" {
 		t.Fatal("cross-API exact settings replay changed")
 	}
-	f.request(ctx, cfg.HTTP.Address, "POST", "/api/v1/access/assignments/"+grant.ID+":revoke", "local-admin", `{"reason":"Revoke settings delegate"}`, 200, map[string]string{"If-Match": `"rev-1"`})
-	exchange(peerCfg.HTTP.Address, "local-reader", http.MethodPost, body, "settings-delegate-save", tag, 403)
+	f.request(ctx, cfg.HTTP.Address, "POST", "/api/v1/access/assignments/"+grant.ID+":revoke", "local-admin", `{"reason":"Revoke settings delegate"}`, 200, map[string]string{"If-Match": fmt.Sprintf(`"rev-%d"`, grant.Revision)})
+	for _, address := range []string{cfg.HTTP.Address, peerCfg.HTTP.Address} {
+		requireSettingsForbidden(t, exchange(address, "local-reader", http.MethodGet, "", "", "", 403), tenant)
+		requireSettingsForbidden(t, delegateSave(address, 403), tenant)
+	}
+	if readerMembership(peerCfg.HTTP.Address) != memberID {
+		t.Fatal("revoking the settings assignment changed the reader's membership")
+	}
+	var assignments identity.AuthorizationPage[identity.AccessAssignment]
+	decodeProcessJSON(t, f.request(ctx, peerCfg.HTTP.Address, "GET", "/api/v1/access/assignments?membershipId="+memberID+"&roleDefinitionId="+role.ID, "local-admin", "", 200), &assignments)
+	if len(assignments.Items) != 1 || assignments.NextCursor != "" {
+		t.Fatal("expected exactly one retained settings delegation")
+	}
+	revoked := assignments.Items[0]
+	if revoked.ID != grant.ID || revoked.MembershipID != memberID || revoked.RoleDefinitionID != role.ID || revoked.State != identity.AssignmentRevoked || revoked.Revision != grant.Revision+1 || revoked.RevokedAt == nil {
+		t.Fatal("revocation did not persist on the delegate's assignment")
+	}
 	current, oldTag := read(cfg.HTTP.Address, "local-admin")
-	var changes int64
-	if err := owner.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE tenant_id=$1 AND action='tenant.settings.changed'`, tenant).Scan(&changes); err != nil || changes != current.Revision {
-		t.Fatal("settings replay/refusal duplicated change audit", err)
+	if oldTag != latestTag || !bytes.Equal(mustSettingsJSON(t, current), mustSettingsJSON(t, latest)) {
+		t.Fatal("replaying a historical save or revoking access changed current settings")
+	}
+	var changes, delegatedChanges int64
+	if err := owner.QueryRow(ctx, `SELECT count(*), count(*) FILTER (WHERE actor=$2 AND request_id=$3 AND target_type='tenant_settings' AND target_id=tenant_id::text)
+		FROM audit_events WHERE tenant_id=$1 AND action='tenant.settings.changed'`, tenant, memberID, original.headers.Get("X-Request-ID")).Scan(&changes, &delegatedChanges); err != nil || changes != current.Revision || delegatedChanges != 1 {
+		t.Fatalf("settings change audits: total=%d want=%d, original delegated save=%d want=1, error=%v", changes, current.Revision, delegatedChanges, err)
 	}
 	assertIdentities()
 	// A replacement changes only inherited inputs. Overrides survive, and old
@@ -372,7 +438,7 @@ func qualifyProcessTenantSettings(ctx context.Context, t *testing.T, f processFi
 				t.Fatal(err)
 			}
 		}()
-		third = source("local-admin", "worker-read-outage")
+		third = source("local-admin", "worker-read-outage", "Worker read outage")
 		await("worker policy failure", func() bool {
 			for _, worker := range workers {
 				var status struct {
@@ -400,7 +466,7 @@ func qualifyProcessTenantSettings(ctx context.Context, t *testing.T, f processFi
 		stops[i]()
 		stops[i] = f.start(ctx, "worker", workerDSN, f.configuration(fmt.Sprintf("settings-worker-restarted-%d", i), workers[i]), workers[i].Worker.OperationsAddress)
 	}
-	fourth := source("local-admin", "worker-restarted")
+	fourth := source("local-admin", "worker-restarted", "Worker restarted")
 	awaitJob(fourth, "automatic", 2, "")
 	final := save(cfg.HTTP.Address, `{}`)
 	if final.Revision <= reset.Revision {
@@ -409,6 +475,22 @@ func qualifyProcessTenantSettings(ctx context.Context, t *testing.T, f processFi
 	t.Log("tenant settings: two APIs/two workers, current admission, isolated tenants, concurrent edits, fenced replay, policy outage/recovery, retained budgets and restart/default/reset controls passed")
 	stopAPI()
 	return f.start(ctx, "api", apiDSN, f.configuration("settings-original-defaults", cfg), cfg.HTTP.Address)
+}
+
+func requireSettingsForbidden(t *testing.T, response settingsExchange, tenant string) {
+	t.Helper()
+	var problem struct {
+		Code string `json:"code"`
+	}
+	decodeProcessJSON(t, response.body, &problem)
+	if problem.Code != "FORBIDDEN" || response.headers.Get("ETag") != "" || response.headers.Get("Idempotency-Replayed") != "" {
+		t.Fatal("expected a permission refusal without settings or replay headers")
+	}
+	for _, private := range []string{tenant, `"overrides"`, `"effective"`, `"revision"`, `"deploymentDefaults"`} {
+		if bytes.Contains(response.body, []byte(private)) {
+			t.Fatalf("permission refusal disclosed %q", private)
+		}
+	}
 }
 
 func mustSettingsJSON(t *testing.T, value tenantsettings.View) []byte {

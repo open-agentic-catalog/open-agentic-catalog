@@ -101,7 +101,7 @@ The service repeats authentication and checks current authorization. The reserva
 
 ### Every revision change
 
-Mutable objects use strong `"rev-N"` ETags and require `If-Match`. New immutable child records are appended instead of rewriting sealed evidence.
+Send the target's current ETag in `If-Match` when a command changes its revision. Use the ETag returned by the API verbatim. For example, the tenant settings ETag also binds the responding API's deployment defaults. Corrections to sealed evidence create new immutable revisions.
 
 ### Every public activation
 

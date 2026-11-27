@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -84,18 +83,28 @@ func TestManagedSDKReviewedUpstream(t *testing.T) {
 			must(t, err)
 			record := decode[map[string]any](t, encoded)
 			checkReviewedRecord(t, expected, record)
-			if expected.Text != "" {
+			if expected.Name == "hf-cli" {
 				rep := reply.JSON200.VersionRevision.Representations[0]
-				if rep.ArtifactId == nil {
+				if rep.ArtifactId == nil || expected.Text == "" {
 					t.Fatal("missing retained Skill text")
 				}
-				artifact, err := c.GetArtifactContent(t.Context(), *rep.ArtifactId)
+				artifact, err := c.GetArtifactContentWithResponse(t.Context(), *rep.ArtifactId)
 				must(t, err)
-				content, err := io.ReadAll(artifact.Body)
-				must(t, err)
-				must(t, artifact.Body.Close())
-				if artifact.StatusCode != 200 || string(content) != expected.Text {
+				if artifact.StatusCode() != 200 || string(artifact.Body) != expected.Text {
 					t.Fatal("Unicode Skill bytes changed")
+				}
+				headers := artifact.Headers200
+				if headers == nil || headers.ContentDigest == nil || *headers.ContentDigest != expected.ArtifactContentDigest ||
+					headers.ContentLength == nil || *headers.ContentLength != strconv.Itoa(len(expected.Text)) ||
+					artifact.HTTPResponse.Header.Get("Content-Type") != expected.Representation["mediaType"] {
+					t.Fatal("Skill download headers do not describe the source bytes")
+				}
+				hidden, err := other.GetArtifactContentWithResponse(t.Context(), *rep.ArtifactId)
+				must(t, err)
+				problem := hidden.ApplicationproblemJSONDefault
+				if hidden.StatusCode() != 404 || problem == nil || problem.Status != 404 || problem.Code != "NOT_FOUND" ||
+					problem.RequestId == "" || problem.RequestId != hidden.HTTPResponse.Header.Get("X-Request-ID") {
+					t.Fatal("foreign-tenant artifact read did not return the expected correlated problem")
 				}
 			}
 			denied, err := other.GetCatalogRecordWithResponse(t.Context(), id)
@@ -413,7 +422,7 @@ func TestManagedSDKCommittedMutationRecovery(t *testing.T) {
 }
 
 func TestManagedSDKSharedCollections(t *testing.T) {
-	_, corpus := newReviewedCorpus(t)
+	f, corpus := newReviewedCorpus(t)
 	ctx := t.Context()
 	admin, err := sdk.New(sdk.Config{Origin: corpus.Origin, AllowLoopbackHTTP: true, Token: "admin"})
 	must(t, err)
@@ -521,6 +530,26 @@ func TestManagedSDKSharedCollections(t *testing.T) {
 	must(t, err)
 	if preserved.JSON200 == nil || preserved.JSON200.Release.Id != record.JSON200.Release.Id {
 		t.Fatal("curation changed source release", preserved.StatusCode())
+	}
+
+	paging := seedReviewedCollection(t, f, corpus)
+	id := decode[sdk.UUID](t, []byte(strconv.Quote(paging.ID)))
+	for _, selection := range paging.Selections {
+		query := sdk.ListCollectionMembersParams{Limit: ptr(1), Text: &selection.Text, Kinds: &[]sdk.ResourceKind{"agent", "skill"}}
+		for index, want := range selection.ListingIDs {
+			page, err := reader.ListCollectionMembersWithResponse(ctx, id, &query)
+			must(t, err)
+			if page.JSON200 == nil || len(page.JSON200.Items) != 1 || page.JSON200.Items[0].Listing.Id.String() != want {
+				t.Fatalf("filtered members page %d: expected Listing %s, HTTP %d", index+1, want, page.StatusCode())
+			}
+			query.Cursor = page.JSON200.NextCursor
+			if index+1 < len(selection.ListingIDs) && (query.Cursor == nil || *query.Cursor == "") {
+				t.Fatal("first filtered member page has no continuation")
+			}
+		}
+		if query.Cursor != nil {
+			t.Fatal("last filtered member page has a continuation")
+		}
 	}
 }
 

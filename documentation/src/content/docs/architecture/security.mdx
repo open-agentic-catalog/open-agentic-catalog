@@ -66,7 +66,7 @@ These administration reads and commands require current `access.manage` plus the
 
 All writes require a reason and `Idempotency-Key`. Changes to an existing role, group, member relation or assignment also require its current `If-Match` revision. Updates replace the complete custom permission set, including explicit companion reads. Custom permissions do not expand implicitly.
 
-Names allow 1-120 Unicode code points; descriptions allow up to 2,000. Custom roles contain 1-49 distinct permissions and exclude `access.manage`. A role with any tenant-only permission cannot be assigned to a namespace. An edit incompatible with an active scoped assignment returns a conflict.
+Names allow 1-120 Unicode code points. Descriptions allow up to 2,000. Custom roles contain 1-51 distinct permissions and exclude `access.manage`. A role with any tenant-only permission cannot be assigned to a namespace. An edit incompatible with an active scoped assignment returns a conflict.
 
 Revoke active assignments before archiving their role or group, and revoke active member relations before archiving a group. Existing archived relations remain historical and ineffective. Group suspension disables its path reversibly. Terminal membership offboarding atomically revokes direct assignments, group memberships and legacy namespace memberships.
 

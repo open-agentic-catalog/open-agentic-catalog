@@ -190,9 +190,11 @@ export async function list(
       if (reply.response.status !== 200)
         throw new Failure("http_error", reply.response.status);
       const current = page(reply.data, input.pageSize);
+      const received = entries + current.items.length;
       if (
         (total !== undefined && total !== current.total) ||
-        entries + current.items.length > current.total
+        received > current.total ||
+        (!current.next && received < current.total)
       )
         throw new Failure("invalid_response");
       if (current.next && tokens.has(current.next))
@@ -200,7 +202,7 @@ export async function list(
       total = current.total;
       next = current.next;
       if (next) tokens.add(next);
-      entries += current.items.length;
+      entries = received;
       pages++;
       for (const item of current.items) {
         if (item.type === "application/ai-registry+json") {
@@ -212,7 +214,6 @@ export async function list(
       }
       if (next && pages >= input.maxPages) return finish(2, "page_limit");
     } while (next);
-    if (entries !== total) throw new Failure("invalid_response");
     return finish(0, "exhausted");
   } catch (error) {
     if (signal.aborted) return finish(1, "cancelled");
