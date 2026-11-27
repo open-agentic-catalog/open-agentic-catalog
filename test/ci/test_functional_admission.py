@@ -37,7 +37,7 @@ class AdmissionFunctionalTests(unittest.TestCase):
                 ("uv.lock", shared_jobs, "charts"),
                 ("deployments/helm/open-agentic-catalog/templates/new.yaml", shared_jobs, "charts"),
                 ("catalog-ui/scripts/native-test-completion.mjs", {"charts": False, "ui": True, "docs": True, "languages": ["typescript"]}, "clients"),
-                ("LICENSE", {"charts": True, "ui": True, "docs": True, "languages": ["typescript"]}, "ui"),
+                ("LICENSE", {"charts": True, "ui": True, "docs": True, "languages": ["go", "typescript"]}, "ui"),
                 ("examples/tutorials/local-oidc/service-read.py", {"charts": False, "ui": False, "docs": True, "languages": ["go", "python"]}, "clients"),
             )
             for name, _, _ in cases:

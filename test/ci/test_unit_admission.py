@@ -67,7 +67,7 @@ class AdmissionTests(unittest.TestCase):
         for path, ui, docs, languages in (
             ("catalog-ui/scripts/native-test-completion.mjs", True, True, ["typescript"]),
             ("catalog-ui/scripts/native-test-completion.unit.test.mjs", True, False, []),
-            ("LICENSE", True, True, ["typescript"]),
+            ("LICENSE", True, True, ["go", "typescript"]),
             ("sdk/rust/LICENSE", False, True, ["rust"]),
             ("examples/tutorials/local-oidc/service-read.py", False, True, ["go", "python"]),
             ("examples/tutorials/local-oidc/local_auth.py", False, True, ["go"]),

@@ -112,6 +112,8 @@ def select(paths, projected=()):
         if name in {"LICENSE", "catalog-ui/scripts/native-test-completion.mjs"}:
             ui = docs = True
             selected.add("typescript")
+        if name == "LICENSE":
+            selected.add("go")
         if name == "examples/tutorials/local-oidc/service-read.py":
             selected.add("python")
         for prefix, value in examples.items():
