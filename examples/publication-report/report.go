@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"time"
+	"unicode/utf8"
 
 	sdk "github.com/open-agentic-catalog/open-agentic-catalog/sdk/go"
 )
@@ -76,14 +77,21 @@ func readReport(ctx context.Context, c catalogReader, tenant, host string, trigg
 		if _, err := fields(items[0], "id", "tenantId", "host", "audience", "generation", "ardProfile", "aiCatalogProfile", "state", "etag", "createdAt", "activatedAt"); err != nil {
 			return Report{}, errors.New("invalid_catalog_response")
 		}
-		var s Snapshot
+		var s struct {
+			Snapshot
+			ARDProfile       string `json:"ardProfile"`
+			AICatalogProfile string `json:"aiCatalogProfile"`
+		}
 		if json.Unmarshal(items[0], &s) != nil {
+			return Report{}, errors.New("invalid_catalog_response")
+		}
+		if s.ARDProfile == "" || utf8.RuneCountInString(s.ARDProfile) > 128 || s.AICatalogProfile == "" || utf8.RuneCountInString(s.AICatalogProfile) > 128 {
 			return Report{}, errors.New("invalid_catalog_response")
 		}
 		if !uuidPattern.MatchString(s.ID) || s.TenantID != tenant || s.Host != host || s.State != "active" || s.Generation < 1 || s.Audience != "anonymous" && s.Audience != "authenticated" || !etagPattern.MatchString(s.ETag) || s.CreatedAt.IsZero() {
 			return Report{}, errors.New("invalid_catalog_response")
 		}
-		result.Active = &s
+		result.Active = &s.Snapshot
 	}
 	return result, nil
 }

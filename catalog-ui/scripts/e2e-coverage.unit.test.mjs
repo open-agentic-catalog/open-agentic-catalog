@@ -140,7 +140,11 @@ test("reports refuse omitted contexts, skipped execution, failed cleanup and cha
       join(directory, "contexts/two.json"),
       JSON.stringify({
         browser: "test",
-        documents: [{ ...document, id: "second-owned" }],
+        documents: [
+          { id: "issuer", coverage: {} },
+          { id: "loaded-only", build: manifest.build, coverage: inventory },
+          { ...document, id: "second-owned" },
+        ],
       }),
     );
     await reportBrowserCoverage(
@@ -153,21 +157,23 @@ test("reports refuse omitted contexts, skipped execution, failed cleanup and cha
       /Context contribution count does not match declared execution/,
     );
     await rm(join(directory, "contexts/two.json"));
-    await writeFile(
-      join(directory, "contexts/empty.json"),
-      JSON.stringify({
-        browser: "test",
-        documents: [{ id: "provider", coverage: {} }],
-      }),
-    );
-    await assert.rejects(
-      reportBrowserCoverage(
-        directory,
-        { ...execution, contexts: 2 },
-        directory,
-      ),
-      /Missing context application contribution/,
-    );
+    for (const inactive of [
+      { id: "provider", coverage: {} },
+      { id: "unexecuted", build: manifest.build, coverage: inventory },
+    ]) {
+      await writeFile(
+        join(directory, "contexts/empty.json"),
+        JSON.stringify({ browser: "test", documents: [inactive] }),
+      );
+      await assert.rejects(
+        reportBrowserCoverage(
+          directory,
+          { ...execution, contexts: 2 },
+          directory,
+        ),
+        /Missing context application contribution/,
+      );
+    }
     await rm(join(directory, "contexts/empty.json"));
     await reportBrowserCoverage(directory, execution, directory);
     const report = JSON.parse(await readFile(join(directory, "summary.json")));
@@ -291,12 +297,18 @@ test("source identities and coverage inventories preserve exact path ordering", 
   fixture.inputs = Object.fromEntries(Object.entries(fixture.inputs).reverse());
   await writeFile(join(root, "inventory.json"), JSON.stringify(fixture));
   await mkdir(join(root, "contexts"));
+  const probe = structuredClone(fixture.inventory["src/probe.ts"]);
+  probe.s["0"] = 1;
   await writeFile(
     join(root, "contexts/one.json"),
     JSON.stringify({
       browser: "test",
       documents: [
-        { id: "one", build: fixture.build, coverage: fixture.inventory },
+        {
+          id: "one",
+          build: fixture.build,
+          coverage: { "src/probe.ts": probe },
+        },
       ],
     }),
   );

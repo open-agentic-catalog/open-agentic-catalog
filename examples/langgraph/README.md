@@ -429,7 +429,11 @@ The JSON output includes `status`, `observed_results`, recommendations and tool 
 
 These exit codes apply to `ard_agent.py` directly. GNU Make returns 2 when a recipe fails, so callers of `make langgraph-ard-demo` should inspect the JSON `status` to distinguish partial from failed discovery.
 
-The client follows at most three pages of ten results per service, with one approved referral hop. Discovery shares a sixteen-request limit across tools, and graph execution has a five-minute budget. Each discovery HTTP exchange, including its body, has a ten-second deadline. Decoded JSON bodies are limited to 2 MiB. Repeated tokens/results, changed filters, malformed consumed fields and over-limit responses refuse further traversal. The Catalog's `Server-Timing` partial-federation signal is retained as an incomplete observation. No request automatically restarts discovery, removes a filter or substitutes another service after failure. Perform a new explicit run after correcting the cause.
+The client follows at most three pages of ten results per service, with one approved referral hop. Discovery shares a sixteen-request limit across tools, and graph execution has a five-minute budget. Each discovery HTTP exchange, including its body, has a ten-second deadline. Decoded JSON bodies are limited to 2 MiB.
+
+Explore requests facet values with at least one match. An empty bucket list is valid. If a service returns a bucket with a count of zero, the example reports `invalid_response` for that Explore request.
+
+The client accepts rows and referrals only after it has read and validated the whole page. An interrupted response, a repeated token or result, a contradicted filter, a malformed field used by the client, or an over-limit response stops paging that service. Earlier accepted pages retain their results and referrals. The Catalog's `Server-Timing` partial-federation signal is retained as an incomplete observation. No request automatically restarts discovery, removes a filter or substitutes another service after failure. Perform a new explicit run after correcting the cause.
 
 Only selected metadata reaches the graph: inline resource definitions are omitted from tool context, descriptions are bounded excerpts, and trust declarations are not supplied as instructions. The final selected facts come from retained response projections rather than model-written resource fields.
 

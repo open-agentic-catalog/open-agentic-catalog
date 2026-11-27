@@ -488,6 +488,42 @@ class ModelBoundaryUnits(unittest.IsolatedAsyncioTestCase):
                     check_local_model("http://127.0.0.1:11434", "qwen2.5:7b")
             connection.close.assert_called_once()
 
+    def test_local_preflight_matches_the_digest_to_the_selected_model(self):
+        from unittest.mock import MagicMock, patch
+        from agent import check_local_model
+
+        model, other = "qwen2.5:7b", "other:latest"
+        expected_digest, other_digest = "a" * 64, "b" * 64
+        for selected, alternate, status, expected_error in [
+            (expected_digest, other_digest, 200, None),
+            (other_digest, expected_digest, 200, "local_model_identity_changed"),
+            (expected_digest, other_digest, 503, "local_model_unavailable"),
+        ]:
+            with self.subTest(status=status, selected=selected):
+                connection = MagicMock()
+                show, tags = MagicMock(status=200), MagicMock(status=status)
+                show.read.return_value = b'{"capabilities":["tools"]}'
+                tags.read.return_value = json.dumps(
+                    {"models": [
+                        {"name": other, "digest": alternate},
+                        {"name": model, "digest": selected},
+                    ]}
+                ).encode()
+                connection.getresponse.side_effect = [show, tags]
+                with patch("agent.http.client.HTTPConnection", return_value=connection):
+                    if expected_error:
+                        with self.assertRaisesRegex(DemoError, expected_error):
+                            check_local_model(
+                                "http://127.0.0.1:11434", model, expected_digest
+                            )
+                    else:
+                        check_local_model("http://127.0.0.1:11434", model, expected_digest)
+                connection.close.assert_called_once()
+                show_request, tags_request = connection.request.call_args_list
+                self.assertEqual(show_request.args[:2], ("POST", "/api/show"))
+                self.assertEqual(json.loads(show_request.args[2]), {"model": model})
+                self.assertEqual(tags_request.args, ("GET", "/api/tags"))
+
 
 class CLIUnits(unittest.IsolatedAsyncioTestCase):
     async def test_cli_uses_explicit_settings_and_prints_sdk_bound_facts_without_credentials(

@@ -109,14 +109,17 @@ func TestDispatchAndListenerInputRefusals(t *testing.T) {
 
 func TestPublicationHostBoundaries(t *testing.T) {
 	longest := strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61)
-	for _, host := range []string{testHost, "127.0.0.1", "::1", strings.Repeat("a", 63) + ".test", longest} {
-		if !validHost(host) {
-			t.Fatal("supported host refused", host)
+	args := append(withoutOption(unitOptions("init"), "--host"), "--host")
+	for _, host := range []string{testHost, "123.example", "127.0.0.1", "::1", "2001:db8::1", strings.Repeat("a", 63) + ".test", longest} {
+		opts, err := parseOptions(append(args, host))
+		if err != nil || opts.host != host {
+			t.Fatalf("init host %q: got %q, err %v", host, opts.host, err)
 		}
 	}
-	for _, host := range []string{"", "Upper.example", "under_score.example", "-bad.example", "bad-.example", "empty..example", "trailing.example.", strings.Repeat("a", 64) + ".test", longest + "d", "0:0:0:0:0:0:0:1"} {
-		if validHost(host) {
-			t.Fatal("invalid or noncanonical host accepted", host)
-		}
+	for _, host := range []string{"", "Upper.example", "under_score.example", "-bad.example", "bad-.example", "empty..example", "trailing.example.", strings.Repeat("a", 64) + ".test", longest + "d", "0:0:0:0:0:0:0:1", "123", "999.999.999.999", "fe80::1%eth0", "::ffff:192.0.2.1"} {
+		t.Run("reject/"+host, func(t *testing.T) {
+			_, err := parseOptions(append(args, host))
+			requireCode(t, err, "invalid_inputs")
+		})
 	}
 }

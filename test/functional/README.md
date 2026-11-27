@@ -431,7 +431,7 @@ The target builds the current Catalog and reuses the logical-restore fixture's p
 
 The test takes a verified physical base backup before normal API writes create change A. It stops ordinary writes and workers, captures the existing audit/read evidence, and inventories every table. It then creates a named PostgreSQL restore point. Further API writes create change B and change existing ratings. The source archives the required WAL and stops. No source volume or streaming connection supplies the restored databases.
 
-Two separate destinations use the same base backup. The negative copy receives an archive with one required later WAL segment removed. The test refuses a bundled alternate copy. It requires a nonzero PostgreSQL exit and the specific unreachable-target error for that missing segment. API and worker remain stopped, and peer counters must remain unchanged.
+Two separate destinations use the same base backup. The negative copy receives an archive with one required later WAL segment removed. The test refuses a bundled alternate copy. PostgreSQL must exit unsuccessfully. The recovery log must show the archive copy failing on the exact missing filename, followed by PostgreSQL's fatal error that the configured target could not be reached. API and worker remain stopped, and peer counters must remain unchanged.
 
 The intact destination must reach an actual recovery pause, the exact target LSN, source timeline and cluster identity. SQL checks require A present and B absent. Only then does the test resume recovery onto a new timeline. It reconciles exact grants and reuses every tenant's restore-verifier pages, table digests and bound audit comparisons.
 
@@ -439,7 +439,7 @@ The API starts before the worker. The physical restore runs the same retained re
 
 Four memory-backed data volumes each have a 512 MiB cap. The intact and negative WAL archives each have a 128 MiB cap. A persistent tools container holds the restore inputs; stopping the original source releases its data. The supervisor allows 20 minutes, the recovery journey allows 15 minutes, and cleanup has a separate 90-second budget. No test result establishes production capacity or recovery objectives.
 
-The report retains separate `backupRestore` and `pitrRecovery` sections under `output/functional/run-<id>/report.json`. Physical evidence names the backup manifest and physical byte count, without logical-dump fields. PITR evidence records the target/replayed LSNs, source/new timelines, required WAL digest, A/B results and negative-control outcome. The qualification is `postgres-point-in-time-recovery`. Passing requires current source/image identity, all existing recovery assertions, complete PITR evidence and independent cleanup.
+The report retains separate `backupRestore` and `pitrRecovery` sections under `output/functional/run-<id>/report.json`. Physical evidence names the backup manifest and physical byte count. The restore point `catalog-pitr-<id>` must match the report's run ID `functional-<id>`. PITR evidence records the target and replay LSNs, source and new timelines, required WAL digest, A/B results and missing-WAL outcome. The qualification is `postgres-point-in-time-recovery`. Passing requires current source/image identity, all existing recovery assertions, complete PITR evidence and independent cleanup.
 
 `make test-backup-restore` and `make test-postgres-failover` keep their existing scopes. This opt-in local drill does not test a managed backup provider, backup scheduling, regional recovery or external key storage.
 

@@ -68,7 +68,9 @@ The report directory contains `index.json`, one metadata file per Resource and o
 
 The processor reuses completed analysis only for the same release, capture digest and scanner identity. It still collects fresh definitions and rechecks Catalog access. Reused reports retain their original analysis timestamp. Failed or partial analysis never becomes a successful cached result.
 
-Startup and periodic reconciliation read both loss counters and traverse the configured namespaces. Traversal continues even when counters are unchanged or decrease after a restore. A failed or partial traversal never claims that missing Resources disappeared. Reconciliation has one coalesced pending slot per configured Resource.
+Startup and periodic reconciliation read both loss counters and traverse the configured namespaces. Traversal continues even when counters are unchanged or decrease after a restore. A complete traversal schedules the current release for each configured Resource. If the same release is already pending, it keeps its retry schedule. A change of release replaces that pending work. If the Resource disappears, the receiver clears its pending reconciliation work and keeps the last scan for reference. A failed or incomplete traversal preserves the previous selection.
+
+Signed notifications have their own receipts. If a delayed publication notification receives a Catalog 404 after reconciliation confirmed the Resource was absent, the receipt records the failed lookup. The observation stays `not_listed`. An endpoint test completes its receipt without changing any release observation.
 
 Restart with the same database and binding after interruption. Accepted pending work survives. A session advisory lock refuses a second processor. Loss of that lock connection stops processing; restart the single receiver after repairing the database connection.
 

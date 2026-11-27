@@ -220,9 +220,11 @@ func (s *postgresStore) Finish(ctx context.Context, w *work, o *observation, rep
 		if _, err = tx.Exec(ctx, `INSERT INTO mcp_receiver_observations(resource_id,release_id,scan_key,document,checked_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT(resource_id) DO UPDATE SET release_id=excluded.release_id,scan_key=excluded.scan_key,document=excluded.document,checked_at=excluded.checked_at`, o.ResourceID, release, key, raw, at); err != nil {
 			return err
 		}
-	} else if w != nil && code != "" {
-		// A delayed event for an old release must not invalidate a newer report.
-		if _, err = tx.Exec(ctx, `UPDATE mcp_receiver_observations SET document=jsonb_set(jsonb_set(jsonb_set(document,'{state}','"historical"'),'{failure}',to_jsonb($2::text)),'{checkedAt}',to_jsonb($3::timestamptz)),checked_at=$3 WHERE release_id=$1`, w.Event.TargetID, code, at); err != nil {
+	} else if w != nil && w.Event.Action != "webhook.test" && code != "" {
+		// A 404 for a delayed release event agrees with a completed browse
+		// that already marked the Resource absent. Preserve that observation.
+		if _, err = tx.Exec(ctx, `UPDATE mcp_receiver_observations SET document=jsonb_set(jsonb_set(jsonb_set(document,'{state}','"historical"'),'{failure}',to_jsonb($2::text)),'{checkedAt}',to_jsonb($3::timestamptz)),checked_at=$3
+			WHERE release_id=$1 AND (document->>'state' IS DISTINCT FROM 'not_listed' OR $2 <> 'catalog_record_unavailable')`, w.Event.TargetID, code, at); err != nil {
 			return err
 		}
 	}
@@ -239,7 +241,7 @@ func (s *postgresStore) Finish(ctx context.Context, w *work, o *observation, rep
 }
 
 func (s *postgresStore) Retry(ctx context.Context, w *work, next time.Time, code string) error {
-	tag, err := s.pool.Exec(ctx, `UPDATE mcp_receiver_inbox SET attempts=attempts+1,next_attempt_at=$3,outcome=$4 WHERE source=$1 AND id=$2 AND completed_at IS NULL AND attempts=$5`, w.Event.Source, w.Event.ID, next, code, w.Attempts)
+	tag, err := s.pool.Exec(ctx, `UPDATE mcp_receiver_inbox SET attempts=attempts+1,next_attempt_at=$3,outcome=$4 WHERE source=$1 AND id=$2 AND completed_at IS NULL AND attempts=$5 AND event->>'targetId'=$6`, w.Event.Source, w.Event.ID, next, code, w.Attempts, w.Event.TargetID)
 	if err != nil {
 		return err
 	}
@@ -261,6 +263,9 @@ func (s *postgresStore) Reconciled(ctx context.Context, configs []mapping, found
 	for _, m := range configs {
 		release, ok := found[m.ResourceID]
 		if !ok {
+			if _, err = tx.Exec(ctx, `DELETE FROM mcp_receiver_inbox WHERE source=$1 AND id=$2 AND completed_at IS NULL`, reconciliationSource, m.ResourceID); err != nil {
+				return err
+			}
 			if _, err = tx.Exec(ctx, `UPDATE mcp_receiver_observations SET document=jsonb_set(jsonb_set(document,'{state}','"not_listed"'),'{checkedAt}',to_jsonb($2::timestamptz)),checked_at=$2 WHERE resource_id=$1`, m.ResourceID, at); err != nil {
 				return err
 			}
@@ -271,9 +276,12 @@ func (s *postgresStore) Reconciled(ctx context.Context, configs []mapping, found
 		if marshalErr != nil {
 			return marshalErr
 		}
-		// One coalesced reconciliation slot per configured Resource is bounded
-		// separately. It must not consume notification admission capacity.
-		if _, err = tx.Exec(ctx, `INSERT INTO mcp_receiver_inbox(source,id,event,accepted_at,next_attempt_at) VALUES($1,$2,$3,$4,$4) ON CONFLICT(source,id) DO UPDATE SET event=excluded.event,accepted_at=excluded.accepted_at,next_attempt_at=excluded.next_attempt_at,attempts=0,completed_at=NULL,outcome='' WHERE mcp_receiver_inbox.completed_at IS NOT NULL`, e.Source, e.ID, raw, at); err != nil {
+		// Keep an unchanged pending target's retry schedule. A different
+		// release starts fresh in the same Resource's reconciliation slot.
+		if _, err = tx.Exec(ctx, `INSERT INTO mcp_receiver_inbox(source,id,event,accepted_at,next_attempt_at) VALUES($1,$2,$3,$4,$4)
+			ON CONFLICT(source,id) DO UPDATE SET event=excluded.event,accepted_at=excluded.accepted_at,
+				next_attempt_at=excluded.next_attempt_at,attempts=0,completed_at=NULL,outcome=''
+			WHERE mcp_receiver_inbox.completed_at IS NOT NULL OR mcp_receiver_inbox.event->>'targetId' <> excluded.event->>'targetId'`, e.Source, e.ID, raw, at); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, `UPDATE mcp_receiver_observations SET document=jsonb_set(jsonb_set(document,'{state}','"pending"'),'{checkedAt}',to_jsonb($2::timestamptz)),checked_at=$2 WHERE resource_id=$1 AND release_id<>$3`, m.ResourceID, at, release); err != nil {

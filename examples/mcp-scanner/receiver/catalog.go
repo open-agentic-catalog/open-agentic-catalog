@@ -150,7 +150,8 @@ func discover(ctx context.Context, c catalogReader, configs []mapping, tenant st
 			if r.StatusCode() != 200 || r.JSON200 == nil || uniqueJSON(r.Body) != nil {
 				return nil, failed("catalog_browse_failed", r.StatusCode() >= 500 || r.StatusCode() == 429)
 			}
-			if r.JSON200.Items == nil || len(r.JSON200.Items) > 32 {
+			// A browse continuation is positioned at the last returned row.
+			if r.JSON200.Items == nil || len(r.JSON200.Items) > 32 || (len(r.JSON200.Items) == 0 && r.JSON200.NextCursor != nil) {
 				return nil, failed("invalid_catalog_page", false)
 			}
 			var rawPage struct {
@@ -158,6 +159,11 @@ func discover(ctx context.Context, c catalogReader, configs []mapping, tenant st
 				Next  json.RawMessage `json:"nextCursor"`
 			}
 			if json.Unmarshal(r.Body, &rawPage) != nil || rawPage.Total == nil || *rawPage.Total < len(r.JSON200.Items) || len(rawPage.Next) > 0 && rawPage.Next[0] != '"' {
+				return nil, failed("invalid_catalog_page", false)
+			}
+			// On the first page, the exact total and continuation describe the
+			// same read. Later pages may see a different Catalog.
+			if cursor == nil && (*rawPage.Total > len(r.JSON200.Items)) != (r.JSON200.NextCursor != nil) {
 				return nil, failed("invalid_catalog_page", false)
 			}
 			for _, item := range r.JSON200.Items {

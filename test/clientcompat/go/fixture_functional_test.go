@@ -10,6 +10,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -61,6 +62,20 @@ type fixture struct {
 	server      *httptest.Server
 	document    *openapi3.T
 	now         time.Time
+}
+
+// newUnstartedFetchServer avoids Fetch-reserved ports allocated by listen(0).
+func newUnstartedFetchServer(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+	for range 32 {
+		server := httptest.NewUnstartedServer(handler)
+		if server.Listener.Addr().(*net.TCPAddr).Port >= 16384 {
+			return server
+		}
+		server.Close()
+	}
+	t.Fatal("no Fetch-compatible loopback fixture port within startup bound")
+	return nil
 }
 
 // newFixture uses real authentication, authorization and audited memory services,
@@ -117,7 +132,8 @@ func newFixtureWithFederation(t *testing.T, external catalog.ExternalRepresentat
 	must(t, err)
 	h, err := httpserver.New(httpserver.Dependencies{PersonalStore: personal.NewMemoryStore(repo), CollectionStore: collections.NewMemoryStore(repo), RatingsStore: ratings.NewMemoryStore(repo), Feedback: feedbackService, Catalog: service, Identity: ids, Federation: federationService, Jobs: jobService, Authenticator: auth, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), MaxBodyBytes: responseLimit, RequestTimeout: time.Second, CursorKey: key[:], Now: c.Now})
 	must(t, err)
-	server := httptest.NewServer(h.Handler())
+	server := newUnstartedFetchServer(t, h.Handler())
+	server.Start()
 	t.Cleanup(server.Close)
 	document, err := openapi3.NewLoader().LoadFromData(api.ControlV1)
 	must(t, err)

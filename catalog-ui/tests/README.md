@@ -236,7 +236,7 @@ Reports live in a unique `output/coverage/e2e/<profile>/run-*/` directory. `summ
 
 Local execution reports count Playwright cases and browser contexts separately. The automatic fixture contributes one context per case; tests opening additional independent contexts declare each with a `coverage-extra-context` annotation before collection. The reporter counts only that fixed annotation type and does not retain annotation contents.
 
-Context counts must match collected contributions exactly; missing and undeclared extra contexts both invalidate the report. Packaged reports count complete workflow executions and separately counted contexts. Require successful execution and cleanup. Require complete context/document contributions.
+Context counts must match collected contributions exactly; missing and undeclared extra contexts both invalidate the report. Packaged reports count complete workflow executions and separately counted contexts. Require successful execution and cleanup. Each declared application context must record at least one executed application statement. A context may also visit provider pages and load additional files with zero hits.
 
 Missing counters/maps or page checkpoints, a context without application counters, incompatible builds, changed source contents or file inventory, skipped required cases and failed cleanup reject the result; `failed.json` marks unsuccessful runs. A partial directory is not a passing measurement.
 

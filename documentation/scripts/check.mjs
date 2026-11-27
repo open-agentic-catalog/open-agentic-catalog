@@ -14,6 +14,16 @@ const iconDirectory = path.join(project, 'src/assets/navigation');
 const icons = assertIconAssets(fs.readFileSync(path.join(project, 'src/styles/navigation.css'), 'utf8'),
   new Map(fs.readdirSync(iconDirectory).filter(name => name.endsWith('.svg')).map(name => [name, fs.readFileSync(path.join(iconDirectory, name), 'utf8')])));
 
+const contract = yaml(fs.readFileSync(path.join(root,'api/openapi/control-v1.yaml'),'utf8'));
+const operationMethods = new Map();
+for (const item of Object.values(contract.paths)) {
+  for (const [method, operation] of Object.entries(item)) {
+    if (['get','post','put','patch','delete','head','options','trace'].includes(method)) {
+      operationMethods.set(operation.operationId.toLowerCase(), method.toUpperCase());
+    }
+  }
+}
+
 // inspect validates the existing dist tree for one hosting base. It checks rendered
 // output against source contracts rather than assuming a successful build is enough.
 function inspect(base) {
@@ -81,7 +91,7 @@ function inspect(base) {
     const page = pages.get(path.join(dist,entry.route,'index.html'));
     assert(page,`Unbuilt page ${entry.source}`);
     assertHandbookNavigation(page.navigation,entries,base);
-    assertNavigationIcons(page.navigationLinks,entries,base,icons);
+    assertNavigationIcons(page.navigationLinks,entries,base,icons,operationMethods);
   }
   const diagrams = {'': 2, 'contributing/testing-map': 1, 'reference/standards': 0, 'guides/agent-plugins': 1, 'architecture/overview': 1, 'architecture/deployment': 4, 'operations/deployment': 1, 'architecture/components': 2, 'architecture/domain': 1, 'architecture/publication': 1, 'architecture/federation': 1, 'architecture/security': 2, 'architecture/operations': 1, 'architecture/catalog-ui': 1, 'architecture/design': 2, 'operations/backup-restore': 1, 'operations/observability': 3, 'guides/integrating': 2, 'reference/configuration': 0, 'guides/access-management': 1, 'guides/publishing': 2, 'operations/federation': 1, 'operations/hybrid-search': 2, 'guides/catalog-ui': 0, 'operations/maintenance': 1, 'operations/webhooks': 1, 'operations/idempotency-repair': 1, 'guides/local-development': 0, 'guides/sample-catalog': 0, 'guides/two-catalog-federation': 1, 'guides/feedback': 1, 'guides/resource-authoring': 1, 'guides/mcp-server': 1, 'guides/contextforge': 1, 'operations/helm-monitoring': 1, 'operations/database-roles': 1};
   for (const [route, count] of Object.entries(diagrams)) {
@@ -453,18 +463,13 @@ function inspect(base) {
     for (const title of titles) assert.equal(captions.filter(caption => caption === title).length, 1, `One example label: ${route}: ${title}`);
   }
   for (const source of downloads) assert.deepEqual(fs.readFileSync(path.join(dist,'generated',source)),fs.readFileSync(path.join(root,source)),`Download drift ${source}`);
-  const contract = yaml(fs.readFileSync(path.join(root,'api/openapi/control-v1.yaml'),'utf8'));
-  const operations = Object.values(contract.paths).flatMap(item=>Object.entries(item).filter(([method])=>['get','post','put','patch','delete','head','options','trace'].includes(method)).map(([,operation])=>operation));
-  // The plugin generates one operation route per unique operationId.
-  const apiPages = [...pages.keys()].filter(f=>f.includes('/dist/api/'));
-  for (const operation of operations) {
-    const slug = operation.operationId.toLowerCase();
-    assert(apiPages.some(f=>path.dirname(f).split('/').at(-1).toLowerCase() === slug),`Unrendered API operation: ${operation.operationId}`);
+  for (const slug of operationMethods.keys()) {
+    assert(pages.has(path.join(dist,'api/operations',slug,'index.html')), `Unrendered API operation: ${slug}`);
   }
   assert(files.some(f=>f.endsWith('/pagefind/pagefind.js')),'Local Pagefind bundle missing');
   const allowed = new Set(entries.map(e=>path.join(dist,e.route,'index.html')));
   for (const page of pages.keys()) assert(allowed.has(page) || page.includes('/dist/api/') || page === path.join(dist,'404.html'),`Unexpected page: ${page}`);
-  console.log(`Checked ${pages.size} HTML pages, ${operations.length} operations, exact downloads, assets and anchors at ${base}`);
+  console.log(`Checked ${pages.size} HTML pages, ${operationMethods.size} operations, exact downloads, assets and anchors at ${base}`);
 }
 
 for (const base of ['/catalog-check/','/']) {

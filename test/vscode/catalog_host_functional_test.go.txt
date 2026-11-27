@@ -13,7 +13,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/http/cgi"
 	"net/http/httptest"
@@ -37,24 +36,9 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/publication"
 )
 
-// Filter only disposable fixture listeners, before publishing their URLs.
-// This host can allocate Fetch-reserved ports through listen(0).
-func vscodeUnstarted(t *testing.T, handler http.Handler) *httptest.Server {
-	t.Helper()
-	for range 32 {
-		server := httptest.NewUnstartedServer(handler)
-		if server.Listener.Addr().(*net.TCPAddr).Port >= 16384 {
-			return server
-		}
-		server.Close()
-	}
-	t.Fatal("no Fetch-compatible loopback fixture port within startup bound")
-	return nil
-}
-
 func vscodeTLS(t *testing.T, handler http.Handler) *httptest.Server {
 	t.Helper()
-	server := vscodeUnstarted(t, handler)
+	server := newUnstartedFetchServer(t, handler)
 	server.StartTLS()
 	return server
 }
@@ -80,13 +64,6 @@ func vscodeSeed(t *testing.T, mcpURL, a2aURL, sentinel string, skill catalog.Rep
 }
 func vscodeSeedLabels(t *testing.T, mcpURL, a2aURL, sentinel string, skill catalog.RepresentationInput, plugins map[string][]byte, pluginURLs []string, guide bool) *fixture {
 	f := newFixtureWithFetcher(t, vscodeArchive{plugins, time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)})
-	if f.server.Listener.Addr().(*net.TCPAddr).Port < 16384 {
-		previous := f.server
-		previous.Close()
-		f.server = vscodeUnstarted(t, previous.Config.Handler)
-		f.server.Start()
-		t.Cleanup(f.server.Close)
-	}
 	actor := f.actor("admin")
 	ns, err := f.service.CreateNamespace(actor, catalog.CreateNamespaceInput{Slug: "vscode", DisplayName: "VS Code samples"})
 	must(t, err)
@@ -253,7 +230,7 @@ func vscodeGuidePlugins(t *testing.T) (map[string][]byte, []string) {
 	return bodies, urls
 }
 func vscodePublication(t *testing.T, f *fixture, authenticated bool) *httptest.Server {
-	server := vscodeUnstarted(t, nil)
+	server := newUnstartedFetchServer(t, nil)
 	host := server.Listener.Addr().String()
 	mode, audience := httpserver.DiscoveryAnonymous, publication.AudienceAnonymous
 	if authenticated {
@@ -683,7 +660,7 @@ func TestVSCodeRemoteCatalogHost(t *testing.T) {
 	var forbidden atomic.Int32
 	previous := f.server
 	previous.Close()
-	f.server = vscodeUnstarted(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	f.server = newUnstartedFetchServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/owned-remote-offline" && r.Method == http.MethodPost {
 			offline.Store(true)
 			w.WriteHeader(http.StatusOK)
