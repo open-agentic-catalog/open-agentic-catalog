@@ -880,13 +880,13 @@ architecture-check: ## Enforce package ownership and outbound HTTP construction 
 .PHONY: lint-inventory-check shell-inventory-check container-inventory-check python-inventory-check
 lint-inventory-check: shell-inventory-check container-inventory-check python-inventory-check ## Check Git-visible source against its Make and hook lint owners
 
-shell-inventory-check:
+shell-inventory-check: ## Verify that shell sources are selected by Make and the pre-commit hook
 	PYTHONPATH=test/packaging $(PYTHON) -B -m unittest test_functional_make.MakeScopeTests.test_shell_sources_have_a_shell_check_owner_in_make_and_the_hook
 
-container-inventory-check:
+container-inventory-check: ## Verify that container build files are selected by Make and the pre-commit hook
 	PYTHONPATH=test/packaging $(PYTHON) -B -m unittest test_functional_make.MakeScopeTests.test_container_sources_have_a_container_check_owner_in_make_and_the_hook
 
-python-inventory-check:
+python-inventory-check: ## Verify that Make and the pre-commit hook cover first-party Python sources
 	PYTHONPATH=test/packaging $(PYTHON) -B -m unittest test_functional_make.MakeScopeTests.test_python_lint_roots_match_the_staged_hook_and_cover_first_party_python
 
 shell-check: shell-inventory-check ## Lint maintained shell workflows
@@ -1297,7 +1297,7 @@ webhook-report-build: ## Build the independent Go SDK publication-report example
 .PHONY: sdk-go-examples-check check-go-example-sdk
 sdk-go-examples-check: webhook-report-check mcp-scanner-receiver-check ## Check the Go SDK and both independent webhook receiver examples
 
-check-go-example-sdk:
+check-go-example-sdk: ## Run Go SDK qualification for the standalone receiver examples
 	$(MAKE) --no-print-directory sdk-check SDK_LANGUAGE=go
 
 webhook-report-check: check-go-example-sdk ## Check the Go receiver example, SDK, isolated units and source analyzers
