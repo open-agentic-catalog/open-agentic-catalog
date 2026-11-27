@@ -22,6 +22,41 @@ func backupTestValue[T any](t *testing.T, value any) T {
 	return got
 }
 
+func TestBackupVolumeUIDsRequireTwoDistinctBoundVolumes(t *testing.T) {
+	claim := func(uid, volume, phase string) map[string]map[string]string {
+		return map[string]map[string]string{
+			"metadata": {"uid": uid}, "spec": {"volumeName": volume}, "status": {"phase": phase},
+		}
+	}
+	source := claim("source", "pv-source", "Bound")
+	for _, tc := range []struct {
+		name, uid, volume, phase string
+		valid                    bool
+	}{
+		{"distinct bound volumes", "restore", "pv-restore", "Bound", true},
+		{"missing volume binding", "restore", "", "Bound", false},
+		{"pending claim", "restore", "pv-restore", "Pending", false},
+		{"missing claim UID", "", "pv-restore", "Bound", false},
+		{"same claim", "source", "pv-restore", "Bound", false},
+		{"shared volume", "restore", "pv-source", "Bound", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw, err := json.Marshal(map[string]any{"items": []any{source, claim(tc.uid, tc.volume, tc.phase)}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			uids, err := backupVolumeUIDs(raw)
+			if tc.valid {
+				if err != nil || !slices.Equal(uids, []string{"source", "restore"}) {
+					t.Fatalf("bound claims returned %v, %v", uids, err)
+				}
+			} else if err == nil {
+				t.Fatalf("accepted %s", tc.name)
+			}
+		})
+	}
+}
+
 func TestBackupDatabaseHasDistinctSelectorsAndVolumeIdentity(t *testing.T) {
 	h := &harness{options: options{scenario: "backup-restore"}, postgres: "owned-postgres"}
 	objects, err := h.backupDatabaseObjects()

@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 )
 
@@ -180,10 +181,6 @@ func (h *harness) execute() error {
 		if err := h.verifyCoordinatedUpgrade(runID, initialSmoke); err != nil {
 			return err
 		}
-		if h.options.upgradeOnly {
-			h.report.Checks = append(h.report.Checks, "governed-http-smoke-and-retained-state")
-			return nil
-		}
 		// The original Service port-forward targeted a Pod drained by the upgrade.
 		address, err = h.startPortForward("service/catalog", 8080)
 		if err != nil {
@@ -192,6 +189,16 @@ func (h *harness) execute() error {
 		baseURL = "http://" + address
 		if err := h.waitHTTP(baseURL + "/readyz"); err != nil {
 			return err
+		}
+		id, err := h.createAndReadNamespace(baseURL, "post-upgrade-write", "Created after upgrade")
+		if err != nil {
+			return fmt.Errorf("post-upgrade namespace: %w", err)
+		}
+		fmt.Printf("[%s] created and read post-upgrade namespace %s\n", h.options.scenario, id)
+		h.report.Checks = append(h.report.Checks, "post-upgrade-namespace-create-and-readback")
+		if h.options.upgradeOnly {
+			h.report.Checks = append(h.report.Checks, "governed-http-smoke-and-retained-state")
+			return nil
 		}
 	}
 	if h.options.scenario == "basic" {
@@ -626,6 +633,29 @@ func bootstrapSmokePolicy(request replicaRequest) error {
 		}
 	}
 	return nil
+}
+
+// createAndReadNamespace requires a fresh commit through the API and an independent read of its ID.
+func (h *harness) createAndReadNamespace(baseURL, slug, displayName string) (string, error) {
+	body := map[string]string{"slug": slug, "displayName": displayName}
+	endpoint := baseURL + "/api/v1/namespaces"
+	created, err := h.request(http.MethodPost, endpoint, h.tokens["admin"], slug+"-"+h.suffix, "", body, nil)
+	if err != nil {
+		return "", err
+	}
+	var value catalog.Namespace
+	if created.Status != http.StatusCreated || created.Header.Get("Idempotency-Replayed") != "" || created.Header.Get("ETag") != `"rev-1"` ||
+		json.Unmarshal(created.Body, &value) != nil || value.ID == "" || value.TenantID != primaryTenantID || value.Slug != slug || value.DisplayName != displayName || value.Revision != 1 {
+		return "", fmt.Errorf("expected a newly created namespace at revision 1 (HTTP %d)", created.Status)
+	}
+	read, err := h.request(http.MethodGet, endpoint+"/"+value.ID, h.tokens["admin"], "", "", nil, nil)
+	if err != nil {
+		return "", err
+	}
+	if !sameNamespaceState(read, created) {
+		return "", fmt.Errorf("namespace readback differs from creation (HTTP %d)", read.Status)
+	}
+	return value.ID, nil
 }
 
 // runSmoke runs the governed catalogctl workflow with environment-injected fixture tokens and returns a bounded, successful JSON report.

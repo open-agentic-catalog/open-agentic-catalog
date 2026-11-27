@@ -36,7 +36,7 @@ make test-minikube-backup-restore
 
 This target creates its own cluster and installs the application chart. It populates the Catalog, stops API and worker Pods, and restores a full logical backup into a second PostgreSQL instance. The instances use distinct persistent volumes. It checks the migration plan, exact grants, all table counts/digests and every verification page for both tenants.
 
-The original database stays stopped while the restored Helm deployment starts. Retained reads, public bytes/ETag, local Search, command replay and tenant isolation must pass. The test does not rerun smoke to recreate data. It uses no existing cluster, database or credentials.
+The original database stays stopped while the restored Helm deployment starts. Before creating any new records, the drill checks retained reads, public discovery, local Search, command replay and tenant isolation. It then creates a namespace through the API and reads it back from both the restored database and the API. All data and credentials belong to the disposable cluster.
 
 The target prints its JSON report after cleanup. A failed check or cleanup fails the command. Its temporary dump stays inside the fixture Pod. The backup Job removes it after success or a command failure. Cluster cleanup removes the Pod's temporary storage after interruption.
 

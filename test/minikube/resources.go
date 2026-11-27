@@ -522,6 +522,8 @@ func (h *harness) writeHelmValues(marker, apiRole string) (string, error) {
 	application := h.application
 	if h.coordinatorChart != "" {
 		application = h.gitopsImages["target"]
+	} else if h.upgradeTarget != "" {
+		application = h.upgradeTarget
 	}
 	repository, tag, found := strings.Cut(application, ":")
 	if !found {
