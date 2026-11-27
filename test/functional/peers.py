@@ -17,7 +17,7 @@ import sys
 import time
 import urllib.parse
 
-from federation import Client, key, observations, snapshot_items, sync, wait_job
+from federation import Client, current_group_contributions, key, observations, snapshot_items, sync, wait_job
 from http_client import fixture_tls_context, ClientFailure
 from journeys import header
 from runner import Failure, command, http_failure_details, read_document, record_scenario_failure, write_document
@@ -643,13 +643,19 @@ class Peers:
         self.snapshot(self.publisher_client, PUBLIC_A)
         published = registry_members(self.public)
         assert [entry["version"] for entry in published if entry["identifier"] == plugin_identifier] == ["2.0.0"], "ARD List did not replace Plugin v1 with v2"
+        v1 = {"identifier": plugin_identifier, "versionPresent": "true", "version": "1.0.0"}
+        v2 = dict(v1, version="2.0.0")
+        previous = next(x for x in sealed if x["identifier"] == plugin_identifier)
+        assert current_group_contributions(self.b, v1) == [(previous["normalizedEntryDigest"], previous["id"], source["id"])], "unsynced Catalog lost its current Plugin v1"
+        self.check_group_missing(v2)
         self.check_indexed_reader(source["id"], sealed)
         changed_plugin = self.synchronize(source)
         self.check_index(changed_plugin, published, ids, source)
         self.check_indexed_reader(source["id"], changed_plugin)
-        previous = next(x for x in sealed if x["identifier"] == plugin_identifier)
         current = next(x for x in changed_plugin if x["identifier"] == plugin_identifier)
         assert current["normalizedEntryDigest"] != previous["normalizedEntryDigest"], "Plugin update reused the previous content"
+        assert current_group_contributions(self.b, v2) == [(current["normalizedEntryDigest"], current["id"], source["id"])], "synchronized Plugin group differs from v2 observation"
+        self.check_group_missing(v1)
         superseded = ("1.0.0", previous["id"], "withdrawn")
         self.check_version_history(source["id"], plugin_identifier, [superseded, ("2.0.0", current["id"], "current")])
         self.b.request("GET", "/api/v1/observations/" + previous["id"] + "/raw")
@@ -667,6 +673,7 @@ class Peers:
         self.check_indexed_reader(source["id"], changed_plugin)
         remaining_index = self.synchronize(source)
         self.check_index(remaining_index, published, remaining, source)
+        self.check_group_missing(v2)
         self.check_indexed_reader(source["id"], [entry for entry in changed_plugin if entry["identifier"] != plugin_identifier])
         self.check_version_history(source["id"], plugin_identifier, [superseded, ("2.0.0", current["id"], "withdrawn")])
         for observation in (previous, current):
@@ -809,6 +816,10 @@ class Peers:
         assert not page.get("nextCursor"), "peer version history exceeded the fixture bound"
         versions = sorted((row["version"], row["id"], row["freshness"]) for row in page["items"] if row["identifier"] == identifier)
         assert versions == expected, "peer observation IDs, versions or withdrawal state differ from the expected history"
+
+    def check_group_missing(self, identity):
+        problem, _ = self.b.request("GET", "/api/v1/observation-groups?" + urllib.parse.urlencode(identity), expected=(404,))
+        assert problem["code"] == "NOT_FOUND", "missing Plugin group failed for an unrelated reason"
 
     def check_indexed_reader(self, source_id, indexed):
         before = self.stats()

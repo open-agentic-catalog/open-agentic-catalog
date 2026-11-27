@@ -16,7 +16,7 @@ from pathlib import Path
 import urllib.parse
 import zipfile
 
-from federation import Client, key, observations, snapshot_items
+from federation import Client, current_group_contributions, key, observations, snapshot_items
 import feedback
 from http_client import fixture_tls_context
 from journeys import audit_once, header
@@ -194,6 +194,7 @@ def archive_journey(api, other, seed, run_id):
     other.request("GET", blocked_path, expected=(404,))
     revalidated, _ = mutate(api, "POST", blocked_path + ":validate", {}, 201)
     blocked_package(revalidated, invalid)
+    assert revalidated["revision"]["id"] == blocked["revision"]["id"], "revalidation returned a different archive revision"
     assert revalidated["evidence"]["id"] != blocked["evidence"]["id"] and revalidated["revision"]["representations"] == blocked["revision"]["representations"], "revalidation erased failure or rewrote inspection"
     version_path = "/api/v1/resource-versions/" + blocked["version"]["id"]
     _, before_headers = api.request("GET", version_path)
@@ -235,10 +236,17 @@ def archive_journey(api, other, seed, run_id):
     reader.request("GET", foreign, expected=(400,))
     # Extend the existing archive journey through independently reviewed
     # publication. Retire its release before the original three-item checks.
-    archive_publication(api, resource, appended, blocked, seed)
+    archive_publication(api, resource, appended, blocked["revision"]["id"], revalidated["evidence"]["id"], seed)
 
 
-def archive_publication(api, resource, version, blocked, target):
+def archive_publication(api, resource, version, blocked_revision_id, renewed_evidence_id, target):
+    def blocked_evidence_ids():
+        page, _ = api.request("GET", "/api/v1/validation-maintenance?state=blocked&limit=100")
+        assert not page.get("nextCursor"), "blocked archive inventory exceeded the fixture bound"
+        assert all(item["evidenceState"] == "blocked" and "blocked" in item["conditions"] for item in page["items"]), "blocked filter returned evidence without a blocked condition"
+        return [item["evidenceId"] for item in page["items"] if item["revisionId"] == blocked_revision_id]
+
+    assert blocked_evidence_ids() == [], "superseded archive revision still appears without a current reference"
     validated, _ = mutate(api, "POST", "/api/v1/version-revisions/" + version["revision"]["id"] + ":validate", {}, 201)
     assert validated["evidence"]["state"] == "complete" and validated["revision"]["contentSetDigest"] == version["revision"]["contentSetDigest"], "revalidation changed archive content"
     publisher, headers = mutate(api, "POST", "/api/v1/publishers", {"displayName": "Archive publisher", "domains": ["catalog.example.com"]}, 201)
@@ -250,8 +258,9 @@ def archive_publication(api, resource, version, blocked, target):
     listing, headers = mutate(api, "POST", "/api/v1/catalog-listings", {"namespaceId": resource["namespaceId"], "resourceId": resource["id"]}, 201)
     listing_path = "/api/v1/catalog-listings/" + listing["id"]
     blocked_listing, headers = mutate(api, "POST", listing_path + "/revisions", {
-        "versionRevisionId": blocked["revision"]["id"], "displayName": "Blocked archive", "description": "Invalid Skill frontmatter",
+        "versionRevisionId": blocked_revision_id, "displayName": "Blocked archive", "description": "Invalid Skill frontmatter",
         "publisherId": publisher["id"], "visibility": "tenant", "license": "Apache-2.0"}, 201, header(headers, "ETag"))
+    assert blocked_evidence_ids() == [renewed_evidence_id], "Listing candidate did not select the latest blocked evidence exactly once"
     # Correcting a version does not silently retarget an existing listing revision.
     failed_headers = {"Idempotency-Key": key("archive-blocked-submission")}
     for _ in range(2):
@@ -266,6 +275,7 @@ def archive_publication(api, resource, version, blocked, target):
         "versionRevisionId": validated["revision"]["id"], "displayName": "Reviewed archive", "relationships": [potential, dependency], "description": "Owned inert Skill archive",
         "publisherId": publisher["id"], "visibility": "tenant", "license": "Apache-2.0"}, 201, header(headers, "ETag"))
     listing_etag = header(headers, "ETag")
+    assert blocked_evidence_ids() == [], "replaced Listing candidate still appears in validation maintenance"
     submission, headers = mutate(api, "POST", listing_path + "/submissions", {}, 201)
     reviewer = Client(api.base_url, "local-reviewer")
     approved, _ = mutate(reviewer, "POST", "/api/v1/review-submissions/" + submission["id"] + ":approve", {"reason": "Independent archive review"}, etag=header(headers, "ETag"))
@@ -423,12 +433,31 @@ def publication_history(api, public):
     audit_once(api, "publication.unpublished", "publication_snapshot", first["id"])
     public.request("GET", "/.well-known/ard.json", expected=(404,))
     public.request("GET", "/.well-known/ard.json", expected=(404,), headers={"If-None-Match": restored["etag"]})
-    snapshot(api)
+    active = snapshot(api)
     _, headers = public.request("GET", "/.well-known/ard.json")
-    public.request("GET", "/.well-known/ard.json", expected=(304,), headers={"If-None-Match": header(headers, "ETag")})
+    assert header(headers, "ETag") == active["etag"], "public manifest did not select the last activated snapshot"
+    public.request("GET", "/.well-known/ard.json", expected=(304,), headers={"If-None-Match": active["etag"]})
+    return active["id"]
 
 
-def administration(api, other, public, base, seed, run_id):
+def check_revoked_rollback(api, public, snapshot_id):
+    path = "/api/v1/publication/snapshots/" + snapshot_id
+    host = "127.0.0.1"
+    retained, _ = api.request("GET", path + "?host=" + host)
+    assert retained["state"] == "retired", "domain revocation did not retire the active snapshot"
+    problem, _ = api.request("POST", path + ":rollback", {"host": host, "reason": "Check revoked publisher authority"}, (422,),
+                             {"If-Match": retained["etag"], "Idempotency-Key": key("revoked-rollback")})
+    assert problem["code"] == "PUBLICATION_NOT_READY", "rollback refused for an unrelated reason"
+    after, _ = api.request("GET", path + "?host=" + host)
+    assert after["state"] == "retired", "refused rollback restored the snapshot"
+    for manifest in ("/.well-known/ard.json", "/.well-known/ai-catalog.json"):
+        public.request("GET", manifest, expected=(404,))
+    query = urllib.parse.urlencode({"action": "publication.rolled_back", "targetType": "publication_snapshot", "targetId": snapshot_id, "limit": 1})
+    events, _ = api.request("GET", "/api/v1/audit-events?" + query)
+    assert not events["items"] and not events.get("nextCursor"), "refused rollback recorded a successful transition"
+
+
+def administration(api, other, public, base, seed, run_id, snapshot_id):
     publisher_path = "/api/v1/publishers/" + seed["listingRevision"]["publisherId"]
     publisher, headers = api.request("GET", publisher_path)
     other.request("GET", publisher_path, expected=(404,))
@@ -440,9 +469,14 @@ def administration(api, other, public, base, seed, run_id):
     assert domain not in revoked.get("approvedPublicationDomains", []), "publisher approval not revoked"
     audit_once(api, "publisher.publication_domain_revoked", "publisher", publisher["id"])
     public.request("GET", "/.well-known/ard.json", expected=(404,))
+    check_revoked_rollback(api, public, snapshot_id)
     mutate(api, "POST", publisher_path + "/publication-domains/" + domain + ":approve",
            {"reason": "Restore owned domain approval"}, etag=header(headers, "ETag"))
+    public.request("GET", "/.well-known/ard.json", expected=(404,))
     snapshot(api)
+    published, _ = public.request("GET", "/ard/v1/agents?pageSize=100")
+    assert any(entry["identifier"] == seed["resource"]["canonicalIdentifier"] and entry.get("version") == seed["version"]["version"]
+               for entry in published["items"]), "republication did not restore the seed release"
     # A namespace-scoped grant affects the same ordinary reader immediately;
     # the configured development token cannot manufacture or retain the role.
     reader = Client(base, "local-reader")
@@ -648,8 +682,7 @@ def source_journey(api, other, seed):
     other.request("GET", occurrence_path + "/raw", expected=(404,))
     occurrences, _ = api.request("GET", occurrence_path + "/occurrences?limit=10")
     occurrence = occurrences["items"][0]
-    group, _ = api.request("GET", "/api/v1/observation-groups?" + urllib.parse.urlencode({"identifier": observed["identifier"], "versionPresent": str(observed["versionPresent"]).lower()}))
-    assert group["identifier"] == observed["identifier"] and group["members"], "observation group lost identity"
+    assert (observed["normalizedEntryDigest"], observed["id"], source["id"]) in current_group_contributions(api, identity), "observation group lost the selected contribution"
     adopted, _ = mutate(api, "POST", occurrence_path + ":adopt", {
         "snapshotId": occurrence["snapshotId"], "retrievalDigest": occurrence["retrievalDigest"], "entryLocation": occurrence["entryLocation"],
         "namespaceId": seed["resource"]["namespaceId"], "publisherId": seed["listingRevision"]["publisherId"], "version": "1.0.0", "description": "Owned external draft adoption"}, 201)
@@ -710,8 +743,8 @@ def run(base, run_id, with_source=False):
         live_search(api)
     archive_journey(api, other, values[0], run_id)
     plugin_admission(api, other, values[0], run_id)
-    publication_history(api, public)
-    administration(api, other, public, base, values[0], run_id)
+    snapshot_id = publication_history(api, public)
+    administration(api, other, public, base, values[0], run_id, snapshot_id)
     review_journey(api, reviewer, values[0])
     release_journey(api, public, values)
     if with_source:

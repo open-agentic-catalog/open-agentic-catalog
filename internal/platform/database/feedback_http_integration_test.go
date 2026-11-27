@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -107,16 +108,22 @@ func TestPostgresFeedbackTwoAPIReplayConcurrencyAndOffboarding(t *testing.T) {
 	}
 	request := func(server *httptest.Server, token, method, path, command, etag string, body any) response {
 		t.Helper()
-		raw, err := json.Marshal(body)
-		if err != nil {
-			t.Fatal(err)
+		var content io.Reader
+		if body != nil {
+			raw, err := json.Marshal(body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			content = bytes.NewReader(raw)
 		}
-		req, err := http.NewRequestWithContext(t.Context(), method, server.URL+path, bytes.NewReader(raw))
+		req, err := http.NewRequestWithContext(t.Context(), method, server.URL+path, content)
 		if err != nil {
 			t.Fatal(err)
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
-		req.Header.Set("Content-Type", "application/json")
+		if body != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
 		if command != "" {
 			req.Header.Set("Idempotency-Key", command)
 		}
@@ -160,6 +167,20 @@ func TestPostgresFeedbackTwoAPIReplayConcurrencyAndOffboarding(t *testing.T) {
 	lifecycle := request(one, "reader", "POST", "/api/v1/feedback", "lifecycle-create", "", payload)
 	check(lifecycle, 201)
 	lifecyclePath := "/api/v1/feedback/" + identifier(lifecycle)
+	checkOpenFeedbackCounts := func(problems, suggestions int) {
+		t.Helper()
+		got := request(one, "admin", "GET", "/api/v1/overview/feedback", "", "", nil)
+		check(got, http.StatusOK)
+		var overview feedback.Overview
+		if err := json.Unmarshal(got.body, &overview); err != nil {
+			t.Fatal(err)
+		}
+		if overview.Open.Limited || overview.Open.Value != 1 ||
+			!slices.Contains(overview.Categories, feedback.CategoryCount{Category: "problem", Count: problems}) ||
+			!slices.Contains(overview.Categories, feedback.CategoryCount{Category: "suggestion", Count: suggestions}) {
+			t.Fatalf("moderator saw open=%+v categories=%v, want one open with problem=%d suggestion=%d", overview.Open, overview.Categories, problems, suggestions)
+		}
+	}
 	for _, step := range []struct {
 		actor, method, suffix string
 		body                  map[string]any
@@ -173,10 +194,19 @@ func TestPostgresFeedbackTwoAPIReplayConcurrencyAndOffboarding(t *testing.T) {
 		command := "lifecycle-" + step.method + step.suffix
 		lifecycle = request(two, step.actor, step.method, lifecyclePath+step.suffix, command, etag, step.body)
 		check(lifecycle, 200)
+		if step.method == http.MethodPatch {
+			checkOpenFeedbackCounts(0, 1)
+		}
 		replayed := request(one, step.actor, step.method, lifecyclePath+step.suffix, command, etag, step.body)
 		check(replayed, 200)
 		if !bytes.Equal(lifecycle.body, replayed.body) || replayed.header.Get("Idempotency-Replayed") != "true" {
 			t.Fatal("sequential lifecycle replay mismatch")
+		}
+		if step.suffix == ":reopen" {
+			checkOpenFeedbackCounts(1, 0)
+		}
+		if step.method == http.MethodPatch {
+			checkOpenFeedbackCounts(0, 1)
 		}
 	}
 	withdrawn := request(two, "reader", "GET", lifecyclePath, "", "", nil)
