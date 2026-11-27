@@ -6,9 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -23,11 +26,7 @@ import (
 func TestImportDraftCLIRealAPI(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
-	binary := filepath.Join(canonicalTempDir(t), "catalogctl")
-	build := exec.CommandContext(ctx, "go", "build", "-mod=readonly", "-o", binary, ".") // #nosec G204,G702 -- fixed source and invocation-owned binary.
-	if raw, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build: %s %v", raw, err)
-	}
+	binary := buildCatalogctlProcessBinary(t, ctx)
 	fault := &atomic.Int32{}
 	runtime, server, archiveOrigin, _, writes := configuredDemoRuntimeWithPeerControl(t, fault)
 	seed, err := executeExpandedDemo(ctx, server.URL, filepath.Join(canonicalTempDir(t), "seed.json"), archiveOrigin, false)
@@ -35,20 +34,25 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	token := clientSkillToken(t, "local-contributor")
-	run := func(success bool, args ...string) []byte {
+	runAt := func(origin string, exitCode int, args ...string) ([]byte, string) {
 		t.Helper()
 		if len(args) < 2 || args[1] != "preview" {
-			args = append(args, "--base-url", server.URL, "--token-file", token)
+			args = append(args, "--base-url", origin, "--token-file", token)
 		}
 		command := exec.CommandContext(ctx, binary, args...) // #nosec G204,G702 -- owned binary, loopback API and synthetic files.
-		command.Env = append(os.Environ(), "CATALOG_CONFIG_FILE=/missing/PRIVATE_SENTINEL", "CATALOG_REMOTE_TOKEN=ignored", "CATALOG_REMOTE_CA_FILE=")
+		command.Env = append(catalogctlProcessEnvironment(t), "CATALOG_CONFIG_FILE=/missing/PRIVATE_SENTINEL", "CATALOG_REMOTE_TOKEN=ignored", "CATALOG_REMOTE_CA_FILE=")
 		var stdout, stderr bytes.Buffer
 		command.Stdout, command.Stderr = &stdout, &stderr
 		err := command.Run()
-		if (err == nil) != success || success && stderr.Len() != 0 || strings.Contains(stderr.String(), "PRIVATE_SENTINEL") || strings.Contains(stdout.String(), "local-contributor") {
+		if command.ProcessState == nil || command.ProcessState.ExitCode() != exitCode || (stderr.Len() == 0) != (exitCode == 0) || strings.Contains(stderr.String(), "PRIVATE_SENTINEL") || strings.Contains(stdout.String(), "local-contributor") {
 			t.Fatalf("CLI: %v stdout=%s stderr=%s", err, &stdout, &stderr)
 		}
-		return stdout.Bytes()
+		return stdout.Bytes(), stderr.String()
+	}
+	run := func(exitCode int, args ...string) []byte {
+		t.Helper()
+		out, _ := runAt(server.URL, exitCode, args...)
+		return out
 	}
 	read := func(path string, target any) {
 		t.Helper()
@@ -70,7 +74,7 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 			agent = record
 		}
 		directory := filepath.Join(canonicalTempDir(t), "export")
-		run(true, "export", "--format", "draft", "--version-revision-id", record.VersionRevision.ID, "--listing-revision-id", record.ListingRevision.ID, "--output-dir", directory)
+		run(0, "export", "--format", "draft", "--version-revision-id", record.VersionRevision.ID, "--listing-revision-id", record.ListingRevision.ID, "--output-dir", directory)
 		filename := filepath.Join(directory, "draft.json")
 		raw, err := os.ReadFile(filename) // #nosec G304 -- fixed file in owned export directory.
 		if err != nil {
@@ -83,13 +87,13 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 		file.CanonicalIdentifier = "custom:reusable-" + string(item.Kind)
 		writeImportDraftTest(t, filename, file)
 		var preview importBatchPreview
-		if json.Unmarshal(run(true, "import", "preview", "--file", filename, "--namespace-id", record.Resource.NamespaceID, "--publisher-id", record.ListingRevision.PublisherID), &preview) != nil || !preview.LocallyValid {
+		if json.Unmarshal(run(0, "import", "preview", "--file", filename, "--namespace-id", record.Resource.NamespaceID, "--publisher-id", record.ListingRevision.PublisherID), &preview) != nil || !preview.LocallyValid {
 			t.Fatal("four-kind offline preview failed")
 		}
 		state := filepath.Join(canonicalTempDir(t), "private", "state.json")
 		var outcome importOutcome
 		args := []string{"--file", filename, "--namespace-id", record.Resource.NamespaceID, "--publisher-id", record.ListingRevision.PublisherID, "--state-file", state}
-		if json.Unmarshal(run(true, append([]string{"import", "apply"}, args...)...), &outcome) != nil || outcome.Disposition != "complete" || len(outcome.Items[0].Steps) != 4 {
+		if json.Unmarshal(run(0, append([]string{"import", "apply"}, args...)...), &outcome) != nil || outcome.Disposition != "complete" || len(outcome.Items[0].Steps) != 4 {
 			t.Fatal("four-kind shared file did not create the complete draft")
 		}
 		var retained struct {
@@ -101,7 +105,7 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 			t.Fatal("shared import changed native representation count or evidence")
 		}
 		var complete importOutcome
-		if json.Unmarshal(run(true, append([]string{"import", "resume"}, args...)...), &complete) != nil || complete.Disposition != "complete" {
+		if json.Unmarshal(run(0, append([]string{"import", "resume"}, args...)...), &complete) != nil || complete.Disposition != "complete" {
 			t.Fatal("completed shared import did not resume")
 		}
 		if item.Kind == catalog.KindPlugin {
@@ -113,7 +117,7 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 			writeImportDraftTest(t, filename, file)
 			failedState := filepath.Join(canonicalTempDir(t), "private", "state.json")
 			var failed importOutcome
-			if json.Unmarshal(run(false, "import", "apply", "--file", filename, "--namespace-id", record.Resource.NamespaceID, "--content-only", "--state-file", failedState), &failed) != nil || len(failed.Items[0].Steps) != 2 || failed.Items[0].Steps[0].State != "acknowledged" || failed.Items[0].Steps[1].State != "failed" {
+			if json.Unmarshal(run(1, "import", "apply", "--file", filename, "--namespace-id", record.Resource.NamespaceID, "--content-only", "--state-file", failedState), &failed) != nil || len(failed.Items[0].Steps) != 2 || failed.Items[0].Steps[0].State != "acknowledged" || failed.Items[0].Steps[1].State != "failed" {
 				t.Fatal("changed Plugin archive was admitted or lost partial progress")
 			}
 			var versions struct {
@@ -129,6 +133,7 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 	if len(seen) != 4 || agent.Resource.ID == "" {
 		t.Fatal("four-kind export/import coverage incomplete")
 	}
+	verifyDraftReadbackRecovery(t, runtime.HTTP.Handler(), agent.Resource, runAt, read)
 	// The reusable file contains only a handoff. Package bytes come from one
 	// confined explicit CLI argument and retain the normal server inspection.
 	packageDir := canonicalTempDir(t)
@@ -140,8 +145,8 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 	writeImportTestFile(t, packageDir, "safe-skill/scripts/run.sh", []byte("#!/bin/sh\nexit 1\n"), 0700)
 	missingState := filepath.Join(canonicalTempDir(t), "private", "state.json")
 	before := writes.Load()
-	run(false, "import", "preview", "--file", packageFile, "--namespace-id", agent.Resource.NamespaceID)
-	run(false, "import", "apply", "--file", packageFile, "--namespace-id", agent.Resource.NamespaceID, "--state-file", missingState)
+	run(1, "import", "preview", "--file", packageFile, "--namespace-id", agent.Resource.NamespaceID)
+	run(1, "import", "apply", "--file", packageFile, "--namespace-id", agent.Resource.NamespaceID, "--state-file", missingState)
 	if writes.Load() != before {
 		t.Fatal("missing package created remote records")
 	}
@@ -149,7 +154,7 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 		t.Fatal("missing package created a command receipt")
 	}
 	var packageResult importOutcome
-	raw := run(true, "import", "apply", "--file", packageFile, "--namespace-id", agent.Resource.NamespaceID, "--package-directory", "1=safe-skill", "--state-file", filepath.Join(canonicalTempDir(t), "private", "state.json"))
+	raw := run(0, "import", "apply", "--file", packageFile, "--namespace-id", agent.Resource.NamespaceID, "--package-directory", "1=safe-skill", "--state-file", filepath.Join(canonicalTempDir(t), "private", "state.json"))
 	if json.Unmarshal(raw, &packageResult) != nil || packageResult.Disposition != "complete" || len(packageResult.Items[0].Steps) != 2 {
 		t.Fatal("separate Skill package import failed")
 	}
@@ -228,7 +233,7 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 		}
 		for _, action := range []string{"apply", "resume"} {
 			var outcome importOutcome
-			if json.Unmarshal(run(true, append([]string{"import", action}, args...)...), &outcome) != nil || outcome.Disposition != "complete" || len(outcome.Items[0].Steps) != wantSteps {
+			if json.Unmarshal(run(0, append([]string{"import", action}, args...)...), &outcome) != nil || outcome.Disposition != "complete" || len(outcome.Items[0].Steps) != wantSteps {
 				t.Fatal("exact scoped author could not import without create/Publisher read")
 			}
 		}
@@ -249,9 +254,111 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 		} else {
 			args = append(args, "--namespace-id", agent.Resource.NamespaceID)
 		}
-		run(false, args...)
+		run(1, args...)
 		if _, err = os.Stat(state); !os.IsNotExist(err) {
 			t.Fatal("denied import created a command receipt")
 		}
+	}
+}
+
+// Lose only the final revision read, after the real API acknowledged the Version.
+func verifyDraftReadbackRecovery(t *testing.T, api http.Handler, resource catalog.Resource, runAt func(string, int, ...string) ([]byte, string), read func(string, any)) {
+	t.Helper()
+	filename, file := importDraftTestFile(t, false)
+	file.CanonicalIdentifier, file.Version = resource.CanonicalIdentifier, "readback-recovery"
+	writeImportDraftTest(t, filename, file)
+	type versionResult struct {
+		Version  catalog.ResourceVersion `json:"version"`
+		Revision catalog.VersionRevision `json:"revision"`
+		Evidence catalog.EvidenceSet     `json:"evidence"`
+	}
+	var created atomic.Pointer[versionResult]
+	var revisionReads atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		original := created.Load()
+		create := r.Method == http.MethodPost && r.URL.Path == "/api/v1/resources/"+resource.ID+"/versions"
+		verify := r.Method == http.MethodGet && original != nil && r.URL.Path == "/api/v1/version-revisions/"+original.Revision.ID
+		if !create && !verify {
+			if r.Method != http.MethodGet {
+				t.Errorf("unexpected authoring request: %s %s", r.Method, r.URL.Path)
+			}
+			api.ServeHTTP(w, r)
+			return
+		}
+		reply := httptest.NewRecorder()
+		api.ServeHTTP(reply, r)
+		var result versionResult
+		if err := json.Unmarshal(reply.Body.Bytes(), &result); err != nil {
+			t.Errorf("decode Catalog response: %v", err)
+			http.Error(w, "invalid fixture response", http.StatusInternalServerError)
+			return
+		}
+		if create {
+			if reply.Code != http.StatusCreated || result.Version.ResourceID != resource.ID || result.Version.Version != file.Version {
+				t.Error("invalid Version acknowledgement from the selected Resource")
+			}
+			if result.Version.ID == "" || result.Revision.ResourceVersionID != result.Version.ID || result.Revision.ID == "" || result.Evidence.ID == "" || result.Revision.ContentSetDigest == "" || result.Evidence.State != catalog.EvidenceComplete {
+				t.Error("created Version is missing its revision or validation evidence")
+			}
+			if !created.CompareAndSwap(nil, &result) {
+				t.Error("repeated Version create")
+			}
+		} else {
+			if reply.Code != http.StatusOK || !reflect.DeepEqual(result.Revision, original.Revision) || !reflect.DeepEqual(result.Evidence, original.Evidence) {
+				t.Error("original revision read did not match the acknowledged revision and evidence")
+			}
+			if revisionReads.Add(1) == 1 {
+				w.Header().Set("Content-Type", "application/problem+json")
+				w.Header().Set("X-Request-ID", "fixture-read-outage")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = w.Write([]byte(`{"type":"about:blank","title":"Service Unavailable","status":503,"code":"DEPENDENCY_UNAVAILABLE","detail":"temporary read outage","requestId":"fixture-read-outage"}`))
+				return
+			}
+		}
+		for key, values := range reply.Header() {
+			w.Header()[key] = values
+		}
+		w.WriteHeader(reply.Code)
+		_, _ = w.Write(reply.Body.Bytes())
+	}))
+	defer server.Close()
+	state := filepath.Join(canonicalTempDir(t), "private", "state.json")
+	args := []string{"--file", filename, "--resource-id", resource.ID, "--state-file", state}
+	raw, diagnostic := runAt(server.URL, 1, append([]string{"import", "apply"}, args...)...)
+	var outcome importOutcome
+	if revisionReads.Load() != 1 || !strings.Contains(diagnostic, "exact retained draft reads failed or disagree") || json.Unmarshal(raw, &outcome) != nil || outcome.Disposition != "uncertain" || len(outcome.Items) != 1 || outcome.Items[0].Disposition != "uncertain" {
+		t.Fatalf("failed final read: report=%s diagnostic=%s", raw, diagnostic)
+	}
+	before, err := os.ReadFile(state) // #nosec G304 -- exact private receipt in the test-owned directory.
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipt, err := decodeImportReceipt(before)
+	if err != nil || receipt.Format != 3 || len(receipt.Steps) != 1 || receipt.Steps[0].State != "acknowledged" {
+		t.Fatalf("missing acknowledged Version in private receipt: %v", err)
+	}
+	ack, original := receipt.Steps[0].Ack, created.Load()
+	if original == nil || ack.ID != original.Version.ID || ack.RevisionID != original.Revision.ID || ack.EvidenceID != original.Evidence.ID || ack.Digest != original.Revision.ContentSetDigest {
+		t.Fatal("receipt differs from the actual Version acknowledgement")
+	}
+	steps := outcome.Items[0].Steps
+	if len(steps) != 1 || steps[0].State != "acknowledged" || steps[0].Ack.ID != ack.ID || steps[0].Ack.RevisionID != ack.RevisionID || steps[0].Ack.EvidenceID != ack.EvidenceID || steps[0].Ack.Digest != ack.Digest {
+		t.Fatal("incomplete report lost the acknowledged Version")
+	}
+	raw, _ = runAt(server.URL, 0, append([]string{"import", "resume"}, args...)...)
+	var recovered importOutcome
+	if json.Unmarshal(raw, &recovered) != nil || recovered.Disposition != "complete" || len(recovered.Items) != 1 || recovered.Items[0].Disposition != "complete" || !reflect.DeepEqual(recovered.Items[0].Steps, steps) {
+		t.Fatalf("resume did not report the original Version as complete: %s", raw)
+	}
+	after, err := os.ReadFile(state) // #nosec G304 -- same test-owned receipt as before resume.
+	if err != nil || !bytes.Equal(before, after) || revisionReads.Load() < 2 {
+		t.Fatalf("resume did not re-read the revision and preserve the receipt: %v", err)
+	}
+	var version catalog.ResourceVersion
+	var retained versionResult
+	read("/api/v1/resource-versions/"+ack.ID, &version)
+	read("/api/v1/version-revisions/"+ack.RevisionID, &retained)
+	if !reflect.DeepEqual(version, original.Version) || !reflect.DeepEqual(retained.Revision, original.Revision) || !reflect.DeepEqual(retained.Evidence, original.Evidence) {
+		t.Fatal("independent Catalog reads differ from the committed Version, revision or evidence")
 	}
 }

@@ -250,6 +250,15 @@ func demoStepCollection(s demoStep) (string, error) {
 	return "", safeerr.New("seed-demo: unsupported fixed demo intent")
 }
 
+// Read the exact record selected from inventory before using its contents for recovery.
+func demoInventoryRecord(ctx context.Context, c *smokeHTTPClient, path, id string) (map[string]any, string, error) {
+	record, etag, err := demoExchangeETag[map[string]any](ctx, c, http.MethodGet, path, "local-admin", "", "", nil, http.StatusOK)
+	if err == nil && record["id"] != id {
+		return nil, "", safeerr.New("seed-demo: record ID differs from inventory")
+	}
+	return record, etag, err
+}
+
 func demoStepIDs(ctx context.Context, c *smokeHTTPClient, s demoStep) ([]string, error) {
 	if !demoStepCreation(s) {
 		return nil, nil
@@ -278,7 +287,7 @@ func demoStepIDs(ctx context.Context, c *smokeHTTPClient, s demoStep) ([]string,
 	}
 	var matches []string
 	for _, id := range ids {
-		object, e := demoGet[map[string]any](ctx, c, s.Path+"/"+id)
+		object, _, e := demoInventoryRecord(ctx, c, s.Path+"/"+id, id)
 		if e != nil {
 			return nil, e
 		}
@@ -327,7 +336,7 @@ func reconcileDemoStep(ctx context.Context, c *smokeHTTPClient, s demoStep) (smo
 			if release["submissionId"] != body["submissionId"] || release["state"] != "published" {
 				return smokeHTTPResponse{}, false, safeerr.New("seed-demo: uncertain release differs")
 			}
-			return demoStepResponse(map[string]any{"listing": object, "release": release}, etag)
+			return s.recoveredResponse(map[string]any{"listing": object, "release": release}, etag)
 		}
 		if !matched {
 			return smokeHTTPResponse{}, false, nil
@@ -342,9 +351,9 @@ func reconcileDemoStep(ctx context.Context, c *smokeHTTPClient, s demoStep) (smo
 			if e != nil {
 				return smokeHTTPResponse{}, false, e
 			}
-			return demoStepResponse(map[string]any{"submission": object, "version": version}, etag)
+			return s.recoveredResponse(map[string]any{"submission": object, "version": version}, etag)
 		}
-		return demoStepResponse(object, etag)
+		return s.recoveredResponse(object, etag)
 	}
 	ids, err := demoStepIDs(ctx, c, s)
 	if err != nil {
@@ -366,7 +375,7 @@ func reconcileDemoStep(ctx context.Context, c *smokeHTTPClient, s demoStep) (smo
 	path := s.Path + "/" + id
 	switch {
 	case strings.HasSuffix(s.Path, "/versions"):
-		version, etag, e := demoExchangeETag[map[string]any](ctx, c, http.MethodGet, "/api/v1/resource-versions/"+id, "local-admin", "", "", nil, http.StatusOK)
+		version, etag, e := demoInventoryRecord(ctx, c, "/api/v1/resource-versions/"+id, id)
 		if e != nil {
 			return smokeHTTPResponse{}, false, e
 		}
@@ -378,28 +387,26 @@ func reconcileDemoStep(ctx context.Context, c *smokeHTTPClient, s demoStep) (smo
 		if version["version"] != body["version"] {
 			return smokeHTTPResponse{}, false, safeerr.New("seed-demo: uncertain version differs")
 		}
-		return demoStepResponse(map[string]any{"version": version, "revision": revision["revision"]}, etag)
+		return s.recoveredResponse(map[string]any{"version": version, "revision": revision["revision"]}, etag)
 	case strings.HasSuffix(s.Path, "/revisions"):
-		revision, e := demoGet[map[string]any](ctx, c, "/api/v1/listing-revisions/"+id)
+		revision, _, e := demoInventoryRecord(ctx, c, "/api/v1/listing-revisions/"+id, id)
 		if e != nil {
 			return smokeHTTPResponse{}, false, e
 		}
-		for key, value := range body {
-			if !reflect.DeepEqual(revision[key], value) {
-				return smokeHTTPResponse{}, false, safeerr.New("seed-demo: uncertain listing revision differs")
-			}
+		if !demoListingRevisionMatches(body, revision) {
+			return smokeHTTPResponse{}, false, safeerr.New("seed-demo: uncertain listing revision differs")
 		}
 		listing, etag, e := demoExchangeETag[map[string]any](ctx, c, http.MethodGet, strings.TrimSuffix(s.Path, "/revisions"), "local-admin", "", "", nil, http.StatusOK)
 		if e != nil {
 			return smokeHTTPResponse{}, false, e
 		}
-		return demoStepResponse(map[string]any{"listing": listing, "revision": revision}, etag)
+		return s.recoveredResponse(map[string]any{"listing": listing, "revision": revision}, etag)
 	case strings.HasSuffix(s.Path, "/submissions"):
 		path = "/api/v1/review-submissions/" + id
 	case s.Path == "/api/v1/publication/snapshots":
 		path += "?host=" + url.QueryEscape(fmt.Sprint(body["host"]))
 	}
-	object, etag, err := demoExchangeETag[map[string]any](ctx, c, http.MethodGet, path, "local-admin", "", "", nil, http.StatusOK)
+	object, etag, err := demoInventoryRecord(ctx, c, path, id)
 	if err != nil {
 		return smokeHTTPResponse{}, false, err
 	}
@@ -408,12 +415,20 @@ func reconcileDemoStep(ctx context.Context, c *smokeHTTPClient, s demoStep) (smo
 			return smokeHTTPResponse{}, false, safeerr.New("seed-demo: uncertain created record differs")
 		}
 	}
-	return demoStepResponse(object, etag)
+	return s.recoveredResponse(object, etag)
 }
 
-func demoStepResponse(value any, etag string) (smokeHTTPResponse, bool, error) {
+// Validate reconstructed acknowledgements before any loader can persist them.
+func (s demoStep) recoveredResponse(value any, etag string) (smokeHTTPResponse, bool, error) {
 	raw, err := json.Marshal(value)
-	return smokeHTTPResponse{Body: raw, Header: http.Header{"Etag": {etag}}}, err == nil, err
+	if err != nil {
+		return smokeHTTPResponse{}, false, err
+	}
+	s.Response = raw
+	if err := validateDemoStepResponse(s); err != nil {
+		return smokeHTTPResponse{}, false, err
+	}
+	return smokeHTTPResponse{Body: raw, Header: http.Header{"Etag": {etag}}}, true, nil
 }
 
 // Completed responses provide lookup hints. Subsequent owned transitions supersede pointers.

@@ -29,10 +29,15 @@ func personalUnitAccess() map[string]any {
 }
 
 func TestPersonalObservedEnumerationAndBounds(t *testing.T) {
-	for _, fault := range []string{"none", "later failure", "continued budget", "repeated cursor", "repeated item", "too many", "changed identity", "wrong filter", "malformed item", "empty continuation"} {
+	for _, fault := range []string{"none", "later failure", "continued budget", "repeated cursor", "repeated item", "backwards boundary", "too many", "changed identity", "wrong filter", "malformed item", "empty continuation"} {
 		t.Run(fault, func(t *testing.T) {
 			pages, identities := 0, 0
 			file := personalTestFile()
+			inputs := make([]personal.Input, 200)
+			for i := range inputs {
+				inputs[i] = file.Items[0]
+				inputs[i].Label = fmt.Sprintf("Saved item %d", i+1)
+			}
 			client := &http.Client{Transport: catalogctlRoundTripFunc(func(request *http.Request) (*http.Response, error) {
 				if request.URL.Scheme+"://"+request.URL.Host != file.Origin || request.Method != http.MethodGet || request.Header.Get("Authorization") != "Bearer unit-token" {
 					t.Fatal("unexpected destination or mutation")
@@ -49,7 +54,10 @@ func TestPersonalObservedEnumerationAndBounds(t *testing.T) {
 					t.Fatal("unbounded/target read or missing filter")
 				}
 				pages++
-				if pages == 2 && request.URL.Query().Get("cursor") != "opaque +/雪" {
+				if pages > 2 {
+					t.Fatal("export requested a third page")
+				}
+				if (pages == 1 && request.URL.Query().Has("cursor")) || (pages == 2 && request.URL.Query().Get("cursor") != "opaque +/雪") {
 					t.Fatal("continuation changed")
 				}
 				if pages == 2 && fault == "later failure" {
@@ -62,7 +70,7 @@ func TestPersonalObservedEnumerationAndBounds(t *testing.T) {
 				items := make([]personal.Item, count)
 				for i := range items {
 					n := (pages-1)*100 + i + 1
-					items[i] = personal.Item{Input: file.Items[0], ID: fmt.Sprintf("00000000-0000-7000-8000-%012x", n), Revision: 1, CreatedAt: time.Unix(1, 0), UpdatedAt: time.Unix(2, 0)}
+					items[i] = personal.Item{Input: inputs[n-1], ID: fmt.Sprintf("00000000-0000-7000-8000-%012x", 2*n), Revision: 1, CreatedAt: time.Unix(1, 0), UpdatedAt: time.Unix(2, 0)}
 				}
 				// The first read remains observed even when later pages see an edited label.
 				if pages == 2 {
@@ -78,7 +86,12 @@ func TestPersonalObservedEnumerationAndBounds(t *testing.T) {
 				switch fault {
 				case "repeated item":
 					if pages == 2 {
-						items[0].ID = "00000000-0000-7000-8000-000000000001"
+						items[0].ID = "00000000-0000-7000-8000-000000000002"
+					}
+				case "backwards boundary":
+					if pages == 2 {
+						// 199 lies between the final two even IDs on page one.
+						items[0].ID = "00000000-0000-7000-8000-0000000000c7"
 					}
 				case "wrong filter":
 					items[0].Input = file.Items[1]
@@ -91,11 +104,17 @@ func TestPersonalObservedEnumerationAndBounds(t *testing.T) {
 			})}
 			got, err := readPersonalExport(t.Context(), &remoteSession{client: client, origin: file.Origin, token: "unit-token"}, remoteOptions{}, "search")
 			if fault == "none" {
-				if err != nil || len(got.Items) != 200 || pages != 2 || identities != 2 || !reflect.DeepEqual(got.Items[0], file.Items[0]) || got.Items[100].Label != "Changed after first page" || got.Consistency != "observed-pages" {
-					t.Fatal("observed enumeration changed or failed", err)
+				inputs[100].Label = "Changed after first page"
+				if err != nil || pages != 2 || identities != 2 || got.Consistency != "observed-pages" || !reflect.DeepEqual(got.Items, inputs) {
+					t.Fatal("export did not preserve the two observed pages in order", err)
 				}
-			} else if err == nil || got.Format != "" || pages > 2 {
+				return
+			}
+			if err == nil || got.Format != "" || len(got.Items) != 0 {
 				t.Fatal("partial/unbounded export called complete", err)
+			}
+			if fault == "backwards boundary" && (pages != 2 || identities != 2 || !strings.Contains(err.Error(), "invalid or repeated saved item")) {
+				t.Fatalf("backwards boundary: reads=%d identities=%d err=%v", pages, identities, err)
 			}
 		})
 	}

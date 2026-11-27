@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -267,20 +268,28 @@ func TestImportAggregateReportAndReceiptLimits(t *testing.T) {
 
 // Admission must cover the whole manifest before any item can start.
 func TestImportBatchPreflightWithControlledTransport(t *testing.T) {
-	for _, fault := range []string{"none", "changed principal", "later budget", "later permission"} {
+	for _, fault := range []string{"none", "changed principal", "later budget", "later permission", "both kinds", "missing MCP kind"} {
 		t.Run(fault, func(t *testing.T) {
 			dir, manifest := importBatchTestInput(t, 3)
-			batch, err := prepareImportBatchTest(t, dir, manifest)
-			if err != nil {
-				t.Fatal(err)
+			mixedKinds := fault == "both kinds" || fault == "missing MCP kind"
+			if mixedKinds {
+				manifest.Resources[1].NamespaceID = manifest.Resources[0].NamespaceID
+				useImportTestMCPServer(t, dir, &manifest.Resources[1])
 			}
-			state, err := openImportState(filepath.Join(dir, "private", "state.json"), false)
+			batch, err := prepareImportBatchTest(t, dir, manifest)
+			if err != nil || !batch.Preview.LocallyValid {
+				t.Fatalf("invalid local batch fixture: %+v, %v", batch.Preview.Resources, err)
+			}
+			statePath := filepath.Join(dir, "private", "state.json")
+			state, err := openImportState(statePath, false)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer state.close()
 			selfCalls, capCalls, writes := 0, 0, 0
+			var requests []string
 			client := &http.Client{Transport: catalogctlRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+				requests = append(requests, r.Method+" "+r.URL.RequestURI())
 				status, media := http.StatusOK, "application/json"
 				var value any
 				switch r.URL.Path {
@@ -305,14 +314,26 @@ func TestImportBatchPreflightWithControlledTransport(t *testing.T) {
 					if capCalls == 2 && fault == "later budget" {
 						budget = 1
 					}
-					value = map[string]any{"resourceKinds": []string{"agent"}, "limits": map[string]any{"requestBodyBytes": budget}}
-				default:
+					kinds := []catalog.Kind{catalog.KindAgent}
+					if fault == "both kinds" {
+						kinds = append(kinds, catalog.KindMCPServer)
+					}
+					value = map[string]any{"resourceKinds": kinds, "limits": map[string]any{"requestBodyBytes": budget}}
+				case "/api/v1/resources":
 					if r.Method != http.MethodPost || selfCalls != 2 || capCalls != 2 {
 						t.Fatal("a write preceded full namespace admission or cached admission was repeated")
+					}
+					first := manifest.Resources[0]
+					want := catalog.CreateResourceInput{NamespaceID: first.NamespaceID, CanonicalIdentifier: first.CanonicalIdentifier, Kind: first.Kind}
+					var got catalog.CreateResourceInput
+					if r.Body == nil || json.NewDecoder(r.Body).Decode(&got) != nil || got != want {
+						t.Fatalf("first create sent %+v, want %+v", got, want)
 					}
 					writes++
 					status, media = http.StatusUnauthorized, "application/problem+json"
 					value = map[string]any{"code": "UNAUTHENTICATED"}
+				default:
+					t.Fatalf("unexpected import request %s %s", r.Method, r.URL.RequestURI())
 				}
 				return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {media}},
 					Body: io.NopCloser(bytes.NewReader(importTestJSON(t, value)))}, nil
@@ -323,13 +344,35 @@ func TestImportBatchPreflightWithControlledTransport(t *testing.T) {
 				t.Fatal("injected refusal was ignored")
 			}
 			expected := 0
-			if fault == "none" {
+			if fault == "none" || fault == "both kinds" {
 				expected = 1
 			}
 			if writes != expected || selfCalls != 2 {
 				t.Fatal("incorrect whole-batch admission", writes, selfCalls)
 			}
-			if fault == "none" && (report.Disposition != "uncertain" || report.CurrentKey != "item-0" || report.Items[2].Disposition != "unattempted") {
+			if mixedKinds {
+				self := "GET /api/v1/me?namespaceId=" + manifest.Resources[0].NamespaceID
+				want := []string{self, "GET /api/v1/capabilities", self, "GET /api/v1/capabilities"}
+				if fault == "both kinds" {
+					want = append(want, "POST /api/v1/resources")
+				} else {
+					if !strings.Contains(err.Error(), "required resource kind") || report.CurrentKey != "item-1" || report.Disposition != "failed" || len(report.Items) != len(manifest.Resources) {
+						t.Fatalf("wrong MCP preflight refusal: %+v, %v", report, err)
+					}
+					for _, row := range report.Items {
+						if row.Disposition != "unattempted" {
+							t.Fatalf("preflight reported an attempted item: %+v", row)
+						}
+					}
+					if _, statErr := os.Stat(statePath); !os.IsNotExist(statErr) {
+						t.Fatalf("preflight left an import receipt: %v", statErr)
+					}
+				}
+				if !slices.Equal(requests, want) {
+					t.Fatalf("import requests = %v, want %v", requests, want)
+				}
+			}
+			if expected == 1 && (report.Disposition != "uncertain" || report.CurrentKey != "item-0" || report.Items[2].Disposition != "unattempted") {
 				t.Fatal("incorrect stopped-item report")
 			}
 		})
