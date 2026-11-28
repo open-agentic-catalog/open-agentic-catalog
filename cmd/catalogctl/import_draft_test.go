@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/adapter"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/artwork"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/draftfile"
 )
@@ -102,6 +103,48 @@ func TestImportDraftPreparationAndOfflinePreview(t *testing.T) {
 	native := writeImportTestFile(t, dir, "native.json", importTestJSON(t, manifest), 0600)
 	if _, err := prepareImportInput(t.Context(), native, 2<<20, importDraftOptions{ContentOnly: true}); err == nil {
 		t.Fatal("native manifest silently accepted reusable-only flags")
+	}
+}
+
+func TestImportDraftListingLinksAndArtwork(t *testing.T) {
+	filename, file := importDraftTestFile(t, true)
+	const docsURL, supportURL = "https://docs.example.test/guide", "https://support.example.test/help"
+	const icon = `{"schemaVersion":1,"icon":{"url":"https://images.example.test/icon.png","alt":"Project icon","rights":{"basis":"owned","attribution":"Example project"}}}`
+	file.Listing.DocumentationURL, file.Listing.SupportURL = docsURL, supportURL
+	if err := json.Unmarshal([]byte(icon), &file.Listing.Artwork); err != nil {
+		t.Fatal(err)
+	}
+	extensions := map[string]json.RawMessage{"example.test": json.RawMessage(`{"audience":"authors"}`)}
+	ext := string(importTestJSON(t, extensions))
+	file.Listing.Extensions = &ext
+	writeImportDraftTest(t, filename, file)
+	options := importDraftOptions{NamespaceID: importPlaceholderID, PublisherID: importPlaceholderID}
+	plan, err := prepareImportInput(t.Context(), filename, 2<<20, options)
+	if err != nil || !plan.Preview.LocallyValid || len(plan.Items) != 1 || len(plan.Items[0].Bodies) != 4 {
+		t.Fatalf("valid reusable Listing produced no revision command: err=%v", err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(plan.Items[0].Bodies[3], &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["documentationUrl"] != docsURL || body["supportUrl"] != supportURL {
+		t.Fatalf("prepared Listing documentationUrl=%v, supportUrl=%v", body["documentationUrl"], body["supportUrl"])
+	}
+	// Both author-supplied values belong in the one outgoing extensions object.
+	extensions[artwork.IRI] = json.RawMessage(icon)
+	var wantExtensions map[string]any
+	if err := json.Unmarshal(importTestJSON(t, extensions), &wantExtensions); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(body["extensions"], wantExtensions) {
+		t.Fatalf("prepared Listing extensions = %#v, want %#v", body["extensions"], wantExtensions)
+	}
+
+	// Supplying that merged object as input would declare the same artwork twice.
+	ext = string(importTestJSON(t, extensions))
+	writeImportDraftTest(t, filename, file)
+	if _, err := prepareImportInput(t.Context(), filename, 2<<20, options); err == nil || !strings.Contains(err.Error(), "artwork appears in both") {
+		t.Fatalf("expected duplicate artwork refusal, got %v", err)
 	}
 }
 

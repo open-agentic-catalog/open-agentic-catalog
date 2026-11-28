@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jobs"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
@@ -25,6 +26,7 @@ func qualifyReindexProfileChange(t *testing.T, ctx context.Context, f processFix
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer provider.Close()
+	disabled := f.configuration("semantic-disabled", cfg)
 	cfg.SemanticSearch.Enabled = true
 	cfg.SemanticSearch.Model = "fixture"
 	cfg.SemanticSearch.Dimensions = 3
@@ -60,15 +62,29 @@ func qualifyReindexProfileChange(t *testing.T, ctx context.Context, f processFix
 		}
 		return job.ID
 	}
-	onlyListed := func(want string) {
+	onlyListed := func(want ...string) {
 		t.Helper()
 		var page struct {
 			Items      []jobs.View `json:"items"`
 			NextCursor string      `json:"nextCursor"`
 		}
 		decodeProcessJSON(t, f.request(ctx, cfg.HTTP.Address, "GET", "/api/v1/jobs?kind=semantic.reindex", "local-admin", "", 200), &page)
-		if len(page.Items) != 1 || page.Items[0].ID != want || page.NextCursor != "" {
-			t.Fatalf("expected only current-profile Job %s, got %+v", want, page)
+		if page.Items == nil || len(page.Items) != len(want) || page.NextCursor != "" {
+			t.Fatalf("expected current-profile Jobs %v in one page, got %+v", want, page)
+		}
+		for i, id := range want {
+			if page.Items[i].ID != id {
+				t.Fatalf("listed Job %s, want %s", page.Items[i].ID, id)
+			}
+		}
+	}
+	requireCompleted := func(operation, id string, job jobs.View) {
+		t.Helper()
+		if job.ID != id || job.State != jobs.StateSucceeded || job.Attempt != 1 || job.CancellationRequested {
+			t.Fatalf("%s: expected succeeded Job %s on its first attempt, got %+v", operation, id, job)
+		}
+		if job.Result == nil || job.Result.Type != "semantic_index" || job.Result.GenerationID != id || job.Result.Members == nil || *job.Result.Members != 0 {
+			t.Fatalf("%s: expected empty semantic index result for generation %s, got %+v", operation, id, job.Result)
 		}
 	}
 	complete := func(path, id, wantProfile string) {
@@ -84,9 +100,7 @@ func qualifyReindexProfileChange(t *testing.T, ctx context.Context, f processFix
 				t.Fatalf("wrong reindex Job: %+v", job)
 			}
 			if job.State != jobs.StateQueued && job.State != jobs.StateRunning {
-				if job.State != jobs.StateSucceeded || job.Attempt != 1 || job.Result == nil || job.Result.Type != "semantic_index" || job.Result.GenerationID != id || job.Result.Members == nil || *job.Result.Members != 0 {
-					t.Fatalf("incorrect empty index result: %+v", job)
-				}
+				requireCompleted("worker completion", id, job)
 				break
 			}
 			select {
@@ -110,6 +124,48 @@ func qualifyReindexProfileChange(t *testing.T, ctx context.Context, f processFix
 	onlyListed(first)
 	stop()
 
+	jobPath := "/api/v1/jobs/" + first
+	cancelJob := func(key string, status int) []byte {
+		t.Helper()
+		return f.request(ctx, cfg.HTTP.Address, "POST", jobPath+":cancel", "local-admin",
+			`{"reason":"Cancel fixture rebuild"}`, status, map[string]string{"Idempotency-Key": key})
+	}
+	checkStoredJob := func(wantState jobs.State, wantAttempts, wantAudits int) {
+		t.Helper()
+		var state jobs.State
+		var attempts, audits int
+		var cancelled, hasResult bool
+		err := owner.QueryRow(ctx, `SELECT state, attempt, cancellation_requested, result IS NOT NULL,
+			(SELECT count(*) FROM audit_events a WHERE a.tenant_id=j.tenant_id
+			 AND a.target_type='job' AND a.target_id=j.id::text AND a.action='job.cancellation_requested')
+			FROM jobs j WHERE j.tenant_id=$1 AND j.id=$2`, f.tenantID, first).Scan(&state, &attempts, &cancelled, &hasResult, &audits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state != wantState || attempts != wantAttempts || cancelled || hasResult != (wantState == jobs.StateSucceeded) || audits != wantAudits {
+			t.Fatalf("Job %s: state=%s attempts=%d cancellationRequested=%t hasResult=%t cancellationAudits=%d, want %s attempts=%d audits=%d", first, state, attempts, cancelled, hasResult, audits, wantState, wantAttempts, wantAudits)
+		}
+	}
+	func() {
+		stopDisabled := f.start(ctx, "api", apiDSN, disabled, cfg.HTTP.Address)
+		defer stopDisabled()
+		onlyListed()
+		requireNotFound := func(operation string, raw []byte) {
+			t.Helper()
+			var problem struct {
+				Status int
+				Code   catalog.ErrorCode
+			}
+			decodeProcessJSON(t, raw, &problem)
+			if problem.Status != http.StatusNotFound || problem.Code != catalog.CodeNotFound {
+				t.Fatalf("disabled-profile %s returned %+v, want 404 NOT_FOUND", operation, problem)
+			}
+		}
+		requireNotFound("read", f.request(ctx, cfg.HTTP.Address, "GET", jobPath, "local-admin", "", 404))
+		requireNotFound("cancel", cancelJob("cancel-disabled-profile", 404))
+		checkStoredJob(jobs.StateQueued, 0, 0)
+	}()
+
 	stop = f.start(ctx, "api", apiDSN, replacement, cfg.HTTP.Address)
 	second := enqueue("replacement-profile")
 	if first == second {
@@ -118,15 +174,20 @@ func qualifyReindexProfileChange(t *testing.T, ctx context.Context, f processFix
 	onlyListed(second)
 	f.request(ctx, cfg.HTTP.Address, "GET", "/api/v1/jobs/"+first, "local-admin", "", 404)
 	complete(replacement, second, replacementProfile)
-	var untouched bool
-	if err := owner.QueryRow(ctx, `SELECT state='queued' AND attempt=0 AND result IS NULL
-		FROM jobs WHERE tenant_id=$1 AND id=$2`, f.tenantID, first).Scan(&untouched); err != nil || !untouched {
-		t.Fatalf("replacement worker changed original Job: untouched=%t err=%v", untouched, err)
-	}
+	checkStoredJob(jobs.StateQueued, 0, 0)
 	stop()
 
 	stop = f.start(ctx, "api", apiDSN, original, cfg.HTTP.Address)
 	defer stop()
 	onlyListed(first)
 	complete(original, first, originalProfile)
+	checkStoredJob(jobs.StateSucceeded, 1, 0)
+	// The same administrator can now cancel the terminal Job as an audited no-op.
+	var terminal jobs.View
+	decodeProcessJSON(t, cancelJob("cancel-restored-profile", 200), &terminal)
+	requireCompleted("cancel response", first, terminal)
+	var retained jobs.View
+	decodeProcessJSON(t, f.request(ctx, cfg.HTTP.Address, "GET", jobPath, "local-admin", "", 200), &retained)
+	requireCompleted("read after cancel", first, retained)
+	checkStoredJob(jobs.StateSucceeded, 1, 1)
 }
