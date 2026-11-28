@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -28,13 +29,16 @@ const testSecret = "whsec_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 var testTime = time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
 
 func eventBytes(action string) []byte {
-	target := "publication_snapshot"
-	data := map[string]any{"action": action, "targetType": target, "targetId": testTarget, "host": testHost}
-	data["digest"] = "sha256:" + strings.Repeat("a", 64)
-	if action == "webhook.test" {
+	data := map[string]any{"action": action, "targetId": testTarget}
+	switch action {
+	case "webhook.test":
 		data["targetType"] = "webhook_endpoint"
-		delete(data, "host")
-		delete(data, "digest")
+	case "listing.release.published":
+		data["targetType"] = "listing_release"
+	default:
+		data["targetType"] = "publication_snapshot"
+		data["host"] = testHost
+		data["digest"] = "sha256:" + strings.Repeat("a", 64)
 	}
 	raw, err := json.Marshal(map[string]any{"specversion": "1.0", "id": testID, "source": eventSource + testTenant, "type": "com.open.agentic.catalog." + action + ".v1", "subject": testTarget, "time": testTime.Format(time.RFC3339), "datacontenttype": "application/json", "dataschema": eventSchema, "data": data})
 	if err != nil {
@@ -167,6 +171,36 @@ func TestEnvelopeAndSignedBytes(t *testing.T) {
 				t.Fatal("accepted inconsistent signed envelope")
 			}
 		})
+	}
+}
+
+func TestHandlerSignedEventSubscription(t *testing.T) {
+	signer := writePrivate(t, "signer.json", []byte(`{"secret":"`+testSecret+`","version":1}`))
+	store := &memoryStore{}
+	a := &application{store: store, tenant: testTenant, host: testHost, signerFile: signer, now: func() time.Time { return testTime }, slots: make(chan struct{}, 1)}
+	post := func(body []byte) int {
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/webhook", bytes.NewReader(body))
+		r.Header = signature(body, 1, testSecret)
+		w := httptest.NewRecorder()
+		a.ServeHTTP(w, r)
+		return w.Code
+	}
+	setup := eventBytes("webhook.test")
+	withHost := bytes.Replace(setup, []byte(`"data":{`), []byte(`"data":{"host":"`+testHost+`",`), 1)
+	for _, tc := range []struct {
+		name string
+		body []byte
+	}{
+		{"unsubscribed Listing release", eventBytes("listing.release.published")},
+		{"setup event with host", withHost},
+	} {
+		if status := post(tc.body); status != http.StatusBadRequest || len(store.accepted) != 0 {
+			t.Fatalf("%s: got status %d and %d admissions", tc.name, status, len(store.accepted))
+		}
+	}
+	want := Event{ID: testID, Source: eventSource + testTenant, Action: "webhook.test", TargetID: testTarget}
+	if status := post(setup); status != http.StatusNoContent || len(store.accepted) != 1 || store.accepted[0] != want {
+		t.Fatalf("valid setup event: got status %d and receipts %+v", status, store.accepted)
 	}
 }
 
