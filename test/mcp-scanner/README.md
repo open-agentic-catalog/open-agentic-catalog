@@ -50,6 +50,8 @@ The first target checks the independent Go module, copied signature verifier, SD
 
 The second target starts one owned PostgreSQL container. It creates a dedicated receiver database/account and builds the receiver binary. Tests use controlled HTTPS Catalog responses, a real MCP SDK peer and an explicit Python scanner executable double. They verify durable acceptance, bounded storage, reconciliation, report bindings, failure handling and restart recovery. Cleanup removes only the owned fixture.
 
+The report recovery test runs `render` with two mapped Resources and no Catalog token or scanner process. It blocks the second Resource's metadata filename with a directory and verifies that the previous index survives the failed write. After removing the directory, it replaces the second Resource's native file with the first Resource's scan and reruns the command. It follows the recovered index to verify each release, capture time, native report and SHA-256.
+
 These tests do not execute MCP Scanner or qualify YARA results. They do not run the full Catalog API/worker delivery workflow. The receiver guide documents private inputs, permissions and manual commands. Build the binary separately with `make mcp-scanner-receiver-build`.
 
 The runner's `identity` command checks the existing installation receipt and prints only scanner/image and rules/configuration identities. It never installs tools or uploads package inventories.

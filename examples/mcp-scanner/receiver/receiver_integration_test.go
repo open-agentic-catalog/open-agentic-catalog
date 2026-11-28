@@ -60,18 +60,17 @@ pathlib.Path(a.output).write_text(json.dumps(report));os.chmod(a.output,0o600)
 raise SystemExit(0 if report["status"]=="completed" else 2)
 `
 
-func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
-	dsn, binary, python := os.Getenv("CATALOG_TEST_DATABASE_DSN"), os.Getenv("MCP_SCANNER_RECEIVER_BINARY"), os.Getenv("MCP_SCANNER_TEST_PYTHON")
-	if dsn == "" || binary == "" || python == "" {
-		t.Fatal("select make test-mcp-scanner-receiver with owned prerequisites")
+func newReceiverDatabase(t *testing.T, ctx context.Context) (*pgxpool.Pool, string) {
+	t.Helper()
+	dsn := os.Getenv("CATALOG_TEST_DATABASE_DSN")
+	if dsn == "" {
+		t.Fatal("select make test-mcp-scanner-receiver with owned PostgreSQL")
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
-	defer cancel()
 	owner, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		t.Fatal("owned PostgreSQL unavailable")
 	}
-	defer owner.Close()
+	t.Cleanup(owner.Close)
 	nonce := make([]byte, 8)
 	if _, err = rand.Read(nonce); err != nil {
 		t.Fatal(err)
@@ -85,23 +84,23 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if _, err = owner.Exec(ctx, "CREATE ROLE "+pgx.Identifier{name}.Sanitize()+" LOGIN PASSWORD "+quotedPassword); err != nil {
 		t.Fatal("owned receiver role")
 	}
-	defer func() {
-		cleanup, stop := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(func() {
+		cleanup, stop := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer stop()
 		if _, err := owner.Exec(cleanup, "DROP ROLE "+pgx.Identifier{name}.Sanitize()); err != nil {
 			t.Error("owned receiver role cleanup failed")
 		}
-	}()
+	})
 	if _, err = owner.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize()+" OWNER "+pgx.Identifier{name}.Sanitize()); err != nil {
 		t.Fatal("owned receiver database")
 	}
-	defer func() {
-		cleanup, stop := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(func() {
+		cleanup, stop := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer stop()
 		if _, err := owner.Exec(cleanup, "DROP DATABASE "+pgx.Identifier{name}.Sanitize()); err != nil {
 			t.Error("owned receiver database cleanup failed")
 		}
-	}()
+	})
 	u, err := url.Parse(dsn)
 	if err != nil {
 		t.Fatal("owned DSN")
@@ -113,7 +112,19 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal("receiver pool")
 	}
-	defer pool.Close()
+	t.Cleanup(pool.Close)
+	return pool, receiverDSN
+}
+
+func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
+	binary, python := os.Getenv("MCP_SCANNER_RECEIVER_BINARY"), os.Getenv("MCP_SCANNER_TEST_PYTHON")
+	if binary == "" || python == "" {
+		t.Fatal("select make test-mcp-scanner-receiver with owned prerequisites")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
+	defer cancel()
+	pool, receiverDSN := newReceiverDatabase(t, ctx)
+	password := pool.Config().ConnConfig.Password
 	const fixtureCapacity = 11
 	s := &postgresStore{pool: pool, capacity: fixtureCapacity, retention: time.Minute}
 	var invokes atomic.Int32
