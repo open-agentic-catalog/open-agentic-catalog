@@ -279,6 +279,8 @@ export function diagnostic(error: unknown): string {
       ". This declined revalidation sent no peer replay or resource target request.",
     mcp_start_cancelled:
       ". Catalog preparation was canceled. No new server definition was returned. Native MCP controls own running processes.",
+    mcp_removal_incomplete:
+      ". Run Catalog: Remove MCP Selection and retry the incomplete credential removal before selecting this server again.",
     credential_in_use:
       ". Another Catalog window is updating these credentials. Retry after it finishes; use Recover Catalog Login only after closing other Catalog windows if the owner stopped.",
     credential_update_pending:

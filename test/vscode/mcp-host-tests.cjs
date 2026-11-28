@@ -202,6 +202,23 @@ exports.qualifyMcp = async (api) => {
       );
       const selected = api.mcpSelections().find((s) => s.name === name);
       if (media.includes("card")) {
+        const { bytes } = await api.document(index);
+        const digest = require("node:crypto")
+          .createHash("sha256")
+          .update(bytes)
+          .digest("hex");
+        await require("node:fs/promises").writeFile(
+          require("node:path").join(
+            process.env.CATALOG_VSCODE_DEBUG_DIR,
+            "saved-mcp.json",
+          ),
+          JSON.stringify({
+            releaseId: detail.item.releaseId,
+            digest,
+            selection: selected,
+          }),
+          { flag: "wx", mode: 0o600 },
+        );
         const forgetting = vscode.commands.executeCommand(
           "openAgenticCatalog.forgetMcpCredentials",
         );

@@ -60,14 +60,19 @@ export class McpReferences {
   list(account: string): McpReference[] {
     return structuredClone(this.all()[account] ?? []);
   }
-  private update(action: (all: Record<string, McpReference[]>) => void) {
-    const next = this.writes.then(async () => {
-      const all = this.all();
-      action(all);
-      await this.store.update("catalogMcpReferences", all);
-    });
+  private write(value: () => Record<string, McpReference[]> | undefined) {
+    const next = this.writes.then(() =>
+      this.store.update("catalogMcpReferences", value()),
+    );
     this.writes = next.catch(() => {});
     return next;
+  }
+  private update(action: (all: Record<string, McpReference[]>) => void) {
+    return this.write(() => {
+      const all = this.all();
+      action(all);
+      return all;
+    });
   }
   add(account: string, value: McpReference, check: () => void) {
     if (!/^[a-f0-9]{64}$/u.test(account))
@@ -95,8 +100,6 @@ export class McpReferences {
     });
   }
   forget() {
-    return this.update((all) => {
-      for (const key of Object.keys(all)) delete all[key];
-    });
+    return this.write(() => undefined);
   }
 }
