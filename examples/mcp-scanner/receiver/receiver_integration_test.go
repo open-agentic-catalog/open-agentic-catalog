@@ -34,32 +34,6 @@ import (
 	sdk "github.com/open-agentic-catalog/open-agentic-catalog/sdk/go"
 )
 
-// This independent executable double exercises the actual Go/Python process
-// boundary. It does not import MCP Scanner or claim native YARA qualification.
-const scannerDouble = `import argparse,hashlib,json,os,pathlib,sys,time
-here=pathlib.Path(__file__).resolve().parent
-identity=json.loads((here/"identity.json").read_text())
-mode=(here/"mode").read_text().strip()
-assert not any(name in os.environ for name in ("OPENAI_API_KEY","CATALOG_TEST_DATABASE_DSN","PGPASSWORD","HTTP_PROXY"))
-if sys.argv[1]=="identity":
- print(json.dumps(identity)); raise SystemExit(0)
-p=argparse.ArgumentParser()
-for flag in ("input","output","source","captured-at"):p.add_argument("--"+flag,required=True)
-a=p.parse_args(sys.argv[2:])
-content=pathlib.Path(a.input).read_bytes();tools=json.loads(content)["tools"]
-(here/"started").write_text("started")
-if mode=="hold":time.sleep(90)
-count=int((here/"calls").read_text())+1;(here/"calls").write_text(str(count))
-results=[{"tool_name":t["name"],"status":"completed","analyzers":["YARA"],"analyzer_errors":[],"findings":[]} for t in tools]
-status="completed" if tools else "skipped"
-if "nextCursor" in json.loads(content):status="partial"
-report={"schemaVersion":1,"status":status,"capture":{"inputSha256":hashlib.sha256(content).hexdigest(),"source":a.source,"capturedAt":a.captured_at,"hasNextCursor":"nextCursor" in json.loads(content),"scope":"supplied_page"},"callerContext":{},"contextSha256":hashlib.sha256(b"{}").hexdigest(),"scanner":{"name":"cisco-ai-mcp-scanner","version":identity["version"],"imageId":identity["imageId"]},"rulesSha256":identity["rulesSha256"],"configurationSha256":identity["configurationSha256"],"plannedTools":len(tools),"completedTools":len(tools),"cleanup":"passed","results":results}
-if mode=="mismatch":report["capture"]["inputSha256"]="0"*64
-if mode=="failed":report.update(status="failed",error="synthetic_failure")
-pathlib.Path(a.output).write_text(json.dumps(report));os.chmod(a.output,0o600)
-raise SystemExit(0 if report["status"]=="completed" else 2)
-`
-
 func newReceiverDatabase(t *testing.T, ctx context.Context) (*pgxpool.Pool, string) {
 	t.Helper()
 	dsn := os.Getenv("CATALOG_TEST_DATABASE_DSN")
@@ -125,7 +99,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	defer cancel()
 	pool, receiverDSN := newReceiverDatabase(t, ctx)
 	password := pool.Config().ConnConfig.Password
-	const fixtureCapacity = 11
+	const fixtureCapacity = 12
 	s := &postgresStore{pool: pool, capacity: fixtureCapacity, retention: time.Minute}
 	var invokes atomic.Int32
 	mcpServer := mcp.NewServer(&mcp.Implementation{Name: "owned-runtime", Version: "1"}, nil)
@@ -209,38 +183,30 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	keyFile := writePrivate(t, "tls-key", pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: private}))
 	signerFile := writePrivate(t, "signer.json", []byte(`{"secret":"`+secret+`","version":1}`))
 	dsnFile := writePrivate(t, "receiver.dsn", []byte(receiverDSN))
-	script := filepath.Join(dir, "scanner-double.py")
-	if os.WriteFile(script, []byte(scannerDouble), 0600) != nil {
-		t.Fatal("scanner double")
-	}
-	identityRaw := fixtureJSON(testIdentity)
-	for name, raw := range map[string][]byte{"identity.json": identityRaw, "mode": []byte("normal"), "calls": []byte("0")} {
-		if os.WriteFile(filepath.Join(dir, name), raw, 0600) != nil {
-			t.Fatal("double inputs")
-		}
-	}
-	setMode := func(mode string) {
+	script := writeScannerDouble(t, dir, "normal")
+	setMode := func(t *testing.T, mode string) {
 		t.Helper()
 		if os.WriteFile(filepath.Join(dir, "mode"), []byte(mode), 0600) != nil {
 			t.Fatal("double mode")
 		}
 	}
 	base := []string{"--origin", api.URL, "--tenant", tenant, "--config-file", configFile, "--database-file", dsnFile, "--token-file", apiToken, "--catalog-ca-file", caFile, "--scanner-python", python, "--scanner-runner", script, "--reports-dir", filepath.Join(dir, "reports"), "--capacity", strconv.Itoa(fixtureCapacity), "--retention", "1m"}
-	command := func(action string, extra ...string) ([]byte, error) {
+	command := func(t *testing.T, action string, extra ...string) ([]byte, error) {
+		t.Helper()
 		args := append([]string{action}, base...)
 		args = append(args, extra...)
 		// #nosec G204 G702 -- Make selects the newly built receiver and all inputs are test-owned.
 		cmd := exec.CommandContext(ctx, binary, args...)
 		cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir}
 		raw, err := cmd.CombinedOutput()
-		for _, value := range []string{password, "runtime-only", "catalog-only", secret, receiverDSN} {
+		for _, value := range []string{password, "runtime-only", "catalog-only", secret, receiverDSN, scannerDiagnosticMarker} {
 			if bytes.Contains(raw, []byte(value)) {
-				t.Error("private diagnostic leak")
+				t.Fatal("receiver command printed private diagnostics")
 			}
 		}
 		return raw, err
 	}
-	if _, err = command("init"); err != nil {
+	if _, err = command(t, "init"); err != nil {
 		t.Fatal("receiver init failed")
 	}
 	_, digest, err := loadConfiguration(configFile)
@@ -254,7 +220,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal("processor lock unavailable")
 	}
-	_, secondErr := command("process")
+	_, secondErr := command(t, "process")
 	unlock()
 	if secondErr == nil || contacts.Load() != 0 {
 		t.Fatal("second processor acquired authority")
@@ -276,7 +242,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	}
 	s.capacity = fixtureCapacity
 	for range 2 {
-		if _, err = command("process"); err != nil {
+		if _, err = command(t, "process"); err != nil {
 			t.Fatal("accepted work did not scan")
 		}
 	}
@@ -284,15 +250,15 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if pool.QueryRow(ctx, `SELECT count(*) FROM mcp_receiver_inbox WHERE completed_at IS NULL`).Scan(&pending) != nil || pending != 0 {
 		t.Fatal("receipt not completed")
 	}
-	readObservation := func() observation {
+	readObservation := func(t *testing.T) observation {
 		t.Helper()
 		var current observation
-		if err := pool.QueryRow(ctx, `SELECT document FROM mcp_receiver_observations WHERE resource_id=$1`, resource).Scan(&current); err != nil {
+		if err := pool.QueryRow(ctx, `SELECT document,COALESCE(scan_key,'') FROM mcp_receiver_observations WHERE resource_id=$1`, resource).Scan(&current, &current.ScanKey); err != nil {
 			t.Fatal("read saved observation", err)
 		}
 		return current
 	}
-	observed := readObservation()
+	observed := readObservation(t)
 	if observed.State != "eligible_at_check" || observed.Catalog == nil || observed.Catalog.ReleaseID != release {
 		t.Fatal("incorrect saved binding")
 	}
@@ -300,7 +266,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if s.Accept(ctx, e, fixed) != nil {
 		t.Fatal("duplicate accept")
 	}
-	if _, err = command("process"); err != nil {
+	if _, err = command(t, "process"); err != nil {
 		t.Fatal("empty process")
 	}
 	if contacts.Load() != beforeContacts {
@@ -310,18 +276,16 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	mu.Lock()
 	listed = true
 	mu.Unlock()
-	if _, err = command("reconcile"); err != nil {
+	if _, err = command(t, "reconcile"); err != nil {
 		t.Fatal("reconcile failed")
 	}
-	if _, err = command("process"); err != nil {
+	if _, err = command(t, "process"); err != nil {
 		t.Fatal("reconciled work failed")
 	}
-	// #nosec G304 G703 -- Only the invocation-owned double counter is read.
-	calls, _ := os.ReadFile(filepath.Join(dir, "calls"))
-	if string(calls) != "1" {
+	if scannerCalls(t, dir) != 1 {
 		t.Fatal("unchanged capture reran scanner")
 	}
-	observed = readObservation()
+	observed = readObservation(t)
 	if !observed.AnalysisReused || observed.Trigger == nil || observed.Trigger.Source != reconciliationSource {
 		t.Fatal("reconciliation did not bind reused analysis")
 	}
@@ -330,10 +294,10 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	candidate := uuid.MustParse(eventID)
 	current.Version.CandidateRevisionId = &candidate
 	mu.Unlock()
-	if _, err = command("reconcile"); err != nil {
+	if _, err = command(t, "reconcile"); err != nil {
 		t.Fatal("draft reconciliation")
 	}
-	if _, err = command("process"); err != nil {
+	if _, err = command(t, "process"); err != nil {
 		t.Fatal("draft changed selected release")
 	}
 	// Store completion must roll back a report when receipt ownership changes.
@@ -423,11 +387,10 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	// Change scanner identity to ensure this attempt cannot reuse the earlier scan.
 	changed := testIdentity
 	changed.ImageID = "sha256:" + strings.Repeat("d", 64)
-	identityRaw = fixtureJSON(changed)
-	if os.WriteFile(filepath.Join(dir, "identity.json"), identityRaw, 0600) != nil {
+	if os.WriteFile(filepath.Join(dir, "identity.json"), fixtureJSON(changed), 0600) != nil {
 		t.Fatal("changed double identity")
 	}
-	selectedScan := func(wantCount int, wantImage string) (string, []byte) {
+	selectedScan := func(t *testing.T, wantCount int, wantImage string) (string, []byte) {
 		t.Helper()
 		var key string
 		var raw []byte
@@ -444,7 +407,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 		}
 		return key, raw
 	}
-	checkCompleted := func(id, wantOutcome string) {
+	checkCompleted := func(t *testing.T, id, wantOutcome string) {
 		t.Helper()
 		var completed bool
 		var outcome string
@@ -452,21 +415,81 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 			t.Fatalf("receipt completion=%t outcome=%q err=%v", completed, outcome, err)
 		}
 	}
-	previousKey, previousScan := selectedScan(1, testIdentity.ImageID)
+	previousKey, previousScan := selectedScan(t, 1, testIdentity.ImageID)
+	if !t.Run("scanner output limit before and after dequeuing", func(t *testing.T) {
+		receipt := e
+		receipt.ID = uuid.NewString()
+		accepted := time.Now().UTC().Truncate(time.Microsecond)
+		if err := s.Accept(ctx, receipt, accepted); err != nil {
+			t.Fatal(err)
+		}
+		checkReceipt := func(wantDone bool, wantOutcome string) {
+			t.Helper()
+			var done bool
+			var attempts int
+			var outcome string
+			var due time.Time
+			err := pool.QueryRow(ctx, `SELECT completed_at IS NOT NULL, attempts, outcome, next_attempt_at
+				FROM mcp_receiver_inbox WHERE source=$1 AND id=$2`, receipt.Source, receipt.ID).Scan(&done, &attempts, &outcome, &due)
+			if err != nil || done != wantDone || attempts != 0 || outcome != wantOutcome || !due.Equal(accepted) {
+				t.Fatalf("receipt: completed=%t attempts=%d outcome=%q due=%v err=%v", done, attempts, outcome, due, err)
+			}
+		}
+		checkPreviousScan := func() {
+			t.Helper()
+			key, raw := selectedScan(t, 1, testIdentity.ImageID)
+			if key != previousKey || !bytes.Equal(raw, previousScan) {
+				t.Fatal("scanner output failure changed the selected report")
+			}
+		}
+		before := fixtureJSON(readObservation(t))
+		contactsBefore, scansBefore := contacts.Load(), scannerCalls(t, dir)
+		setMode(t, "identity-stderr-overflow")
+		t.Cleanup(func() { setMode(t, "normal") })
+		_, err := command(t, "process")
+		var exit *exec.ExitError
+		if !errors.As(err, &exit) || exit.ExitCode() != 1 {
+			t.Fatalf("expected receiver preflight failure, got %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "identity-overflow-started")); err != nil {
+			t.Fatal("identity preflight did not reach the scanner double:", err)
+		}
+		checkReceipt(false, "")
+		checkPreviousScan()
+		if contacts.Load() != contactsBefore || scannerCalls(t, dir) != scansBefore || !bytes.Equal(before, fixtureJSON(readObservation(t))) {
+			t.Fatal("preflight failure processed pending work or changed its observation")
+		}
+
+		setMode(t, "scan-stderr-overflow")
+		if _, err := command(t, "process"); err != nil {
+			t.Fatal("record terminal scanner output failure:", err)
+		}
+		checkReceipt(true, "scanner_output_limit")
+		checkPreviousScan()
+		o := readObservation(t)
+		if o.State != "failed" || o.Failure != "scanner_output_limit" || o.Trigger == nil || *o.Trigger != receipt || o.AttemptedReleaseID != receipt.TargetID {
+			t.Fatal("terminal scanner output failure did not identify the attempted receipt")
+		}
+		if scannerCalls(t, dir) != scansBefore+1 || o.Scanner == nil || *o.Scanner != testIdentity {
+			t.Fatal("expected one fresh scan and the previously retained scanner identity")
+		}
+	}) {
+		return
+	}
 	atCapacity := e
 	atCapacity.ID = uuid.NewString()
 	if err := s.Accept(ctx, atCapacity, time.Now()); err != nil {
 		t.Fatal("admit distinct receipt before limiting report storage", err)
 	}
-	if _, err := command("process", "--capacity", "1"); err != nil {
+	if _, err := command(t, "process", "--capacity", "1"); err != nil {
 		t.Fatal("record terminal report-capacity outcome", err)
 	}
-	checkCompleted(atCapacity.ID, "receiver_report_capacity")
-	protectedKey, protectedScan := selectedScan(1, testIdentity.ImageID)
+	checkCompleted(t, atCapacity.ID, "receiver_report_capacity")
+	protectedKey, protectedScan := selectedScan(t, 1, testIdentity.ImageID)
 	if protectedKey != previousKey || !bytes.Equal(protectedScan, previousScan) {
 		t.Fatal("full storage replaced the selected report")
 	}
-	capacityObservation := readObservation()
+	capacityObservation := readObservation(t)
 	if capacityObservation.State != "failed" || capacityObservation.Failure != "receiver_report_capacity" || capacityObservation.Trigger == nil || *capacityObservation.Trigger != atCapacity || capacityObservation.AttemptedReleaseID != release {
 		t.Fatal("capacity failure did not identify the new attempt")
 	}
@@ -479,7 +502,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 		t.Fatal("rendered capacity failure did not retain the previous scan digest")
 	}
 	// A fresh signed receipt uses the ordinary capacity and survives a restart.
-	setMode("hold")
+	setMode(t, "hold")
 	_ = os.Remove(filepath.Join(dir, "started"))
 	origin := start()
 	signed := eventBytesFor("listing.release.published", namespace, release)
@@ -507,7 +530,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if pool.QueryRow(ctx, `SELECT count(*) FROM mcp_receiver_inbox WHERE id=$1 AND completed_at IS NULL`, namespace).Scan(&pending) != nil || pending != 1 {
 		t.Fatal("interruption lost pending receipt")
 	}
-	setMode("normal")
+	setMode(t, "normal")
 	_ = start()
 	deadline = time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
@@ -521,17 +544,17 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if pending != 0 {
 		t.Fatal("restart did not finish pending work")
 	}
-	observed = readObservation()
+	observed = readObservation(t)
 	if observed.State != "eligible_at_check" || observed.Scanner == nil || observed.Scanner.ImageID != changed.ImageID || observed.Trigger == nil || observed.Trigger.ID != namespace {
 		t.Fatal("restart completed without the expected report")
 	}
-	checkCompleted(namespace, "")
-	newKey, newScan := selectedScan(2, changed.ImageID)
+	checkCompleted(t, namespace, "")
+	newKey, newScan := selectedScan(t, 2, changed.ImageID)
 	if newKey == previousKey || bytes.Equal(newScan, previousScan) {
 		t.Fatal("restored capacity did not commit the distinct scan for the new receipt")
 	}
 	for _, mode := range []string{"mismatch", "failed", "normal"} {
-		setMode(mode)
+		setMode(t, mode)
 		changed.ImageID = "sha256:" + strings.Repeat("f", 64)
 		if os.WriteFile(filepath.Join(dir, "identity.json"), fixtureJSON(changed), 0600) != nil {
 			t.Fatal("failure-control identity")
@@ -541,10 +564,10 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 		if s.Accept(ctx, attempt, time.Now()) != nil {
 			t.Fatal("failure-control receipt")
 		}
-		if _, err = command("process"); err != nil {
+		if _, err = command(t, "process"); err != nil {
 			t.Fatal("failure-control processing")
 		}
-		observed = readObservation()
+		observed = readObservation(t)
 		if mode == "normal" {
 			if observed.State != "eligible_at_check" || observed.AnalysisReused {
 				t.Fatal("failed report shadowed successful retry")
@@ -553,7 +576,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 			t.Fatal("scanner failure claimed completed analysis")
 		}
 	}
-	readRendered := func() (observation, []byte) {
+	readRendered := func(t *testing.T) (observation, []byte) {
 		t.Helper()
 		rendered, err := privateFile(filepath.Join(dir, "reports", resource+".json"), reportLimit)
 		var observed observation
@@ -566,7 +589,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 		}
 		return observed, native
 	}
-	readRendered()
+	readRendered(t)
 	acceptSigned := func(t *testing.T, action, id, target string) {
 		t.Helper()
 		event := eventBytesFor(action, id, target)
@@ -580,21 +603,21 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 		}
 	}
 	t.Run("endpoint test leaves release observations unchanged", func(t *testing.T) {
-		before := fixtureJSON(readObservation())
+		before := fixtureJSON(readObservation(t))
 		probeID := uuid.NewString()
 		acceptSigned(t, "webhook.test", probeID, release)
-		if _, err := command("process"); err != nil {
+		if _, err := command(t, "process"); err != nil {
 			t.Fatal(err)
 		}
-		checkCompleted(probeID, "test_accepted")
-		if !bytes.Equal(before, fixtureJSON(readObservation())) {
+		checkCompleted(t, probeID, "test_accepted")
+		if !bytes.Equal(before, fixtureJSON(readObservation(t))) {
 			t.Fatal("endpoint test changed the release observation with the same target ID")
 		}
 	})
 	t.Run("pending reconciliation follows complete Catalog selection", func(t *testing.T) {
 		run := func(action string) {
 			t.Helper()
-			if raw, err := command(action); err != nil {
+			if raw, err := command(t, action); err != nil {
 				t.Fatalf("%s: %v %s", action, err, raw)
 			}
 		}
@@ -614,7 +637,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 		mu.Lock()
 		browseUnavailable = true
 		mu.Unlock()
-		if _, err := command("reconcile"); err == nil {
+		if _, err := command(t, "reconcile"); err == nil {
 			t.Fatal("unavailable traversal accepted")
 		}
 		var failure string
@@ -644,8 +667,11 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 			t.Fatal("new release did not receive a fresh attempt", w, err)
 		}
 		run("process")
-		saved := readObservation()
-		exported, scan := readRendered()
+		saved := readObservation(t)
+		if !hashPattern.MatchString(saved.ScanKey) {
+			t.Fatal("missing retained scan key before disappearance")
+		}
+		exported, scan := readRendered(t)
 		for _, got := range []observation{saved, exported} {
 			if got.State != "eligible_at_check" || got.Catalog == nil || got.Catalog.ReleaseID != replacement.String() || got.Trigger == nil || got.Trigger.Source != reconciliationSource || got.Trigger.TargetID != replacement.String() {
 				t.Fatal("processing selected the wrong release", got.State, got.Trigger)
@@ -665,15 +691,15 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 		}
 		before := contacts.Load()
 		run("process")
-		checkCompleted(resource, "catalog_record_unavailable")
+		checkCompleted(t, resource, "catalog_record_unavailable")
 		if contacts.Load() != before {
 			t.Fatal("delayed publication contacted the withdrawn release")
 		}
 		if _, err := s.Next(ctx, due); !errors.Is(err, errEmpty) {
 			t.Fatal("obsolete work remained after disappearance", err)
 		}
-		absent, retained := readRendered()
-		if final := readObservation(); final.State != "not_listed" || final.ScanKey != saved.ScanKey || absent.State != "not_listed" || absent.ScanDigest != exported.ScanDigest || !bytes.Equal(retained, scan) {
+		absent, retained := readRendered(t)
+		if final := readObservation(t); final.State != "not_listed" || final.ScanKey != saved.ScanKey || absent.State != "not_listed" || absent.ScanDigest != exported.ScanDigest || !bytes.Equal(retained, scan) {
 			t.Fatal("absent selection lost its state or original scan")
 		}
 	})
@@ -689,10 +715,10 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if s.Accept(ctx, empty, time.Now()) != nil {
 		t.Fatal("empty-capture receipt")
 	}
-	if _, err = command("process"); err != nil {
+	if _, err = command(t, "process"); err != nil {
 		t.Fatal("empty-capture processing")
 	}
-	observed = readObservation()
+	observed = readObservation(t)
 	if observed.State != "skipped" || observed.Trigger == nil || observed.Trigger.ID != empty.ID {
 		t.Fatal("empty capture did not retain its skipped outcome")
 	}
@@ -706,13 +732,13 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if s.Accept(ctx, other, time.Now()) != nil {
 		t.Fatal("denial event")
 	}
-	if _, err = command("process"); err != nil {
+	if _, err = command(t, "process"); err != nil {
 		t.Fatal("denial handling")
 	}
 	if contacts.Load() != beforeContacts {
 		t.Fatal("denial contacted MCP")
 	}
-	if denied := readObservation(); denied.State != "historical" || denied.Failure != "catalog_access_denied" {
+	if denied := readObservation(t); denied.State != "historical" || denied.Failure != "catalog_access_denied" {
 		t.Fatalf("revoked access left state %q with failure %q", denied.State, denied.Failure)
 	}
 	mu.Lock()
@@ -723,7 +749,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if s.Accept(ctx, other, time.Now()) != nil {
 		t.Fatal("mapping event")
 	}
-	if _, err = command("process"); err != nil {
+	if _, err = command(t, "process"); err != nil {
 		t.Fatal("mapping handling")
 	}
 	if contacts.Load() != beforeContacts {

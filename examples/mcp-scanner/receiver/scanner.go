@@ -33,18 +33,22 @@ type scanner interface {
 }
 
 type pythonScanner struct{ python, runner string }
+
+var errScannerOutputLimit = failed("scanner_output_limit", false)
+
 type boundedBuffer struct {
-	bytes.Buffer
+	// Embedding bytes.Buffer lets io.Copy bypass Write via ReadFrom.
+	buf      bytes.Buffer
 	limit    int
 	overflow bool
 }
 
 func (b *boundedBuffer) Write(p []byte) (int, error) {
-	if b.Len()+len(p) > b.limit {
+	if len(p) > b.limit-b.buf.Len() {
 		b.overflow = true
-		return 0, errors.New("scanner_output_limit")
+		return 0, errScannerOutputLimit
 	}
-	return b.Buffer.Write(p)
+	return b.buf.Write(p)
 }
 
 func (s *pythonScanner) command(ctx context.Context, args ...string) ([]byte, int, error) {
@@ -64,6 +68,10 @@ func (s *pythonScanner) command(ctx context.Context, args ...string) ([]byte, in
 	cmd.Stdout = out
 	cmd.Stderr = diagnostics
 	err := cmd.Run()
+	// A pipe write failure can accompany either a successful or a failed child exit.
+	if out.overflow || diagnostics.overflow {
+		return nil, 2, errScannerOutputLimit
+	}
 	code := 0
 	if err != nil {
 		var exit *exec.ExitError
@@ -72,15 +80,15 @@ func (s *pythonScanner) command(ctx context.Context, args ...string) ([]byte, in
 		}
 		code = exit.ExitCode()
 	}
-	if out.overflow || diagnostics.overflow {
-		return nil, 2, failed("scanner_output_limit", false)
-	}
-	return out.Bytes(), code, nil
+	return out.buf.Bytes(), code, nil
 }
 
 func (s *pythonScanner) Identity(ctx context.Context) (scannerIdentity, error) {
 	raw, code, err := s.command(ctx, "identity")
 	var i scannerIdentity
+	if errors.Is(err, errScannerOutputLimit) {
+		return i, err
+	}
 	if err != nil || code != 0 || uniqueJSON(raw) != nil || json.Unmarshal(raw, &i) != nil || !i.valid() {
 		return i, failed("scanner_tools_unavailable", false)
 	}

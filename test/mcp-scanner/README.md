@@ -48,7 +48,11 @@ make test-mcp-scanner-receiver
 
 The first target checks the independent Go module, copied signature verifier, SDK, licenses, isolated units and local MCP/TLS behavior. It checks real MCP SDK JSON and finite SSE responses. It rejects redirects, wrong credentials, invalid trust, malformed pages and excessive work. It permits metadata reads and session setup/cleanup only.
 
+Local process tests run a Python child at the receiver's exact stdout and stderr limits and one byte over. They check the child exit status, the receiver's error code and the worker's retry decision.
+
 The second target starts one owned PostgreSQL container. It creates a dedicated receiver database/account and builds the receiver binary. Tests use controlled HTTPS Catalog responses, a real MCP SDK peer and an explicit Python scanner executable double. They verify durable acceptance, bounded storage, reconciliation, report bindings, failure handling and restart recovery. Cleanup removes only the owned fixture.
+
+The process test also checks what happens when the scanner exceeds its output limit. It reads back the receipt and the previous scan from PostgreSQL and checks that the receiver omits private scanner diagnostics from its command output.
 
 The report recovery test runs `render` with two mapped Resources and no Catalog token or scanner process. It blocks the second Resource's metadata filename with a directory and verifies that the previous index survives the failed write. After removing the directory, it replaces the second Resource's native file with the first Resource's scan and reruns the command. It follows the recovered index to verify each release, capture time, native report and SHA-256.
 
