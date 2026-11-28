@@ -1,23 +1,37 @@
 import { object, text } from "./json";
 import { expectAlignedOperationControls } from "./operations-layout";
-import { test, expect, login, confirmCommand } from "./fixtures";
+import { test as base, expect, login, confirmCommand } from "./fixtures";
 import { expectNaturalText } from "./text-layout";
 import { required } from "../required";
 import AxeBuilder from "@axe-core/playwright";
-import type { Page } from "@playwright/test";
+import { createHash } from "node:crypto";
+import type { Page, Request } from "@playwright/test";
+import type { components } from "../../src/api/schema";
 
-// Revealed one-time secrets must never enter automatic failure artifacts.
+// Playwright's fallback page snapshot runs during test teardown, after afterEach.
+const test = base.extend<object, { omitSigningPageSnapshots: void }>({
+  omitSigningPageSnapshots: [
+    // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture list even with no dependencies.
+    async ({}, use) => {
+      const previous = process.env.PLAYWRIGHT_NO_COPY_PROMPT;
+      process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
+      try {
+        await use();
+      } finally {
+        if (previous === undefined)
+          delete process.env.PLAYWRIGHT_NO_COPY_PROMPT;
+        else process.env.PLAYWRIGHT_NO_COPY_PROMPT = previous;
+      }
+    },
+    { auto: true, scope: "worker" },
+  ],
+});
 test.use({ webhooks: true, screenshot: "off" });
 
-/** Suppress plaintext error-context artifacts; a failed worker must retain this through teardown. */
-function protectSigningArtifacts() {
-  const previous = process.env.PLAYWRIGHT_NO_COPY_PROMPT;
-  process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
-  return () => {
-    if (previous === undefined) delete process.env.PLAYWRIGHT_NO_COPY_PROMPT;
-    else process.env.PLAYWRIGHT_NO_COPY_PROMPT = previous;
-  };
-}
+test.afterEach(() => {
+  // Locator matchers attach a separate accessibility snapshot, even for masked inputs.
+  for (const error of test.info().errors) delete error.errorContext;
+});
 
 /** Return only display mode; locator attribute failures can otherwise include the signing value. */
 async function signingDisplayMode(page: Page) {
@@ -35,9 +49,6 @@ test("enabled webhooks support one-time secrets editing rotation policy-denied t
   context,
   network,
 }) => {
-  // The pinned Playwright runner otherwise includes plaintext in error-context.md.
-  // Restore only after success: a failed worker must retain this through teardown.
-  const restoreArtifacts = protectSigningArtifacts();
   const receiver = `https://127.0.0.1/${"receiver".repeat(200)}`;
   await login(page, catalog, "local-admin", "/webhooks");
   await expect(
@@ -633,7 +644,146 @@ test("enabled webhooks support one-time secrets editing rotation policy-denied t
   await page
     .getByRole("button", { name: "Clear secret from this page" })
     .click();
-  restoreArtifacts();
+});
+
+test("an administrator recovers the original signing key after a lost rotation response", async ({
+  page,
+  catalog,
+  network,
+}) => {
+  const { endpoint } = (
+    await catalog.admin<components["schemas"]["WebhookSecretResult"]>(
+      "POST",
+      "/api/v1/webhooks",
+      {
+        name: "Rotation recovery receiver",
+        url: "https://127.0.0.1/events",
+        eventTypes: ["com.open.agentic.catalog.webhook.test.v1"],
+      },
+    )
+  ).data;
+  const path = `/api/v1/webhooks/${endpoint.id}`;
+  const readEndpoint = () =>
+    catalog.admin<components["schemas"]["Webhook"]>("GET", path);
+  const before = await readEndpoint();
+  await login(page, catalog, "local-admin", `/webhooks/${endpoint.id}`);
+  await page
+    .getByRole("combobox", { name: "Webhook action", exact: true })
+    .selectOption("rotate");
+  await page
+    .getByRole("button", { name: "Manage webhook", exact: true })
+    .click();
+
+  const rotationPath = `/_catalog${path}:rotate-secret`;
+  const requests: Request[] = [];
+  let keyDigest = "";
+  let deadline = "";
+  network.expectFailure("POST", rotationPath, 0);
+  await page.route(catalog.origin + rotationPath, async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const attempt = requests.push(route.request());
+    const response = await route.fetch();
+    expect(response.status()).toBe(200);
+    if (attempt === 1) {
+      const receipt = object(await response.json());
+      expect(object(receipt.endpoint).id).toBe(endpoint.id);
+      const key = text(receipt.secret);
+      expect(key.length > 0).toBe(true);
+      keyDigest = createHash("sha256").update(key).digest("base64");
+      deadline = text(receipt.previousSecretExpiresAt);
+      expect(Number.isFinite(Date.parse(deadline))).toBe(true);
+      // The Catalog committed the rotation. Drop only the reply to the browser.
+      return route.abort("failed");
+    }
+    expect(response.headers()["idempotency-replayed"]).toBe("true");
+    await route.fulfill({ response });
+  });
+
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("outcome is unknown");
+  await expect(
+    dialog.getByRole("button", { name: "Back to form" }),
+  ).toBeDisabled();
+  const signingField = page.getByLabel("Signing secret", { exact: true });
+  await expect(signingField).toHaveCount(0);
+  const committed = await readEndpoint();
+  expect(committed.data.revision).toBe(before.data.revision + 1);
+  expect(committed.data.secretVersion).toBe(before.data.secretVersion + 1);
+  expect(requests.length).toBe(1);
+  const first = required(requests[0]);
+  expect(first.postDataJSON()).toEqual({ revokePrevious: false });
+  expect(first.headers()["if-match"]).toBe(before.etag);
+  expect(Boolean(first.headers()["idempotency-key"])).toBe(true);
+
+  await dialog.getByRole("button", { name: "Retry same command" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => signingDisplayMode(page)).toBe("password");
+  await expect
+    .poll(() => signingField.isVisible(), {
+      message: "Recovered signing key must be visible",
+    })
+    .toBe(true);
+  // Only a boolean leaves the page. A failing comparison cannot print the key.
+  const sameKey = await signingField.evaluate(
+    async (input: HTMLInputElement, digest) => {
+      const bytes = new TextEncoder().encode(input.value);
+      const hashed = await crypto.subtle.digest("SHA-256", bytes);
+      return btoa(String.fromCharCode(...new Uint8Array(hashed))) === digest;
+    },
+    keyDigest,
+  );
+  expect(sameKey).toBe(true);
+  const retry = required(requests[1]);
+  expect(retry.postData()).toBe(first.postData());
+  expect(retry.headers()["if-match"]).toBe(before.etag);
+  expect(
+    retry.headers()["idempotency-key"] === first.headers()["idempotency-key"],
+  ).toBe(true);
+  const guidance = page.getByRole("region", {
+    name: "Signing-key rotation guidance",
+  });
+  const localDeadline = await page.evaluate(
+    (value) => new Date(value).toLocaleString(),
+    deadline,
+  );
+  const displayedDeadline = guidance.getByText(localDeadline, { exact: true });
+  await expect(displayedDeadline).toBeVisible();
+  await expect(displayedDeadline).toHaveAttribute("datetime", deadline);
+  await page
+    .getByRole("button", { name: "Clear secret from this page" })
+    .click();
+  await expect(signingField).toHaveCount(0);
+  await expect(displayedDeadline).toBeVisible();
+  await expect(displayedDeadline).toHaveAttribute("datetime", deadline);
+
+  await page.reload();
+  await expect(page.getByText(endpoint.id, { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Endpoint revision", { exact: true }).locator("+ dd"),
+  ).toHaveText(String(committed.data.revision));
+  await expect(guidance).toContainText(
+    "No rotation deadline is known on this page",
+  );
+  await expect(signingField).toHaveCount(0);
+  const retained = await readEndpoint();
+  expect(retained.data.id).toBe(endpoint.id);
+  expect(retained.data.status).toBe("active");
+  expect(retained.data.revision).toBe(committed.data.revision);
+  expect(retained.data.secretVersion).toBe(committed.data.secretVersion);
+  expect(
+    "secret" in retained.data || "previousSecretExpiresAt" in retained.data,
+  ).toBe(false);
+  const audit = await catalog.admin<{
+    items: components["schemas"]["AuditEvent"][];
+  }>(
+    "GET",
+    `/api/v1/audit-events?action=webhook.secret_rotated&targetType=webhook_endpoint&targetId=${endpoint.id}&limit=2`,
+  );
+  expect(audit.data.items.map((row) => [row.action, row.targetId])).toEqual([
+    ["webhook.secret_rotated", endpoint.id],
+  ]);
+  expect(requests.length).toBe(2);
 });
 
 test.describe("exact webhook delegates", () => {
@@ -642,7 +792,6 @@ test.describe("exact webhook delegates", () => {
     page,
     catalog,
   }) => {
-    const restoreArtifacts = protectSigningArtifacts();
     const created = await catalog.admin<{ endpoint: { id: string } }>(
       "POST",
       "/api/v1/webhooks",
@@ -839,7 +988,6 @@ test.describe("exact webhook delegates", () => {
     await expect(
       page.getByLabel("Signing secret", { exact: true }),
     ).toHaveCount(0);
-    restoreArtifacts();
   });
 });
 
@@ -847,7 +995,6 @@ test("subpath webhook filters find off-page endpoints and retained deliveries", 
   page,
   catalog,
 }) => {
-  const restoreArtifacts = protectSigningArtifacts();
   for (let index = 0; index < 26; index++) {
     await catalog.admin("POST", "/api/v1/webhooks", {
       name: `Alpha ${String(index).padStart(2, "0")}`,
@@ -955,5 +1102,4 @@ test("subpath webhook filters find off-page endpoints and retained deliveries", 
   await expect(
     history.getByRole("button", { name: "Copy delivery ID", exact: true }),
   ).toHaveCount(25);
-  restoreArtifacts();
 });
