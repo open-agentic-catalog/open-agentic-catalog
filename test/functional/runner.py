@@ -32,7 +32,7 @@ RUN_SECONDS = 20 * 60
 CLEANUP_SECONDS = 90
 STEPS = {
     "startup-contract": ["api-health", "worker-health", "served-openapi", "migration-and-restore", "development-provisioning"],
-    "automatic-federation": ["source-sync-smoke", "catalog-search-smoke"],
+    "automatic-federation": ["source-sync-smoke", "catalog-search-smoke", "federation-inventory-overviews"],
     "packaged-smoke": ["smoke-command", "membership-smoke", "administration-smoke", "governance-smoke", "catalog-search-smoke", "publication-smoke", "public-discovery"],
     "representative-response-contracts": ["api-health", "served-openapi", "administration-smoke", "public-discovery"],
     "audit-export": ["audit-export", "static-operator-files"],
@@ -66,7 +66,7 @@ WEBHOOK_CASES = [
 OIDC_STEPS = {
     "startup-contract": STEPS["startup-contract"],
     "packaged-smoke": STEPS["packaged-smoke"],
-    "independent-oidc": ["membership-smoke", "identity-provisioning", "identity-realm-operations", "public-discovery", "administration-smoke"],
+    "independent-oidc": ["membership-smoke", "identity-provisioning", "identity-realm-operations", "public-discovery", "administration-smoke", "oidc-access-lifecycle"],
 }
 TRACING_STEPS = {
     "startup-contract": STEPS["startup-contract"],
@@ -83,11 +83,11 @@ BACKUP_PROFILES = ("backup-restore", "pitr-recovery")
 BACKUP_STEPS = {
     "startup-contract": STEPS["startup-contract"],
     "packaged-smoke": STEPS["packaged-smoke"],
-    "backup-recovery": ["migration-and-restore", "audit-export", "optional-webhooks", "process-topology"],
+    "backup-recovery": ["migration-and-restore", "audit-export", "optional-webhooks", "process-topology", "restored-rating-directories"],
 }
 PEER_STEPS = {
     "startup-contract": STEPS["startup-contract"],
-    "federation-peers": ["source-sync-smoke", "catalog-search-smoke", "public-discovery", "publication-smoke", "source-comparison-cli"],
+    "federation-peers": ["source-sync-smoke", "catalog-search-smoke", "public-discovery", "publication-smoke", "source-comparison-cli", "federation-inventory-overviews"],
 }
 OIDC_CASES = ["provider-startup", "dedicated-mapping", "discovery-isolation", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling", "namespace-grants"]
 OIDC_PHASES = ["setup", "provision", "provision-replay", "dedicated-startup", "capabilities", "membership", "token-rejection", "discovery", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling", "namespace-grants", "identity-report"]

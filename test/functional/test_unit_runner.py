@@ -681,7 +681,7 @@ class RunnerTests(unittest.TestCase):
                 self.assertNotIn("private-secret", str(error.exception))
         with mock.patch.object(runner, "read_document", return_value=good):
             families = runner.inventory()
-            self.assertEqual(len(families), 59)
+            self.assertEqual(len(families), 62)
             for identifier in ("release-relationships", "validation-maintenance"):
                 family = next(item for item in families if item["id"] == identifier)
                 self.assertEqual(family["surfaceCount"], 1)
@@ -690,7 +690,7 @@ class RunnerTests(unittest.TestCase):
                 self.assertEqual(family["steps"], ["extended-core"])
             for identifier, count in (
                 ("publisher-domain-verification", 5),
-                ("catalog-content-overview", 14),
+                ("catalog-content-overview", 7),
                 ("service-activity", 1),
                 ("ard-publication-mcp", 7),
             ):
@@ -708,7 +708,7 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(mcp_http["disposition"], "lower-level-only")
             self.assertEqual(mcp_http["steps"], [])
             export = next(family for family in families if family["id"] == "native-release-export")
-            self.assertEqual(export["surfaceCount"], 4)
+            self.assertEqual(export["surfaceCount"], 3)
             self.assertEqual(export["disposition"], "lower-level-only")
             self.assertEqual(export["steps"], [])
             preview = next(family for family in families if family["id"] == "native-draft-preview")
@@ -720,7 +720,7 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(trust["disposition"], "lower-level-only")
             self.assertEqual(trust["steps"], [])
             ratings = next(family for family in families if family["id"] == "human-resource-ratings")
-            self.assertEqual(ratings["surfaceCount"], 10)
+            self.assertEqual(ratings["surfaceCount"], 8)
             self.assertEqual(ratings["disposition"], "lower-level-only")
             self.assertEqual(ratings["steps"], [])
             artwork = next(family for family in families if family["id"] == "listing-artwork")
@@ -733,13 +733,21 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(remote["surfaceCount"], 6)
             self.assertEqual(remote["steps"], ["operator-workflows"])
             personal = next(family for family in families if family["id"] == "personal-library-backup")
-            self.assertEqual(personal["surfaceCount"], 4)
+            self.assertEqual(personal["surfaceCount"], 5)
             self.assertEqual(personal["inventoryStatus"], "covered")
             self.assertEqual(personal["disposition"], "compose")
             self.assertEqual(personal["steps"], ["operator-workflows"])
             comparison = next(family for family in families if family["id"] == "source-comparison-cli")
             self.assertEqual(comparison["surfaceCount"], 1)
             self.assertEqual(comparison["steps"], ["operator-workflows"])
+            for steps, identifier, count, step in (
+                (runner.OIDC_STEPS, "oidc-access-lifecycle", 7, "independent-oidc"),
+                (runner.STEPS, "federation-inventory-overviews", 2, "automatic-federation"),
+                (runner.PEER_STEPS, "federation-inventory-overviews", 2, "federation-peers"),
+                (runner.BACKUP_STEPS, "restored-rating-directories", 3, "backup-recovery"),
+            ):
+                owner = next(item for item in runner.inventory(steps) if item["id"] == identifier)
+                self.assertEqual((owner["surfaceCount"], owner["disposition"], owner["steps"]), (count, "compose", [step]))
             peer_families = runner.inventory(runner.PEER_STEPS)
             comparison = next(family for family in peer_families if family["id"] == "source-comparison-cli")
             self.assertEqual(comparison["steps"], ["federation-peers"])

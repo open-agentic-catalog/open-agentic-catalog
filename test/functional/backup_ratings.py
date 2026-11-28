@@ -5,7 +5,7 @@ import hashlib
 import json
 
 import audit
-from core import mutate
+from core import history, mutate
 from federation import Client
 from journeys import header
 from runner import Failure, read_document, write_document
@@ -112,10 +112,39 @@ def read_snapshot(journey, seed):
             and header(headers, "ETag") == seed["sharing"]["etag"])
     tables = read_tables(journey)
     validate_retained(seed, opinions, sharing, tables)
+    verify_directories(journey, opinions)
     return {"admission": admission, "opinions": opinions, "views": views,
             "sharing": {"record": sharing, "etag": header(headers, "ETag")}, "tables": tables,
             "expectedLocal": {"count": 2, "sum": 7, "average": 3.5},
             "expectedShared": {"count": 1, "sum": 5, "summaryEligible": False}}
+
+
+def verify_directories(journey, opinions):
+    """Compare paged views from each identity with the four known stored opinions."""
+    path = "/api/v1/ratings"
+    inbox = path + "/inbox"
+    overview = "/api/v1/overview/ratings"
+    for label, token in OWNERS.items():
+        history(Client(journey.base, token), path, [opinions[label]["record"]])
+    history(journey.api, path, [])  # The moderator did not submit a rating.
+    history(journey.api, inbox, [value["record"] for value in opinions.values()])
+    history(journey.other, inbox, [])
+
+    reader = Client(journey.base, OWNERS["consented"])
+    for restricted in (inbox, overview):
+        problem, _ = reader.request("GET", restricted, expected=(403,))
+        require(problem["code"] == "FORBIDDEN")
+
+    foreign, _ = journey.other.request("GET", "/api/v1/me")
+    require(foreign["tenantId"] != TENANT)
+    for client, tenant, counts in ((journey.api, TENANT, (2, 1, 1)),
+                                   (journey.other, foreign["tenantId"], (0, 0, 0))):
+        summary, headers = client.request("GET", overview)
+        states = [(row["state"], row["count"]) for row in summary["states"]]
+        require(summary["tenantId"] == tenant and summary["scope"] == "current_access"
+                and summary["total"] == {"value": sum(counts), "limited": False}
+                and sorted(states) == sorted(zip(("active", "withdrawn", "removed"), counts, strict=True))
+                and header(headers, "Cache-Control") == "no-store")
 
 
 def read_tables(journey, history_count=7):

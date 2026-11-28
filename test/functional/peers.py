@@ -525,6 +525,7 @@ class Peers:
         source = self.connect()
         indexed = self.synchronize(source)
         self.check_index(indexed, initial, ids, source)
+        self.check_indexed_overview(indexed)
         correction_history = [self.capture_correction_evidence(source, items[0]["resource"]["canonicalIdentifier"])]
         self.other.request("GET", "/api/v1/federation/sources/" + source["id"], expected=(404,))
         for item in indexed:
@@ -537,13 +538,16 @@ class Peers:
         self.phase("unchanged")
         again = self.synchronize(source)
         assert {x["id"] for x in again} == {x["id"] for x in indexed}, "unchanged peer sync duplicated observations"
+        self.check_indexed_overview(indexed)
         self.check_combined(indexed)
         self.check_control_declarations(indexed)
         self.passed("unchanged")
         self.phase("scope")
         source = self.change_source(source, {"scope": {"kinds": ["skill"]}})
         search = self.b.request("POST", "/api/v1/catalog/search", {"tags": ["peers"], "origins": ["indexed"], "limit": 20})[0]
-        check_indexed_search(search, [item for item in indexed if item["kind"] == "skill"], source["id"])
+        skills = [item for item in indexed if item["kind"] == "skill"]
+        check_indexed_search(search, skills, source["id"])
+        self.check_indexed_overview(skills)
         for scope, selected in (({"kinds": ["plugin"]}, [x for x in indexed if x["kind"] == "plugin"]),
                                 ({"identifiers": [items[0]["resource"]["canonicalIdentifier"]]}, [x for x in indexed if x["kind"] == "agent"]),
                                 ({"tags": ["skill"]}, [x for x in indexed if x["kind"] == "skill"])):
@@ -671,8 +675,10 @@ class Peers:
         assert all(entry["identifier"] != plugin_identifier for entry in published), "retired Plugin still published by A"
         remaining = ids - {plugin_identifier}
         self.check_indexed_reader(source["id"], changed_plugin)
+        self.check_indexed_overview(changed_plugin)
         remaining_index = self.synchronize(source)
         self.check_index(remaining_index, published, remaining, source)
+        self.check_indexed_overview(remaining_index)
         self.check_group_missing(v2)
         self.check_indexed_reader(source["id"], [entry for entry in changed_plugin if entry["identifier"] != plugin_identifier])
         self.check_version_history(source["id"], plugin_identifier, [superseded, ("2.0.0", current["id"], "withdrawn")])
@@ -689,6 +695,7 @@ class Peers:
             self.b.request("GET", "/readyz")
             self.check_combined(observations(self.b, source["id"]))
             self.check_outage_readers(source["id"], remaining_index, peer_online=False)
+            self.check_indexed_overview(remaining_index)
             control = self.b.request("POST", "/api/v1/catalog/search", {"text": "peer", "tags": ["peers"], "origins": ["local", "indexed", "live"], "limit": 100})[0]
             assert control["partial"] and control["diagnostics"] and {x["identifier"] for x in control["items"]} == self.b_native | remaining, "Control outage lost retained results or diagnostics"
         self.failure_recovery(source, unavailable, lambda: (self.compose("start", "api-a"), self.wait(ready)))
@@ -809,6 +816,12 @@ class Peers:
             assert raw == expected[item["identifier"]], "peer ingestion changed published entry"
         search = self.b.request("POST", "/api/v1/catalog/search", {"tags": ["peers"], "origins": ["indexed"], "limit": 20})[0]
         check_indexed_search(search, indexed, source["id"])
+
+    def check_indexed_overview(self, expected):
+        overview, _ = self.b.request("GET", "/api/v1/overview/indexed")
+        identities = {(row["identifier"], row["versionPresent"], row.get("version")) for row in expected}
+        assert overview["tenantId"] == TENANT and overview["limited"] is False, "peer indexed overview lost its complete tenant scope"
+        assert overview["count"] == len(identities), "peer indexed overview counted the wrong inventory"
 
     def check_version_history(self, source_id, identifier, expected):
         query = urllib.parse.urlencode({"sourceId": source_id, "freshness": "all", "limit": 100})
@@ -955,6 +968,9 @@ class Peers:
         assert all("integration" in x[SUBJECT_IRI] and x["metadata"]["license"] == "Apache-2.0" for x in live["results"]), "live merge lost reviewed declarations"
 
         self.assert_contacts(before, PUBLIC_A, 1)
+        before = self.stats()
+        self.check_indexed_overview(before_index)
+        self.assert_contacts(before, PUBLIC_A, 0)
         for field, value, kind in (("data.capabilities.streaming", "false", "agent"),
                                    ("data.remotes.supportedProtocolVersions", "2025-11-25", "mcp_server")):
             before = self.stats()

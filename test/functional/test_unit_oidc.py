@@ -2,13 +2,26 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import oidc
 import runner
 
 
 class OIDCTests(unittest.TestCase):
+    def test_revoked_assignment_is_retained_in_impact_but_only_original_grant_is_effective(self):
+        admin, reader = Mock(), Mock()
+        grant = {"id": "sibling", "roleDefinitionId": "custom", "membershipId": "member",
+                 "namespaceId": "other", "revision": 2, "state": "revoked"}
+        admin.request.return_value = ({"items": [grant]}, {})
+        original = {"assignment": {"id": "original"}}
+        reader.request.return_value = ({"items": [original]}, {})
+        oidc.verify_assignment_views(admin, reader, {"id": "custom"}, grant, "original")
+        for extra in ("unrelated", "sibling", "original"):
+            with self.subTest(extra=extra), self.assertRaisesRegex(runner.Failure, "effective-assignments"):
+                reader.request.return_value = ({"items": [original, {"assignment": {"id": extra}}]}, {})
+                oidc.verify_assignment_views(admin, reader, {"id": "custom"}, grant, "original")
+
     def test_configuration_has_only_the_selected_mapping(self):
         with tempfile.TemporaryDirectory() as directory:
             journey = object.__new__(oidc.OIDCJourney)

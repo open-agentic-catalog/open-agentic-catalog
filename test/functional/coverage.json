@@ -136,8 +136,6 @@
       "surfaces": [
         "http:readRating",
         "http:submitRating",
-        "http:listOwnRatings",
-        "http:listRatingInbox",
         "http:getRating",
         "http:withdrawRating",
         "http:removeRating",
@@ -156,9 +154,35 @@
         }
       ],
       "reason": "Real PostgreSQL and two local HTTP APIs qualify the complete opinion lifecycle; isolated proofs reject transferred or stale live authority. The logical backup fixture also restores nonempty opinion, history, consent and sharing state, checks exact API readbacks and rejects nonowner/cross-tenant reads. The complete packaged authority matrix remains unqualified.",
-      "success": "Create, read, edit, page, moderate, withdraw and share consented exact-version opinions.",
+      "success": "Create, read, edit, moderate and withdraw exact-version opinions. Check sharing settings and consent.",
       "rejection": "Reject other tenants, nonowners, machine opinions, stale revisions and changed visibility or source authority.",
       "recovery": "Cross-API exact-key replay returns minimal acknowledgements without restoring removed opinions.",
+      "gaps": []
+    },
+    {
+      "id": "restored-rating-directories",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:listOwnRatings",
+        "http:listRatingInbox",
+        "http:getRatingOverview"
+      ],
+      "evidence": [
+        {
+          "path": "test/functional/backup_ratings.py"
+        },
+        {
+          "path": "test/functional/backup_restore.py"
+        },
+        {
+          "path": "test/functional/pitr_recovery.py"
+        }
+      ],
+      "reason": "Logical restore and point-in-time recovery preserve private ratings across three later edits.",
+      "success": "Compare each owner list, paged moderator inbox and aggregate with the four source records and their stored revisions.",
+      "rejection": "Ordinary readers cannot use moderator views. A moderator in the second tenant sees its own empty results.",
+      "recovery": "Restoring the selected backup or recovery point recovers earlier states and consent on the same rating IDs.",
       "gaps": []
     },
     {
@@ -362,7 +386,8 @@
         "catalogctl:personal export",
         "catalogctl:personal preview",
         "catalogctl:personal apply",
-        "catalogctl:personal resume"
+        "catalogctl:personal resume",
+        "http:listPersonalItems"
       ],
       "evidence": [
         {
@@ -410,7 +435,7 @@
         }
       ],
       "reason": "The existing packaged operator journey restores selected private searches and exact release references through the shipped CLI and PostgreSQL. Native process controls qualify actual response loss on first and later selected saves, retained acknowledgements and skips, same-origin tenant refusal, and membership suspension/reactivation between saves. Units qualify strict local input, finite enumeration, durable intent before sending and unverified acknowledgement/progress refusal.",
-      "success": "Export observed owner pages without target reads; preview exact create/skip choices offline; restore selected same-origin/tenant inputs under current human authority with private durable per-item progress and one create audit per newly created item.",
+      "success": "Export observed owner pages without target reads; preview exact create/skip choices offline; restore selected same-origin/tenant inputs under current human authority with private durable per-item progress and one create audit per newly created item. Check the owner's paged directory before deletion and after restore and resume, with a second owner using the same label.",
       "rejection": "Refuse malformed/oversized files, changed origins/tenants/principals/intent, unsafe private state, unavailable targets and quota exhaustion without overwriting existing items or disclosing another owner. At quota, freeing a slot allows a newly confirmed plan to save the failed item. Resuming the original plan leaves the slot free.",
       "recovery": "Keep acknowledged saves and original request/key/first-attempt bindings. Explicit resume skips acknowledged work, replays safe uncertain commands only within the conservative window, and refuses expired, future or missing chronology without mutation. After a lost HTTP 200 response and API restart, a fresh CLI reports the existing follow. PostgreSQL retains its original ID, current label, revision, acknowledged release and single creation audit.",
       "gaps": []
@@ -798,7 +823,11 @@
         "http:retireListingRelease",
         "http:supersedeListingRelease",
         "http:revokeListingRelease",
-        "http:revokePublisherPublicationDomain"
+        "http:revokePublisherPublicationDomain",
+        "http:listPersonalWork",
+        "http:getReviewOverview",
+        "http:getReleaseOverview",
+        "http:exportVersionRevisionDraft"
       ],
       "evidence": [
         {
@@ -818,7 +847,7 @@
         }
       ],
       "reason": "Packaged review changes/rejection, release deprecation/supersession/retirement/revocation and publisher-domain withdrawal assert persisted state, exact replay and classified audit. Post-recreation checkpoint verifies release state and public absence; lower-level tests own the complete transition matrix.",
-      "success": "Read immutable evidence, append revisions, request changes/reject review and exercise release lifecycle plus domain revocation.",
+      "success": "Read immutable evidence, append revisions, request changes/reject review and exercise release lifecycle plus domain revocation. Check the author's work queues, review and release totals and downloaded draft metadata against the exact submission and Listing revisions.",
       "rejection": "Reject stale or terminal transitions and invalid deletion; do not mutate sealed history.",
       "recovery": "Retain transitions after restart and withdraw affected active public snapshots atomically.",
       "gaps": []
@@ -863,11 +892,20 @@
       "id": "released-listing-metadata",
       "disposition": "compose",
       "status": "covered",
-      "surfaces": ["http:listListingMetadataGaps"],
+      "surfaces": [
+        "http:listListingMetadataGaps"
+      ],
       "evidence": [
-        {"path": "test/functional/core.py"},
-        {"path": "internal/platform/database/listing_metadata_integration_test.go", "symbol": "TestPostgresReleasedListingMetadata"},
-        {"path": "catalog-ui/tests/browser/listing-metadata.spec.ts"}
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "internal/platform/database/listing_metadata_integration_test.go",
+          "symbol": "TestPostgresReleasedListingMetadata"
+        },
+        {
+          "path": "catalog-ui/tests/browser/listing-metadata.spec.ts"
+        }
       ],
       "reason": "Follow the released Skill through a draft correction, replacement and withdrawal using the packaged Control API.",
       "success": "Return the exact released revision and its selected missing declarations.",
@@ -879,11 +917,20 @@
       "id": "release-relationships",
       "disposition": "compose",
       "status": "covered",
-      "surfaces": ["http:listReleaseRelationships"],
+      "surfaces": [
+        "http:listReleaseRelationships"
+      ],
       "evidence": [
-        {"path": "test/functional/core.py"},
-        {"path": "internal/platform/database/relationships_integration_test.go", "symbol": "TestPostgresReleaseRelationships"},
-        {"path": "catalog-ui/tests/browser/release-relationships.spec.ts"}
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "internal/platform/database/relationships_integration_test.go",
+          "symbol": "TestPostgresReleaseRelationships"
+        },
+        {
+          "path": "catalog-ui/tests/browser/release-relationships.spec.ts"
+        }
       ],
       "reason": "A reviewed Skill declares a dependency on one seeded release. Both directions use the packaged API.",
       "success": "Resolve the exact target release and find the sealed source Listing revision before withdrawal.",
@@ -968,7 +1015,8 @@
         "http:listPublicationSnapshots",
         "http:getPublicationSnapshot",
         "http:rollbackPublicationSnapshot",
-        "http:unpublishCatalog"
+        "http:unpublishCatalog",
+        "http:getPublicationOverview"
       ],
       "evidence": [
         {
@@ -992,7 +1040,7 @@
         }
       ],
       "reason": "Packaged bounded history, exact snapshot, rollback and unpublish assert audit and public validators; subsequent lifecycle withdrawal and post-recreation public absence prove durable removal. Full stale/host/eligibility combinations remain in the owning tests.",
-      "success": "Read bounded history, roll back an eligible snapshot and explicitly unpublish.",
+      "success": "Read bounded history, roll back an eligible snapshot and explicitly unpublish. Compare host overview metadata with the snapshot served by public discovery.",
       "rejection": "Reject invalid rollback eligibility, stale revisions and wrong tenant/host.",
       "recovery": "Retired and restored state and public absence must survive restart without rewriting snapshots.",
       "gaps": []
@@ -1083,6 +1131,28 @@
       "success": "Inspect/connect a Registry, sync and read bounded snapshots, observations, occurrences and the resulting Job. Compare exact complete Registry memberships, including observation reuse, reverse/unchanged pages and non-authoritative absence without upstream requests.",
       "rejection": "Refuse changed/invalid source evidence and preserve the last complete view on partial failure.",
       "recovery": "Retry after fixture recovery; O-05 proves worker lease takeover and deduplication.",
+      "gaps": []
+    },
+    {
+      "id": "federation-inventory-overviews",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:getSourceOverview",
+        "http:getIndexedOverview"
+      ],
+      "evidence": [
+        {
+          "path": "test/functional/federation.py"
+        },
+        {
+          "path": "test/functional/peers.py"
+        }
+      ],
+      "reason": "The default-off worker and two-Catalog profiles independently check the source-problem and indexed-inventory summaries.",
+      "success": "Match the current indexed count to eligible identities after scope changes and synchronization.",
+      "rejection": "An incomplete sync must preserve retained entries. Fresh live-only entries must stay out of the indexed count.",
+      "recovery": "A retry of the same Job clears the synchronization problem. Indexed entries remain available during an upstream outage.",
       "gaps": []
     },
     {
@@ -1438,7 +1508,6 @@
       "disposition": "lower-level-only",
       "status": "covered",
       "surfaces": [
-        "http:exportVersionRevisionDraft",
         "catalogctl:export",
         "catalogctl:export preview",
         "catalogctl:export batch"
@@ -1497,7 +1566,7 @@
           "symbol": "qualifyProcessExport"
         }
       ],
-      "reason": "Units qualify exact identities, current permission, required audits, local-only paging, limits, lossless text, private files and artifact integrity. The compiled CLI qualifies native and reusable exports for all four kinds against an owned Catalog. PostgreSQL process tests verify delivered jsonb precision, exact reusable-file reads, separate digests and explicit native re-import. The packaged Compose runner has no export phase.",
+      "reason": "Units qualify exact identities, current permission, required audits, local-only paging, limits, lossless text, private files and artifact integrity. The compiled CLI qualifies native and reusable exports for all four kinds against an owned Catalog. PostgreSQL process tests verify delivered jsonb precision, exact reusable-file reads, separate digests and explicit native re-import. The packaged governance journey checks exact historical draft downloads through the API.",
       "success": "Save a selected native representation or a reusable file with all representations and optional exact Listing metadata. Preserve native text and separate digest scopes. Freeze bounded local selections before batch reads; deduplicate exact releases only.",
       "rejection": "Refuse conflicting selections, changed origins/identities, malformed pages, repeated cursors, over-limit responses, ambiguous representations, mismatched integrity, permission loss, unsafe output paths and overwrites.",
       "recovery": "Record complete, reference-only, denied, failed and unattempted outcomes. SIGTERM preserves successful files and a bounded final report. SIGKILL during an artifact read leaves the earlier export intact and no final batch report. A fresh CLI refuses the existing directory before contacting the API and can export the saved selection to a new directory. Incomplete selections stay incomplete. No automatic network retry or Catalog mutation occurs.",
@@ -1846,13 +1915,8 @@
       "status": "covered",
       "surfaces": [
         "http:listPermissionDescriptors",
-        "http:checkCurrentPermissions",
-        "http:listCurrentAccess",
         "http:listRoleDefinitions",
         "http:createRoleDefinition",
-        "http:getRoleDefinition",
-        "http:updateRoleDefinition",
-        "http:archiveRoleDefinition",
         "http:listAccessGroups",
         "http:createAccessGroup",
         "http:getAccessGroup",
@@ -1860,7 +1924,6 @@
         "http:suspendAccessGroup",
         "http:reactivateAccessGroup",
         "http:archiveAccessGroup",
-        "http:listRoleImpact",
         "http:listAccessGroupMembers",
         "http:addAccessGroupMember",
         "http:revokeAccessGroupMember",
@@ -1891,9 +1954,33 @@
         }
       ],
       "reason": "Synchronous current-administrator APIs and bounded own permission views use current action/scope admission. HTTP/PostgreSQL and real-process fixtures own the complete administration matrix; packaged recovery additionally verifies retained custom roles, group paths and revoked assignments.",
-      "success": "Role/group/member/assignment creation, exact role replacement, paginated impact and own summaries with response-schema checks and replay.",
+      "success": "Read permission and role directories, create a role, manage groups and membership, and grant or revoke assignments. Check command receipts and replay.",
       "rejection": "Unknown/reserved fields, malformed JSON, incomplete permissions, missing/stale If-Match, cross-tenant/realm targets and unsafe SQL transitions.",
       "recovery": "Audit failure rollback, reversible suspension, terminal offboarding, revoke-before-archive, serialized group removal, group-only restore integrity and durable replay across API restart with current-authority denial after revocation.",
+      "gaps": []
+    },
+    {
+      "id": "oidc-access-lifecycle",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:listCurrentAccess",
+        "http:checkCurrentPermissions",
+        "http:updateRoleDefinition",
+        "http:listRoleImpact",
+        "http:archiveRoleDefinition",
+        "http:getRoleDefinition",
+        "http:getAdministrationOverview"
+      ],
+      "evidence": [
+        {
+          "path": "test/functional/oidc.py"
+        }
+      ],
+      "reason": "The scope-enabled OIDC client keeps its original token while an assignment and its custom role change. The dedicated membership fixture counts service identities and active grants.",
+      "success": "Compare actual Namespace reads with effective assignments and permission decisions. Read back the updated role and its impact.",
+      "rejection": "A stale role edit, archive of an assigned role and administrator reads by a namespace reader are refused.",
+      "recovery": "Revoking the grant removes sibling access while preserving the original Namespace grant. Reconcile suspension, reactivation and offboarding with the membership summary.",
       "gaps": []
     },
     {
@@ -2041,8 +2128,6 @@
       "disposition": "lower-level-only",
       "status": "covered",
       "surfaces": [
-        "http:listPersonalWork",
-        "http:listPersonalItems",
         "http:getPersonalItem",
         "http:createPersonalItem",
         "http:updatePersonalItem",
@@ -2131,19 +2216,12 @@
       "status": "covered",
       "surfaces": [
         "http:getResourceOverview",
-        "http:getReleaseOverview",
         "http:getNamespaceOverview",
         "http:getPublisherOverview",
-        "http:getIndexedOverview",
-        "http:getReviewOverview",
-        "http:getPublicationOverview",
-        "http:getSourceOverview",
         "http:getJobOverview",
         "http:getWebhookEndpointOverview",
         "http:getWebhookDeliveryOverview",
-        "http:getAdministrationOverview",
-        "http:getFeedbackOverview",
-        "http:getRatingOverview"
+        "http:getFeedbackOverview"
       ],
       "evidence": [
         {
@@ -2201,8 +2279,8 @@
           "symbol": "TestComposedMemoryOverviewKeepsJobStoreReadMethods"
         }
       ],
-      "reason": "Focused HTTP and PostgreSQL fixtures qualify the summaries. Owned browser workflows check exact review links, charts and configured publication metadata.",
-      "success": "Read current authorized Resources, Listing releases, directories and distinct indexed records without hydrated documents or external calls.",
+      "reason": "Focused HTTP and PostgreSQL fixtures qualify the resource, namespace, publisher, Job, webhook and feedback summaries.",
+      "success": "Read bounded counts and distributions for the current scope. Optional webhook panels reflect the configured capability.",
       "rejection": "Refuse missing authentication, denied tenant permissions, missing OAuth scopes and unknown query parameters. Preserve failed reads and projection repair refusals.",
       "recovery": "Refresh after grant revocation; keep independent panels usable after one read fails. Show limited counts without an incomplete distribution or an invented identity lower bound.",
       "gaps": []
