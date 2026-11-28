@@ -49,6 +49,21 @@ class CompletionUnits(unittest.TestCase):
                         [f"{name}.Owner.test_value" for name in modules],
                     )
 
+    def test_python_discovery_distinguishes_no_matches_from_a_broken_import(self):
+        with TemporaryDirectory() as tmp, patch.dict(sys.modules), patch.object(sys, "path", sys.path.copy()):
+            root = Path(tmp)
+            (root / "test_unit_healthy.py").write_text(
+                "import unittest\nclass Healthy(unittest.TestCase):\n    def test_ok(self): pass\n"
+            )
+            with self.assertRaisesRegex(RuntimeError, "No unit tests discovered"):
+                completion.python_suite(root, "test_missing_*.py")
+
+            (root / "test_unit_broken.py").write_text("raise ImportError('fixture import failed')\n")
+            with self.assertRaisesRegex(RuntimeError, "Python test discovery failed") as error:
+                completion.python_suite(root, "test_unit_*.py")
+            self.assertIn("test_unit_broken", str(error.exception))
+            self.assertIn("fixture import failed", str(error.exception))
+
     def test_each_required_go_name_needs_start_success_and_package_completion(self):
         rows = [{"Action": action, "Package": "fixture", **({"Test": name} if name else {})}
                 for action, name in (("run", "TestOne"), ("pass", "TestOne"),
@@ -105,6 +120,37 @@ class CompletionUnits(unittest.TestCase):
     def test_nested_suite_cases_preserve_native_case_identities(self):
         first, second = unittest.FunctionTestCase(lambda: None), unittest.FunctionTestCase(lambda: None)
         self.assertEqual(list(completion.cases(unittest.TestSuite([first, unittest.TestSuite([second])]))), [first, second])
+
+    def test_go_subtests_are_bound_to_their_top_level_test_in_the_same_package(self):
+        name = "TestOwner"
+        child = name + "/child"
+        start = {"Package": "one", "Action": "run", "Test": name}
+        passed = dict(start, Action="pass")
+        child_start, child_pass = dict(start, Test=child), dict(passed, Test=child)
+        done = {"Package": "one", "Action": "pass"}
+        required = {("one", name), ("two", name)}
+
+        def stream(*rows):
+            # The same test is active in package two throughout package one's events.
+            return self.events(dict(start, Package="two"), *rows, done,
+                               dict(passed, Package="two"), dict(done, Package="two"))
+
+        completion.require_go(stream(start, child_start, child_pass, passed), required)
+        for label, rows in (
+            ("early", (child_start, child_pass, start, passed)),
+            ("late", (start, passed, child_start, child_pass)),
+        ):
+            with self.subTest(label=label), self.assertRaisesRegex(RuntimeError, "top-level test.*TestOwner/child"):
+                completion.require_go(stream(*rows), required)
+        with self.assertRaisesRegex(RuntimeError, "child test missing or incomplete: TestOwner"):
+            completion.require_go(stream(start, child_start, passed, child_pass), required)
+
+    def test_go_command_without_json_is_rejected_before_execution(self):
+        args = ["completion.py", "go", "--required", "TestOwner", "--", "go", "test", "./..."]
+        with patch.object(sys, "argv", args), patch.object(completion, "run_go") as run:
+            with self.assertRaisesRegex(RuntimeError, "Expected native go test -json command"):
+                completion.main()
+            run.assert_not_called()
 
     def test_go_process_failure_preserves_native_diagnostics_and_refuses_admission(self):
         result = SimpleNamespace(returncode=1, stdout="native stdout", stderr="native stderr")
