@@ -383,16 +383,15 @@ export function createCatalogClient(
         )
       )
         throw new SDKError("invalid_request");
-      if (
-        options.parseAs !== undefined &&
-        !["json", "text", "arrayBuffer", "blob", "stream"].includes(
-          String(options.parseAs),
-        )
-      )
-        throw new SDKError("invalid_request");
       let response: Response | undefined;
       try {
         const { timeoutMs, responseBytes, ...init } = options;
+        const { parseAs = "json" } = init;
+        if (
+          typeof parseAs !== "string" ||
+          !["json", "text", "arrayBuffer", "blob", "stream"].includes(parseAs)
+        )
+          throw new SDKError("invalid_request");
         const local = createClient<paths>({
           baseUrl: origin,
           // Collection kind arrays use the Control API single CSV parameter.
@@ -414,32 +413,31 @@ export function createCatalogClient(
             p: string,
             o: object,
           ) => Promise<{ data?: unknown; error?: unknown; response: Response }>
-        )(path, init);
+        )(path, {
+          ...init,
+          parseAs: parseAs === "json" ? "arrayBuffer" : parseAs,
+        });
+        const received = result.response;
         // openapi-fetch can return an empty error string for a bodyless 304.
-        if (response?.status === 304) return { error: undefined, response };
-        const bodyless = response?.status === 204 || method === "HEAD";
-        if (
-          !bodyless &&
-          (options.parseAs === undefined ||
-            options.parseAs === "json" ||
-            !response?.ok)
-        ) {
-          // openapi-fetch falls back to raw text when error JSON is malformed.
-          // Decode the bounded bytes so typed error responses cannot use that fallback.
-          if (response && !response.ok)
-            result.error = JSON.parse(
-              new TextDecoder().decode(bytesByResponse.get(response)!),
-            );
-          if (
-            result.data === null ||
-            result.error === null ||
-            (result.data === undefined && result.error === undefined)
-          )
+        if (received.status === 304)
+          return { error: undefined, response: received };
+        const bodyless = received.status === 204 || method === "HEAD";
+        if (!bodyless && (parseAs === "json" || !received.ok)) {
+          // Fetch's JSON and text readers replace malformed UTF-8. Decode the
+          // bounded wire bytes before exposing a typed success or refusal.
+          const bytes = received.ok
+            ? (result.data as ArrayBuffer | undefined)
+            : bytesByResponse.get(received);
+          const value = JSON.parse(
+            new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+          );
+          if (value === null)
             throw new SDKError(
               "invalid_response",
-              response?.status,
-              response?.headers.get("X-Request-ID") ?? undefined,
+              received.status,
+              received.headers.get("X-Request-ID") ?? undefined,
             );
+          result[received.ok ? "data" : "error"] = value;
         }
         return result;
       } catch (error) {

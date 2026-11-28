@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"syscall"
@@ -354,6 +355,51 @@ func TestTypeScriptARDExample(t *testing.T) {
 		if summary["complete"] != false || summary["reason"] != reason || summary["pages"] != float64(1) || summary["resourceEntries"] != float64(1) || summary["registryEntriesSkipped"] != float64(0) || summary["reportedTotal"] != float64(4) {
 			t.Fatalf("incorrect partial summary: %#v", summary)
 		}
+	}
+	firstPage := []byte(`{"items":[{"identifier":"urn:air:catalog.example.com:demo:first","displayName":"First","type":"application/a2a-agent-card+json","url":"https://agents.example.com/first"}],"total":2,"pageToken":"next+/="}`)
+	lastPage := []byte(`{"items":[{"identifier":"urn:air:catalog.example.com:demo:second","displayName":"Second �","type":"application/a2a-agent-card+json","url":"https://agents.example.com/second"}],"total":2}`)
+	listSchema := component(t, "ARDListResponse")
+	for _, valid := range [][]byte{firstPage, lastPage} {
+		must(t, listSchema.Validate(exactJSON(t, valid)))
+	}
+	for _, valid := range []bool{true, false} {
+		name := fmt.Sprintf("valid-second-page-utf8-%t", valid)
+		t.Run(name, func(t *testing.T) {
+			second := lastPage
+			if !valid {
+				second = bytes.Replace(lastPage, []byte("\uFFFD"), []byte{0xff}, 1)
+			}
+			mu.Lock()
+			handlers[name] = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				q := r.URL.Query()
+				w.Header().Set("Content-Type", "application/json")
+				switch {
+				case requests == 1 && !q.Has("pageToken"):
+					_, _ = w.Write(firstPage)
+				case requests == 2 && reflect.DeepEqual(q["pageToken"], []string{"next+/="}):
+					_, _ = w.Write(second)
+				default:
+					t.Error("unexpected ARD List request or continuation")
+					w.WriteHeader(http.StatusBadRequest)
+				}
+			})
+			mu.Unlock()
+
+			lines, exit := run(t, name, "", true)
+			want := []map[string]any{{"kind": "entry", "identifier": "urn:air:catalog.example.com:demo:first", "displayName": "First", "type": "application/a2a-agent-card+json"}}
+			wantExit, reason := 1, "invalid_response"
+			if valid {
+				want = append(want, map[string]any{"kind": "entry", "identifier": "urn:air:catalog.example.com:demo:second", "displayName": "Second \uFFFD", "type": "application/a2a-agent-card+json"})
+				wantExit, reason = 0, "exhausted"
+			}
+			count := float64(len(want))
+			want = append(want, map[string]any{"kind": "summary", "complete": valid, "reason": reason, "pages": count, "resourceEntries": count, "registryEntriesSkipped": float64(0), "reportedTotal": float64(2)})
+			mu.Lock()
+			defer mu.Unlock()
+			if requests != 2 || exit != wantExit || !reflect.DeepEqual(lines, want) {
+				t.Errorf("requests %d, exit %d, output %#v; want two requests, exit %d, output %#v", requests, exit, lines, wantExit, want)
+			}
+		})
 	}
 	t.Run("replace credential between private pages", func(t *testing.T) {
 		replacement := filepath.Join(directory, "replacement-token")

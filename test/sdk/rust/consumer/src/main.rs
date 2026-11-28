@@ -1333,7 +1333,25 @@ async fn transport(origin: &str, ca: &str) {
             ..Limits::default()
         })
         .unwrap();
-    for path in ["/too-large", "/chunked"] {
+    let metadata = small
+        .raw("HEAD", "/representation", HeaderMap::new(), vec![])
+        .await
+        .unwrap();
+    assert_eq!(metadata.status, 200);
+    assert_eq!(metadata.headers["content-length"], "64");
+    assert_eq!(metadata.headers["etag"], "\"revision-1\"");
+    assert!(metadata.raw_body.is_empty());
+    let mut validators = HeaderMap::new();
+    validators.insert("if-none-match", metadata.headers["etag"].clone());
+    let unchanged = small
+        .raw("GET", "/representation", validators, vec![])
+        .await
+        .unwrap();
+    assert_eq!(unchanged.status, 304);
+    assert_eq!(unchanged.headers["content-length"], "64");
+    assert_eq!(unchanged.headers["etag"], metadata.headers["etag"]);
+    assert!(unchanged.raw_body.is_empty());
+    for path in ["/representation", "/chunked"] {
         assert_eq!(
             small
                 .raw("GET", path, HeaderMap::new(), vec![])
