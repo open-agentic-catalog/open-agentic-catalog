@@ -34,19 +34,9 @@ func (h *harness) verifyUI() error {
 	if err != nil || len(before) != 0 {
 		return errors.New("UI-disabled installation unexpectedly has UI pods")
 	}
-	backendBefore := make(map[string][]podIdentity)
-	if h.options.scenario == "ui" {
-		for _, role := range []string{"api", "worker"} {
-			pods, err := h.pods(role)
-			if err != nil {
-				return err
-			}
-			if len(pods) != h.options.runtimeReplicas() {
-				return fmt.Errorf("UI-disabled installation has unexpected %s replicas", role)
-			}
-			backendBefore[role] = pods
-			h.recordPlacement("before-ui-"+role, pods)
-		}
+	backendBefore, err := h.uiBackendPods("before-ui", nil)
+	if err != nil {
+		return err
 	}
 	image := "open-agentic-catalog-ui:minikube-" + h.suffix
 	if _, err := h.run("build optional UI image", h.options.docker, "build", "--tag", image, "--file", "catalog-ui/Containerfile", "."); err != nil {
@@ -76,14 +66,14 @@ func (h *harness) verifyUI() error {
 	if err := h.createSecret("create scoped UI fixture keys", "catalog-ui-inputs", map[string]string{"keys.json": fmt.Sprintf(`[{"hash":%q,"block":%q}]`, hash, block), "users.json": string(users)}); err != nil {
 		return err
 	}
-	marker := "ui"
-	if h.options.scenario == "topology" || h.options.scenario == "ui" {
-		// UI-only changes must not replace the backend; rollout qualification
-		// belongs to the separate reconfiguration and upgrade scenarios.
-		marker = "initial"
-	}
-	values, err := h.writeHelmValues(marker, "catalog_api")
+	// Keep the running release's exact overrides. A new backend rollout marker
+	// would replace API Pods while the first UI login reaches their Service.
+	base, err := h.helm("read installed Helm values", "get", "values", releaseName, "--namespace", namespace, "--output", "json")
 	if err != nil {
+		return err
+	}
+	values := filepath.Join(h.temporary, "ui-base.json")
+	if err := os.WriteFile(values, base, 0o600); err != nil {
 		return err
 	}
 	overlay := filepath.Join(h.temporary, "ui.json")
@@ -104,6 +94,9 @@ func (h *harness) verifyUI() error {
 	}
 	chart := filepath.Join(h.options.repositoryRoot, "deployments/helm/open-agentic-catalog")
 	if _, err := h.helm("enable UI replicas", "upgrade", releaseName, chart, "--namespace", namespace, "--values", values, "--values", overlay, "--wait", "--wait-for-jobs", "--timeout=4m"); err != nil {
+		return err
+	}
+	if _, err := h.uiBackendPods("ui-enabled", backendBefore); err != nil {
 		return err
 	}
 	pods, err := h.pods("ui")
@@ -155,6 +148,12 @@ func (h *harness) verifyUI() error {
 		if err := h.verifyReplicaWorkload(addresses, cookie); err != nil {
 			return err
 		}
+		// The workload deliberately replaces every process. Disabling the UI
+		// must preserve those replacement Pods.
+		backendBefore, err = h.uiBackendPods("before-ui-disable", nil)
+		if err != nil {
+			return err
+		}
 	}
 	if h.options.scenario == "semantic" {
 		for _, address := range addresses {
@@ -175,30 +174,38 @@ func (h *harness) verifyUI() error {
 	if err != nil || strings.TrimSpace(string(raw)) != "" {
 		return errors.New("disabled UI retained chart resources")
 	}
-	for _, role := range []string{"api", "worker"} {
-		previous, retained := backendBefore[role]
-		if !retained {
-			continue
-		}
-		current, err := h.pods(role)
-		if err != nil {
-			return err
-		}
-		if !sameUIDs(previous, current) {
-			return fmt.Errorf("UI enable/disable replaced %s Pods", role)
-		}
-		for _, pod := range current {
-			if !pod.Ready {
-				return fmt.Errorf("UI enable/disable left an unready %s Pod", role)
-			}
-		}
-		h.recordPlacement("after-ui-"+role, current)
+	if _, err := h.uiBackendPods("after-ui", backendBefore); err != nil {
+		return err
 	}
-	if len(backendBefore) != 0 {
-		h.report.Checks = append(h.report.Checks, "ui-enable-disable-preserves-backend-pods")
-	}
+	h.report.Checks = append(h.report.Checks, "ui-enable-disable-preserves-backend-pods")
 	h.report.Checks = append(h.report.Checks, "ui-default-off", "ui-subpath-and-probes", "ui-cross-replica-session-and-api", "ui-disable-preserves-backend")
 	return nil
+}
+
+// uiBackendPods records the ready backend replicas and checks their identities
+// against the previous stage when toggling only the UI.
+func (h *harness) uiBackendPods(stage string, previous map[string][]podIdentity) (map[string][]podIdentity, error) {
+	current := make(map[string][]podIdentity)
+	for _, role := range []string{"api", "worker"} {
+		pods, err := h.pods(role)
+		if err != nil {
+			return nil, err
+		}
+		if len(pods) != h.options.runtimeReplicas() {
+			return nil, fmt.Errorf("%s: unexpected number of %s Pods: %d", stage, role, len(pods))
+		}
+		for _, pod := range pods {
+			if !pod.Ready {
+				return nil, fmt.Errorf("%s: %s Pod %s is unready", stage, role, pod.Name)
+			}
+		}
+		if previous != nil && !sameUIDs(previous[role], pods) {
+			return nil, fmt.Errorf("%s: UI change replaced %s Pods", stage, role)
+		}
+		current[role] = pods
+		h.recordPlacement(stage+"-"+role, pods)
+	}
+	return current, nil
 }
 
 // uiLoginTransportFailure preserves a fixed failure category without disclosing request or session values.
