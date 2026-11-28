@@ -95,6 +95,24 @@ exports.run = async (api) => {
     assert.ok(selection);
     assert.equal((await state()).queries, before.queries + 1);
     assert.equal((await state()).targetRequests, 0);
+    const { pick } = require("./native-input.cjs").nativeInput(ui);
+    const savedBefore = await state();
+    const activeBefore = api.mcpSelections();
+    const saved = vscode.commands.executeCommand("openAgenticCatalog.savedMcp");
+    await pick("Saved inert MCP references", "Fresh search required");
+    await pick("Saved MCP reference", "Reselect with fresh access and consent");
+    await saved;
+    await ui.until(
+      "document.body.innerText.includes('Search explicitly and select the desired declaration again.')",
+    );
+    const after = await state();
+    assert.ok(
+      after.manifests > savedBefore.manifests,
+      "Reverified Published connection",
+    );
+    for (const key of ["queries", "documents", "targetRequests"])
+      assert.equal(after[key], savedBefore[key], key);
+    assert.deepEqual(api.mcpSelections(), activeBefore);
     nativeID = `open-agentic-catalog.open-agentic-catalog/Catalog ${selection.name} [${selection.id.slice(0, 8)}]`;
     const listing = vscode.commands.executeCommand("workbench.mcp.listServer");
     await ui.until(

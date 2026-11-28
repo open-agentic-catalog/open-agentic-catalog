@@ -114,8 +114,10 @@ class BackupRatingUnits(unittest.TestCase):
                 client.request.side_effect = [(opinions[label]["record"], {"ETag": opinions[label]["etag"], "Cache-Control": "no-store"}),
                                               (views[label], {})]
                 clients[token] = client
-            with patch.object(ratings, "Client", side_effect=lambda _base, token: clients[token]):
+            with (patch.object(ratings, "Client", side_effect=lambda _base, token: clients[token]),
+                  patch.object(ratings, "verify_directories") as directories):
                 captured = ratings.capture(journey, seed)
+            directories.assert_called_once_with(journey, opinions)
             path = Path(directory) / "rating-expectations.json"
             self.assertEqual(json.loads(path.read_text()), captured)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
@@ -126,6 +128,14 @@ class BackupRatingUnits(unittest.TestCase):
             self.assertEqual(journey.sql.call_count, 4)
             self.assertEqual(journey.evidence, {})
             self.assertTrue(all(token not in path.read_text() for token in ratings.OWNERS.values()))
+
+    def test_directory_rejects_same_id_and_revision_with_changed_consent(self):
+        _, opinions, _, _, _ = fixture()
+        original = opinions["consented"]["record"]
+        owner = Mock()
+        owner.request.return_value = ({"items": [{**original, "consent": not original["consent"]}]}, {})
+        with patch.object(ratings, "Client", return_value=owner), self.assertRaisesRegex(AssertionError, "content mismatch"):
+            ratings.verify_directories(Mock(), opinions)
 
     def test_retained_rows_require_real_history_consent_identity_and_rollups(self):
         seed, opinions, _, sharing, original = fixture()

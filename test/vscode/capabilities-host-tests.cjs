@@ -73,24 +73,8 @@ exports.run = async (api) => {
       [],
       "Reload never restores executable definitions",
     );
-    let restored = vscode.commands.executeCommand(
-      "openAgenticCatalog.savedMcp",
-    );
-    await pick("Saved inert MCP references", '"origin":"local"');
-    await pick("Saved MCP reference", "Reselect with fresh access and consent");
-    await consent("Use server");
-    await restored;
-    assert.equal(
-      api.mcpSelections().length,
-      1,
-      "Explicit saved reselection uses fresh access/evidence and consent",
-    );
-    await api.removeMcp(api.mcpSelections()[0].id);
-    restored = vscode.commands.executeCommand(
-      "openAgenticCatalog.forgetMcpReferences",
-    );
-    await consent("Forget MCP references");
-    await restored;
+    await require("./saved-mcp-host-tests.cjs").run(api, ui);
+    await api.detail((await api.browse({ kind: "agent" })).items[0].key);
     note("combined native filters");
     const combined = vscode.commands.executeCommand(
       "openAgenticCatalog.combinedFilters",

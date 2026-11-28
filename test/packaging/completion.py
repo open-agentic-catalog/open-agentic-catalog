@@ -77,7 +77,8 @@ def require_go(raw, required):
     for row in raw.splitlines():
         event = json.loads(row)
         action, package, name = event.get("Action"), event.get("Package"), event.get("Test")
-        required_name = name and any(n == name.split("/")[0] and (p is None or p == package) for p, n in required)
+        top_level = name and name.partition("/")[0]
+        required_name = name and ((package, top_level) in required or (None, top_level) in required)
         if action == "fail" or action == "skip" and required_name:
             raise RuntimeError("Required Go test failed or skipped: " + (name or package or "unknown package"))
         if required_name:
@@ -85,11 +86,16 @@ def require_go(raw, required):
             if action == "run":
                 if identity in started or package in packages:
                     raise RuntimeError("Required Go test has duplicate or contradictory execution: " + name)
+                owner = (package, top_level)
+                if name != top_level and (owner not in started or owner in passed):
+                    raise RuntimeError("Required Go subtest ran outside its top-level test: " + name)
                 started.add(identity)
             elif action == "pass":
                 if identity not in started or identity in passed or package in packages:
                     raise RuntimeError("Required Go test missing or incomplete: " + name)
-                if any(p == package and child.startswith(name + "/") and (p, child) not in passed for p, child in started):
+                # A subtest label may contain slashes, so only the top-level owner is unambiguous.
+                if name == top_level and any(p == package and child.startswith(name + "/") and (p, child) not in passed
+                                             for p, child in started):
                     raise RuntimeError("Required Go child test missing or incomplete: " + name)
                 passed.add(identity)
         elif action == "pass" and not name:

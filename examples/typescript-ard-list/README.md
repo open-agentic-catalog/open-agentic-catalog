@@ -118,7 +118,7 @@ The application skips entries with type `application/ai-registry+json`, includin
 | Displayed text | Identifier: 2,048 characters; name: 512; type: 256 | Larger values fail validation |
 | Continuation token | 2,048 bytes | Larger values fail validation |
 
-The client checks runtime types, displayed field sizes, page length and nonnegative safe-integer totals. It checks consistent totals and refuses repeated continuation tokens. If the last page ends before the reported total is reached, the example prints `invalid_response` in the summary. Only rows and counts from previously accepted pages remain in the output. Unused fields are ignored. These checks are not a complete ARD schema validator.
+The client checks runtime types, displayed field sizes, page length and nonnegative safe-integer totals. It checks consistent totals and refuses repeated continuation tokens. If a page contains malformed UTF-8 or the last page ends before the reported total is reached, the command exits with status 1 and reports `invalid_response`. Rows and counts from previously accepted pages remain in the output. The rejected page contributes no entries. Unused fields are ignored. These checks are not a complete ARD schema validator.
 
 An empty `items` array does not end traversal when `pageToken` remains. The client keeps the same origin, page size and ordering during continuation. It performs no automatic retry or fresh traversal after failure. Press Ctrl-C or send SIGTERM to cancel the current request.
 

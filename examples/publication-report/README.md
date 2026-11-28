@@ -164,6 +164,8 @@ bin/examples/publication-report serve \
 
 Omit `--ca-file` when the Catalog uses public CA trust. The receiver requires TLS 1.2 or later. It does not disable certificate or hostname verification. `--allow-loopback-http` permits only an explicitly selected literal-loopback Catalog API; it does not weaken HTTPS.
 
+If `serve` reports `receiver_listener_failed` at startup, check that `--tls-cert` contains a readable PEM certificate chain and that the leaf certificate matches `--tls-key`. An unreadable or group-readable key produces `private_input_unavailable`. Correct the files and restart `serve`. A failed certificate load leaves pending receipts, the saved observation and the report file intact.
+
 The default listener accepts local connections only. Choose an interface and certificate hostname reachable by both the Catalog API and worker. Configure the Catalog's exact outbound origin policy and receiver CA trust before registering that URL. See the [webhook operations guide](../../documentation/src/content/docs/operations/webhooks.mdx).
 
 Register the HTTPS `/webhook` URL with `publication.activated` and `publication.unpublished` subscriptions. Save the returned signer before sending an explicit endpoint test. A valid signed `webhook.test` returns `204` and completes without a snapshot lookup.

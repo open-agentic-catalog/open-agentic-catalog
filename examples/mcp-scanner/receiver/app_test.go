@@ -67,8 +67,11 @@ func captureFixture() capture {
 	raw := json.RawMessage(`{"tools":[{"name":"sum","description":"Add two integers.","inputSchema":{"type":"object","properties":{}}}]}`)
 	return capture{Document: raw, Digest: sha(raw), Source: testMapping.Endpoint, CapturedAt: fixed, Pages: 1, Complete: true}
 }
-func reportFixture(c capture, i scannerIdentity) json.RawMessage {
-	data := map[string]any{"schemaVersion": 1, "status": "completed", "capture": map[string]any{"inputSha256": c.Digest, "source": c.Source, "capturedAt": c.CapturedAt.Format(time.RFC3339Nano), "hasNextCursor": !c.Complete, "scope": "supplied_page"}, "callerContext": map[string]any{}, "contextSha256": sha([]byte("{}")), "scanner": map[string]any{"name": "cisco-ai-mcp-scanner", "version": i.Version, "imageId": i.ImageID}, "rulesSha256": i.RulesDigest, "configurationSha256": i.ConfigurationDigest, "plannedTools": 1, "completedTools": 1, "cleanup": "passed", "results": []any{map[string]any{"tool_name": "sum", "status": "completed", "analyzers": []string{"YARA"}, "analyzer_errors": []any{}, "findings": []any{}}}}
+func reportFixture(c capture, i scannerIdentity, findings ...map[string]any) json.RawMessage {
+	if findings == nil {
+		findings = []map[string]any{}
+	}
+	data := map[string]any{"schemaVersion": 1, "status": "completed", "capture": map[string]any{"inputSha256": c.Digest, "source": c.Source, "capturedAt": c.CapturedAt.Format(time.RFC3339Nano), "hasNextCursor": !c.Complete, "scope": "supplied_page"}, "callerContext": map[string]any{}, "contextSha256": sha([]byte("{}")), "scanner": map[string]any{"name": "cisco-ai-mcp-scanner", "version": i.Version, "imageId": i.ImageID}, "rulesSha256": i.RulesDigest, "configurationSha256": i.ConfigurationDigest, "plannedTools": 1, "completedTools": 1, "cleanup": "passed", "results": []any{map[string]any{"tool_name": "sum", "status": "completed", "analyzers": []string{"YARA"}, "analyzer_errors": []any{}, "findings": findings}}}
 	if !c.Complete {
 		data["status"] = "partial"
 	}

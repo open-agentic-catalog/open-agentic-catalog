@@ -140,6 +140,23 @@ func readToken(ctx context.Context, path string) (string, error) {
 	return value, nil
 }
 
+func loadReceiverCertificate(certPath, keyPath string) (tls.Certificate, error) {
+	key, err := privateFile(keyPath, 16384)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	// #nosec G304 G703 -- The operator selects the receiver's public certificate chain.
+	cert, err := os.ReadFile(certPath)
+	if err != nil {
+		return tls.Certificate{}, errors.New("receiver_listener_failed")
+	}
+	pair, err := tls.X509KeyPair(cert, key)
+	if err != nil {
+		return tls.Certificate{}, errors.New("receiver_listener_failed")
+	}
+	return pair, nil
+}
+
 func run(ctx context.Context, args []string) error {
 	o, err := parseOptions(args)
 	if err != nil {
@@ -222,17 +239,22 @@ func run(ctx context.Context, args []string) error {
 	if _, err := loadSigner(o.signer); err != nil {
 		return err
 	}
-	if _, err := privateFile(o.key, 16384); err != nil {
+	certificate, err := loadReceiverCertificate(o.cert, o.key)
+	if err != nil {
 		return err
 	}
 	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", o.listen)
 	if err != nil {
 		return errors.New("listener_unavailable")
 	}
-	server := &http.Server{Handler: a, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
+	server := &http.Server{
+		Handler: a, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
+		WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10,
+		TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}},
+	}
 	served := make(chan error, 1)
 	go func() {
-		served <- server.ServeTLS(&boundedListener{Listener: listener, slots: make(chan struct{}, 64)}, o.cert, o.key)
+		served <- server.ServeTLS(&boundedListener{Listener: listener, slots: make(chan struct{}, 64)}, "", "")
 	}()
 	tick := time.NewTicker(o.poll)
 	defer tick.Stop()

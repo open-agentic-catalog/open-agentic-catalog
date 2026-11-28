@@ -10,7 +10,7 @@ import shlex
 import time
 import urllib.parse
 
-from core import mutate
+from core import history, mutate
 from federation import Client, key, wait_job
 from http_client import fixture_tls_context, ClientFailure, decode
 from journeys import audit_once, header, namespace_state
@@ -113,11 +113,24 @@ class Operators:
         follow = {"type": "follow", "listingId": record["listing"]["id"], "label": "Private follow " + self.suffix}
         observed = {"releaseId": record["release"]["id"], "revision": record["release"]["revision"]}
         items.append(follow)
+        directory = "/api/v1/personal/items"
+        decoy_search = {"type": "search", "label": items[0]["label"], "search": {"text": "Other owner's query " + self.suffix}}
+        decoy, decoy_headers = mutate(self.api, "POST", directory, decoy_search, 201)
+
+        def check_directory(expected):
+            page = history(reader, directory, expected)
+            label = items[0]["label"]
+            history(reader, directory, [item for item in expected if item["label"] == label], label=label)
+            history(self.api, directory, [{**decoy_search, "id": decoy["id"], "revision": 1}], label=label)
+            return page
+
         original = []
         for item in items:
             body = {**item, "observed": observed} if item["type"] == "follow" else item
             saved, headers = mutate(reader, "POST", "/api/v1/personal/items", body, 201)
             original.append((saved["id"], header(headers, "ETag")))
+        check_directory([{**item, "id": identifier, "revision": 1}
+                         for item, (identifier, _) in zip(items, original, strict=True)])
 
         def invoke(action, *args, token="local-reader"):
             return decode(self.compose("exec", "-T", "--env", "CATALOG_REMOTE_TOKEN=" + token,
@@ -132,6 +145,7 @@ class Operators:
         invoke("export", "--output-dir", backup)
         preview = invoke("preview", "--file", backup + "/library.json", "--tenant-id", TENANT)
         assert preview["consistency"] == "observed-pages", "personal export claimed snapshot consistency"
+        assert len(preview["items"]) == len(items), "export did not contain exactly the owner's library"
         assert all(row["action"] == "skip" for row in preview["items"]), "preview implicitly selected creates"
         indexes = []
         for expected in items:
@@ -140,14 +154,18 @@ class Operators:
             indexes.append(matched[0]["index"])
         for identifier, etag in original:
             mutate(reader, "DELETE", "/api/v1/personal/items/" + identifier, None, 200, etag)
+        check_directory([])
         selection = tuple(value for index in indexes for value in ("--create", str(index)))
         args = ("--file", backup + "/library.json", "--state-file", state, "--confirm", *selection)
         restored = invoke("apply", *args)
         assert restored["status"] == "complete", "personal restore incomplete"
         selected = [restored["items"][index - 1] for index in indexes]
         assert all(row["state"] == "acknowledged" for row in selected), "personal creates were not acknowledged"
+        restored_items = [{**item, "id": row["id"], "revision": 1} for item, row in zip(items, selected, strict=True)]
+        restored_page = check_directory(restored_items)
         repeated = invoke("resume", *args)
         assert repeated == restored, "completed personal resume changed acknowledged work"
+        assert check_directory(restored_items) == restored_page, "resume changed the restored library"
         for expected, row in zip(items, selected, strict=True):
             path = "/api/v1/personal/items/" + row["id"]
             actual, headers = reader.request("GET", path)
@@ -169,6 +187,7 @@ class Operators:
                 resolution, _ = reader.request("POST", path + "/resolve", {})
                 assert resolution["change"] == "unchanged", "duplicate cleared the acknowledgement"
             mutate(reader, "DELETE", path, None, 200, header(headers, "ETag"))
+        mutate(self.api, "DELETE", directory + "/" + decoy["id"], None, 200, header(decoy_headers, "ETag"))
 
     def anonymous_reads(self):
         public = Client(self.env["CATALOG_FUNCTIONAL_BASE_URL"], "")

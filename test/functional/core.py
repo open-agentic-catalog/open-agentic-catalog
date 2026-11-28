@@ -18,7 +18,7 @@ import zipfile
 
 from federation import Client, current_group_contributions, key, observations, snapshot_items
 import feedback
-from http_client import fixture_tls_context
+from http_client import decode, fixture_tls_context
 from journeys import audit_once, header
 from runner import read_document, record_scenario_failure, write_document
 
@@ -71,6 +71,7 @@ def history(api, path, expected, **filters):
             for actual, reference in zip(items, wanted, strict=True):
                 assert all(actual.get(name) == value for name, value in reference.items()), "history content mismatch"
             return items
+        assert page["items"] and len(items) < len(wanted), "history cursor does not lead to another expected record"
         assert cursor not in cursors, "history cursor loop"
         cursors.add(cursor)
     raise AssertionError("history did not terminate within fixture bound")
@@ -236,10 +237,50 @@ def archive_journey(api, other, seed, run_id):
     reader.request("GET", foreign, expected=(400,))
     # Extend the existing archive journey through independently reviewed
     # publication. Retire its release before the original three-item checks.
-    archive_publication(api, resource, appended, blocked["revision"]["id"], revalidated["evidence"]["id"], seed)
+    archive_publication(api, resource, appended, blocked["revision"]["id"], revalidated["evidence"]["id"], seed, handoff)
 
 
-def archive_publication(api, resource, version, blocked_revision_id, renewed_evidence_id, target):
+def overview_counts(api, name, *fields):
+    overview, _ = api.request("GET", "/api/v1/overview/" + name)
+    assert all(overview[field]["limited"] is False for field in fields), "archive fixture exceeded overview count bound"
+    return tuple(overview[field]["value"] for field in fields)
+
+
+def check_submission_work(author, reviewer, expected, author_queue):
+    for user in (author, reviewer):
+        for queue in ("submitted", "approved"):
+            page, _ = user.request("GET", "/api/v1/me/work?queue=" + queue + "&limit=100")
+            assert not page.get("nextCursor"), "owned work queue exceeded the fixture bound"
+            matches = [item for item in page["items"] if item["listingId"] == expected["listingId"] or item["submissionId"] == expected["submissionId"]]
+            if user is author and queue == author_queue:
+                assert len(matches) == 1 and matches[0]["state"] == queue, "submission missing or duplicated in the author's work"
+                assert all(matches[0].get(k) == v for k, v in expected.items()), "personal work identified the wrong revisions"
+            else:
+                assert not matches, "submission appeared in the wrong user's work or queue"
+
+
+def check_archive_exports(api, other, resource, version, handoff, selections, blocked_listing_id):
+    path = "/api/v1/version-revisions/" + version["revision"]["id"] + "/export?listingRevisionId="
+    for listing_id, expected_listing in selections:
+        raw, headers = api.request("GET", path + listing_id, decode_body=False)
+        digest = base64.b64encode(hashlib.sha256(raw).digest()).decode("ascii")
+        assert header(headers, "Content-Digest") == f"sha-256=:{digest}:" and header(headers, "Content-Length") == str(len(raw)), "draft download byte identity changed"
+        assert header(headers, "Content-Disposition") == 'attachment; filename="open-agentic-catalog-draft.json"', "draft attachment filename changed"
+        assert header(headers, "Content-Type") == "application/json" and header(headers, "Cache-Control") == "private, no-store", "draft attachment content or cache policy changed"
+        draft = decode(raw)
+        assert draft["format"] == "open-agentic-catalog-draft-v1", "unsupported draft attachment format"
+        assert (draft["kind"], draft["canonicalIdentifier"], draft["version"]) == ("skill", resource["canonicalIdentifier"], "1.0.0"), "draft download selected another resource or version"
+        assert draft["listing"] == expected_listing, "draft download substituted Listing metadata"
+        representation, = draft["representations"]
+        assert (representation["role"], representation["mediaType"], representation["profileId"]) == (
+            "primary", "application/agent-skills+zip", version["revision"]["representations"][0]["profileId"]), "draft archive representation changed"
+        assert representation["input"]["mode"] == "skill-package" and decode(representation["input"]["handoff"]) == handoff, "draft lost the original Skill handoff"
+    for client, listing_id, status, code in ((api, blocked_listing_id, 400, "INVALID_ARGUMENT"), (other, selections[0][0], 404, "NOT_FOUND")):
+        problem, headers = client.request("GET", path + listing_id, expected=(status,))
+        assert problem["code"] == code and not header(headers, "Content-Disposition") and not header(headers, "Content-Digest"), "refused draft export returned attachment headers or the wrong problem"
+
+
+def archive_publication(api, resource, version, blocked_revision_id, renewed_evidence_id, target, handoff):
     def blocked_evidence_ids():
         page, _ = api.request("GET", "/api/v1/validation-maintenance?state=blocked&limit=100")
         assert not page.get("nextCursor"), "blocked archive inventory exceeded the fixture bound"
@@ -271,17 +312,30 @@ def archive_publication(api, resource, version, blocked_revision_id, renewed_evi
     assert current["candidateRevisionId"] == blocked_listing["revision"]["id"] and header(current_headers, "ETag") == header(headers, "ETag"), "rejected submission changed the listing"
     potential = {"type": "depends_on", "targetIdentifier": target["resource"]["canonicalIdentifier"]}
     dependency = {**potential, "targetVersion": target["version"]["version"]}
+    first_metadata = {"displayName": "Reviewed archive", "relationships": [potential, dependency], "description": "Owned inert Skill archive",
+                      "visibility": "tenant", "license": "Apache-2.0"}
     listing_revision, headers = mutate(api, "POST", listing_path + "/revisions", {
-        "versionRevisionId": validated["revision"]["id"], "displayName": "Reviewed archive", "relationships": [potential, dependency], "description": "Owned inert Skill archive",
-        "publisherId": publisher["id"], "visibility": "tenant", "license": "Apache-2.0"}, 201, header(headers, "ETag"))
+        **first_metadata, "versionRevisionId": validated["revision"]["id"], "publisherId": publisher["id"]}, 201, header(headers, "ETag"))
     listing_etag = header(headers, "ETag")
     assert blocked_evidence_ids() == [], "replaced Listing candidate still appears in validation maintenance"
+    pending, unreleased = overview_counts(api, "reviews", "pending", "approvedUnreleased")
+    released, deprecated = overview_counts(api, "releases", "published", "deprecated")
     submission, headers = mutate(api, "POST", listing_path + "/submissions", {}, 201)
     reviewer = Client(api.base_url, "local-reviewer")
+    work = {"type": "submission", "submissionId": submission["id"], "resourceId": resource["id"], "listingId": listing["id"],
+            "listingRevisionId": listing_revision["revision"]["id"], "versionRevisionId": version["revision"]["id"]}
+    check_submission_work(api, reviewer, work, "submitted")
+    assert overview_counts(api, "reviews", "pending", "approvedUnreleased") == (pending + 1, unreleased), "review overview missed new submission"
     approved, _ = mutate(reviewer, "POST", "/api/v1/review-submissions/" + submission["id"] + ":approve", {"reason": "Independent archive review"}, etag=header(headers, "ETag"))
     assert approved["submission"]["state"] == "approved", "archive review not approved"
+    check_submission_work(api, reviewer, work, "approved")
+    assert overview_counts(api, "reviews", "pending", "approvedUnreleased") == (pending, unreleased + 1), "review overview did not move approved submission"
     published, _ = mutate(api, "POST", listing_path + ":publish", {"submissionId": submission["id"]}, 201, listing_etag)
+    check_submission_work(api, reviewer, work, None)
+    assert overview_counts(api, "reviews", "pending", "approvedUnreleased") == (pending, unreleased), "published submission still counted as pending or unreleased"
+    assert overview_counts(api, "releases", "published", "deprecated") == (released + 1, deprecated), "release overview missed first publication"
     record, _ = api.request("GET", "/api/v1/catalog/resources/" + published["release"]["id"])
+    assert record["listing"]["currentReleaseId"] == published["release"]["id"], "published Listing does not point to the first release"
     assert record["resource"]["id"] == resource["id"] and record["listingRevision"]["publisherId"] == publisher["id"], "archive publication lost identity"
     reader, other = Client(api.base_url, "local-reader"), Client(api.base_url, "other-tenant-admin")
     report = "/api/v1/listing-metadata-gaps?kind=skill&namespaceId=" + resource["namespaceId"]
@@ -318,9 +372,9 @@ def archive_publication(api, resource, version, blocked_revision_id, renewed_evi
     # Replace this small tenant-only release, retaining both immutable histories.
     _, current_headers = api.request("GET", listing_path)
     long_license = " AND ".join(f"LicenseRef-Archive-Part-{part}" for part in range(1, 13))
-    corrected = {
-        "versionRevisionId": version["revision"]["id"], "displayName": "Reviewed archive updated", "description": "Revised listing metadata",
-        "publisherId": publisher["id"], "visibility": "tenant", "license": long_license, "documentationUrl": "https://docs.example.test/archive"}
+    second_metadata = {"displayName": "Reviewed archive updated", "description": "Revised listing metadata", "visibility": "tenant",
+                       "license": long_license, "documentationUrl": "https://docs.example.test/archive"}
+    corrected = {**second_metadata, "versionRevisionId": version["revision"]["id"], "publisherId": publisher["id"]}
     second_revision, headers = mutate(api, "POST", listing_path + "/revisions", corrected, 201, header(current_headers, "ETag"))
     api.request("POST", listing_path + "/revisions", {**corrected, "displayName": "Stale correction"}, (412,),
                 {"Idempotency-Key": key("stale-listing-correction"), "If-Match": header(current_headers, "ETag")})
@@ -330,6 +384,9 @@ def archive_publication(api, resource, version, blocked_revision_id, renewed_evi
     second_submission, headers = mutate(api, "POST", listing_path + "/submissions", {}, 201)
     mutate(reviewer, "POST", "/api/v1/review-submissions/" + second_submission["id"] + ":approve", {"reason": "Independent revised review"}, etag=header(headers, "ETag"))
     replacement, _ = mutate(api, "POST", listing_path + ":publish", {"submissionId": second_submission["id"], "priorDisposition": "superseded", "priorReason": "Reviewed listing replacement"}, 201, listing_etag)
+    assert overview_counts(api, "releases", "published", "deprecated") == (released + 1, deprecated), "replacement double-counted a Listing"
+    check_archive_exports(api, other, resource, version, handoff,
+                          [(listing_revision["revision"]["id"], first_metadata), (second_revision["revision"]["id"], second_metadata)], blocked_listing["revision"]["id"])
     updated_record, _ = reader.request("GET", "/api/v1/catalog/resources/" + replacement["release"]["id"])
     assert updated_record["listingRevision"]["license"] == long_license, "replacement lost the full license declaration"
     assert updated_record["display"].get("licenseOmitted") is True and "license" not in updated_record["display"], "long declaration was not omitted from compact display"
@@ -366,6 +423,9 @@ def archive_publication(api, resource, version, blocked_revision_id, renewed_evi
     retired, _ = mutate(api, "POST", release_path + ":retire", {"reason": "Finish owned archive trial"}, etag=header(headers, "ETag"))
     assert not omissions(reader), "retired Listing remained in the report"
     assert retired["state"] == "retired", "archive release not retired"
+    current, _ = api.request("GET", listing_path)
+    assert "currentReleaseId" not in current, "retired Listing retained a current release pointer"
+    assert overview_counts(api, "releases", "published", "deprecated") == (released, deprecated), "retired release remained in the overview"
     api.request("GET", "/api/v1/catalog/resources/" + retired["id"], expected=(404,))
 
 
@@ -415,6 +475,17 @@ def snapshot(api):
     return activated
 
 
+def check_publication_overview(api, active=None):
+    overview, _ = api.request("GET", "/api/v1/overview/publication")
+    host, = (item for item in overview["hosts"] if item["host"] == "127.0.0.1")
+    assert host["mode"] == "anonymous" and host["mismatches"] == [], "publication overview reported an unexpected host configuration"
+    if active is None:
+        assert host["status"] == "unpublished" and "active" not in host, "unpublished host retained an active overview"
+    else:
+        assert host["status"] == "recorded", "publication overview missed the active snapshot"
+        assert all(host["active"][field] == active[field] for field in ("id", "generation", "etag")), "publication overview selected a different snapshot"
+
+
 def publication_history(api, public):
     first = snapshot(api)
     second = snapshot(api)
@@ -426,14 +497,17 @@ def publication_history(api, public):
     restored, _ = mutate(api, "POST", "/api/v1/publication/snapshots/" + first["id"] + ":rollback",
                         {"host": "127.0.0.1", "reason": "Owned rollback qualification"}, etag=retained["etag"])
     assert restored["id"] == first["id"] and restored["state"] == "active", "rollback did not restore selected snapshot"
+    check_publication_overview(api, restored)
     audit_once(api, "publication.rolled_back", "publication_snapshot", first["id"])
     _, headers = public.request("GET", "/.well-known/ard.json")
     assert header(headers, "ETag") == restored["etag"], "rollback public validator mismatch"
     mutate(api, "POST", "/api/v1/publication:unpublish", {"host": "127.0.0.1", "reason": "Owned unpublish qualification"})
+    check_publication_overview(api)
     audit_once(api, "publication.unpublished", "publication_snapshot", first["id"])
     public.request("GET", "/.well-known/ard.json", expected=(404,))
     public.request("GET", "/.well-known/ard.json", expected=(404,), headers={"If-None-Match": restored["etag"]})
     active = snapshot(api)
+    check_publication_overview(api, active)
     _, headers = public.request("GET", "/.well-known/ard.json")
     assert header(headers, "ETag") == active["etag"], "public manifest did not select the last activated snapshot"
     public.request("GET", "/.well-known/ard.json", expected=(304,), headers={"If-None-Match": active["etag"]})
@@ -450,6 +524,7 @@ def check_revoked_rollback(api, public, snapshot_id):
     assert problem["code"] == "PUBLICATION_NOT_READY", "rollback refused for an unrelated reason"
     after, _ = api.request("GET", path + "?host=" + host)
     assert after["state"] == "retired", "refused rollback restored the snapshot"
+    check_publication_overview(api)
     for manifest in ("/.well-known/ard.json", "/.well-known/ai-catalog.json"):
         public.request("GET", manifest, expected=(404,))
     query = urllib.parse.urlencode({"action": "publication.rolled_back", "targetType": "publication_snapshot", "targetId": snapshot_id, "limit": 1})
@@ -467,13 +542,18 @@ def administration(api, other, public, base, seed, run_id, snapshot_id):
     revoked, headers = mutate(api, "POST", publisher_path + "/publication-domains/" + domain + ":revoke",
                               {"reason": "Owned domain withdrawal"}, etag=header(headers, "ETag"))
     assert domain not in revoked.get("approvedPublicationDomains", []), "publisher approval not revoked"
+    check_publication_overview(api)
     audit_once(api, "publisher.publication_domain_revoked", "publisher", publisher["id"])
     public.request("GET", "/.well-known/ard.json", expected=(404,))
     check_revoked_rollback(api, public, snapshot_id)
     mutate(api, "POST", publisher_path + "/publication-domains/" + domain + ":approve",
            {"reason": "Restore owned domain approval"}, etag=header(headers, "ETag"))
+    check_publication_overview(api)
     public.request("GET", "/.well-known/ard.json", expected=(404,))
-    snapshot(api)
+    active = snapshot(api)
+    check_publication_overview(api, active)
+    _, headers = public.request("GET", "/.well-known/ard.json")
+    assert header(headers, "ETag") == active["etag"], "republication served a different snapshot"
     published, _ = public.request("GET", "/ard/v1/agents?pageSize=100")
     assert any(entry["identifier"] == seed["resource"]["canonicalIdentifier"] and entry.get("version") == seed["version"]["version"]
                for entry in published["items"]), "republication did not restore the seed release"

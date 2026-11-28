@@ -80,6 +80,8 @@ class CoreJourneyTests(unittest.TestCase):
             [{"items": [{"id": "one", "digest": "wrong"}], "nextCursor": "next"}, {"items": [expected[1]]}],
             [{"items": [expected[1]], "nextCursor": "next"}, {"items": [expected[0]]}],
             [{"items": expected}],
+            [{"items": [expected[0]], "nextCursor": "next"}, {"items": [expected[1]], "nextCursor": "extra"}, {"items": []}],
+            [{"items": [], "nextCursor": "empty"}, {"items": [expected[0]], "nextCursor": "next"}, {"items": [expected[1]]}],
             [{"items": [], "nextCursor": "same"}] * 3,
             [{"items": [], "nextCursor": str(i)} for i in range(3)],
         ):

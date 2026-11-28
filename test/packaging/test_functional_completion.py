@@ -1,4 +1,5 @@
 """Actual native runner/Make controls with disposable synthetic tests only."""
+import json
 import os
 from pathlib import Path
 import shutil
@@ -41,7 +42,12 @@ class CompletionFunctionalTests(unittest.TestCase):
             shutil.copyfile(ROOT / "Makefile", fixture / "Makefile")
             shutil.copyfile(Path(completion.__file__), fixture / "test/packaging/completion.py")
             (fixture / "go.mod").write_text("module fixture.example/required\n\ngo 1.27.3\n")
-            controls = [("healthy", None, "")]
+            # These are siblings. Go permits a slash in the name passed to t.Run.
+            parallel_siblings = """
+                t.Run("label/variant", func(t *testing.T) { t.Parallel() })
+                t.Run("label", func(t *testing.T) {})
+            """
+            controls = [("healthy", required[0], parallel_siblings)]
             controls += [(mode, name, "t.Skip(\"synthetic\")" if mode == "skipped" else "")
                          for name in required for mode in ("missing", "skipped")]
             controls.append(("failed", required[0], 't.Fatal("synthetic assertion")'))
@@ -55,6 +61,11 @@ class CompletionFunctionalTests(unittest.TestCase):
                     result = subprocess.run(["make", "--no-print-directory", "architecture-check", "CATALOG_ENV_FILE=/dev/null", "PYTHON=" + sys.executable],
                                             cwd=fixture, env=env, capture_output=True, text=True, timeout=45, check=False)
                     self.assertEqual(result.returncode == 0, mode == "healthy", result.stdout + result.stderr)
+                    if mode == "healthy":
+                        events = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
+                        siblings = [selected + "/label", selected + "/label/variant"]
+                        self.assertEqual([event["Test"] for event in events
+                                          if event["Action"] == "pass" and event.get("Test") in siblings], siblings)
                     if mode == "missing":
                         self.assertIn("missing or incomplete: " + selected, result.stderr)
                     if mode == "skipped":

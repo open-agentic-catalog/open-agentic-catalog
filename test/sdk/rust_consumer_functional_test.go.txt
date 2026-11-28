@@ -113,6 +113,7 @@ func TestRustSDKCatalogWorkflow(t *testing.T) {
 func TestRustSDKTransport(t *testing.T) {
 	var mu sync.Mutex
 	calls := map[string]int{}
+	var representationRequests []string
 	committed := 0
 	cancelled := make(chan struct{})
 	timedOut := make(chan struct{})
@@ -203,9 +204,22 @@ func TestRustSDKTransport(t *testing.T) {
 		case "/rate-limited":
 			w.Header().Set("Retry-After", "5")
 			w.WriteHeader(429)
-		case "/too-large":
-			w.Header().Set("Content-Length", "9")
-			_, _ = io.WriteString(w, "123456789")
+		case "/representation":
+			const etag = `"revision-1"`
+			validator := r.Header.Get("If-None-Match")
+			mu.Lock()
+			representationRequests = append(representationRequests, r.Method+" "+validator)
+			mu.Unlock()
+			if r.Method == http.MethodGet && validator == etag {
+				// net/http strips Content-Length from 304, even when it describes the selected representation.
+				rustWireResponse(t, w, "HTTP/1.1 304 Not Modified\r\nContent-Length: 64\r\nETag: "+etag+"\r\nConnection: close\r\n\r\n")
+				return
+			}
+			w.Header().Set("Content-Length", "64")
+			w.Header().Set("ETag", etag)
+			if r.Method != http.MethodHead {
+				_, _ = io.WriteString(w, strings.Repeat("x", 64))
+			}
 		case "/exact":
 			_, _ = io.WriteString(w, "12345678")
 		case "/chunked":
@@ -225,19 +239,7 @@ func TestRustSDKTransport(t *testing.T) {
 		case "/truncated":
 			// Send a valid header and an incomplete body, then close the actual
 			// connection. Partial bytes must not become a successful response.
-			conn, buffered, err := w.(http.Hijacker).Hijack()
-			if err != nil {
-				t.Error(err)
-				return
-			}
-			defer conn.Close()
-			_, err = buffered.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 10\r\nConnection: close\r\n\r\nshort")
-			if err == nil {
-				err = buffered.Flush()
-			}
-			if err != nil {
-				t.Error(err)
-			}
+			rustWireResponse(t, w, "HTTP/1.1 200 OK\r\nContent-Length: 10\r\nConnection: close\r\n\r\nshort")
 		case "/slow", "/cancel":
 			w.WriteHeader(200)
 			w.(http.Flusher).Flush()
@@ -306,10 +308,30 @@ func TestRustSDKTransport(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	for path, expected := range map[string]int{"/.well-known/ard.json": 2, "/ard/v1/search": 3, "/ard/v1/explore": 1, "/success": 2, "/truncated": 1, "/redirect": 1, "/unavailable": 1, "/rate-limited": 1, "/too-large": 1, "/exact": 1, "/chunked": 1, "/headers": 1, "/compressed": 1, "/slow": 1, "/cancel": 1, "/lost": 2, "/lost-count": 2, "/must-not-arrive": 0} {
+	if want := []string{"HEAD ", `GET "revision-1"`, "GET "}; !reflect.DeepEqual(representationRequests, want) {
+		t.Errorf("representation requests = %q, want %q", representationRequests, want)
+	}
+	for path, expected := range map[string]int{"/.well-known/ard.json": 2, "/ard/v1/search": 3, "/ard/v1/explore": 1, "/success": 2, "/truncated": 1, "/redirect": 1, "/unavailable": 1, "/rate-limited": 1, "/exact": 1, "/chunked": 1, "/headers": 1, "/compressed": 1, "/slow": 1, "/cancel": 1, "/lost": 2, "/lost-count": 2, "/must-not-arrive": 0} {
 		if calls[path] != expected {
 			t.Errorf("%s requests=%d want=%d", path, calls[path], expected)
 		}
+	}
+}
+
+func rustWireResponse(t *testing.T, w http.ResponseWriter, wire string) {
+	t.Helper()
+	conn, buffered, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer conn.Close()
+	if _, err := buffered.WriteString(wire); err != nil {
+		t.Error(err)
+		return
+	}
+	if err := buffered.Flush(); err != nil {
+		t.Error(err)
 	}
 }
 

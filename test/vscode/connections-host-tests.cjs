@@ -14,39 +14,13 @@ exports.run = async (api) => {
   const configuration = () =>
     vscode.workspace.getConfiguration("openAgenticCatalog").get("connections");
   const before = configuration();
-  const visible = ".quick-input-widget:not([style*='display: none'])";
-  const field = `document.querySelector(${JSON.stringify(`${visible} input`)})`;
-  const title = async (name) =>
-    ui.until(
-      `document.querySelector(${JSON.stringify(`${visible} .quick-input-title`)})?.textContent.includes(${JSON.stringify(name)})`,
-    );
-  const focus = async () => {
-    // Match the capability fixture's focus-only interaction: a coordinate
-    // sampled while the picker moves can dismiss the question instead.
-    await ui.evaluate(`(${field}).focus()`);
-    await ui.until(`document.activeElement===(${field})`);
-  };
-  const input = async (name, value) => {
-    await title(name);
-    // Help opens a preview without discarding this wizard. Return focus to its
-    // actual input before delivering a native key, as a user would.
-    await focus();
-    await ui.evaluate(
-      `(()=>{const input=document.querySelector(${JSON.stringify(`${visible} input`)});input.value=${JSON.stringify(value)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
-    );
-    await ui.key("Enter");
-  };
-  const pick = async (name, label) => {
-    await title(name);
-    await focus();
-    await ui.evaluate(
-      `(()=>{const input=document.querySelector(${JSON.stringify(`${visible} input`)});input.value=${JSON.stringify(label)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
-    );
-    await ui.until(
-      `(()=>{const input=document.querySelector(${JSON.stringify(`${visible} input`)});return document.getElementById(input?.getAttribute('aria-activedescendant'))?.textContent.includes(${JSON.stringify(label)});})()`,
-    );
-    await ui.key("Enter");
-  };
+  const {
+    visible,
+    title: titleMatches,
+    input,
+    pick,
+  } = require("./native-input.cjs").nativeInput(ui);
+  const title = (name) => ui.until(titleMatches(name));
   try {
     const adding = vscode.commands.executeCommand(
       "openAgenticCatalog.addConnection",

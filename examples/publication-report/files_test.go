@@ -1,9 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -11,6 +17,54 @@ import (
 	"testing"
 	"time"
 )
+
+func TestLoadReceiverCertificate(t *testing.T) {
+	makeKey := func() (ed25519.PrivateKey, string) {
+		t.Helper()
+		_, key, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		der, err := x509.MarshalPKCS8PrivateKey(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return key, writePrivate(t, "key.pem", pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	}
+	key, keyPath := makeKey()
+	leaf := &x509.Certificate{SerialNumber: big.NewInt(1), DNSNames: []string{testHost}, NotBefore: testTime, NotAfter: testTime.Add(time.Hour)}
+	der, err := x509.CreateCertificate(rand.Reader, leaf, leaf, key.Public(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certPath := writePrivate(t, "cert.pem", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+	// #nosec G302 -- Only the public certificate is shared; its key stays owner-readable.
+	if err := os.Chmod(certPath, 0644); err != nil {
+		t.Fatal(err)
+	}
+	pair, err := loadReceiverCertificate(certPath, keyPath)
+	if err != nil || len(pair.Certificate) != 1 || !bytes.Equal(pair.Certificate[0], der) {
+		t.Fatal("matching certificate and key did not load the expected leaf", err)
+	}
+
+	_, otherPath := makeKey()
+	for _, tc := range []struct{ name, cert, key string }{
+		{"missing certificate", filepath.Join(t.TempDir(), "missing.pem"), keyPath},
+		{"malformed certificate", writePrivate(t, "bad.pem", []byte("not a certificate")), keyPath},
+		{"mismatched key", certPath, otherPath},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := loadReceiverCertificate(tc.cert, tc.key)
+			requireCode(t, err, "receiver_listener_failed")
+		})
+	}
+	// #nosec G302 -- Verify that even the matching key is refused when group-readable.
+	if err := os.Chmod(keyPath, 0640); err != nil {
+		t.Fatal(err)
+	}
+	_, err = loadReceiverCertificate(certPath, keyPath)
+	requireCode(t, err, "private_input_unavailable")
+}
 
 // Every caller supplies a path in its own test directory.
 func replacePrivateTest(t *testing.T, path string, raw []byte) {

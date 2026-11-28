@@ -198,7 +198,8 @@ export class CatalogMcp implements vscode.Disposable {
     const read = this.browser.consumer(index, guard);
     // The browser can move after registration. Only prompts during selection bind its view.
     try {
-      const selected = await this.selections.add(
+      const account = this.session.consumerBinding();
+      await this.selections.add(
         read,
         guard,
         async (values) => {
@@ -216,50 +217,65 @@ export class CatalogMcp implements vscode.Disposable {
           return picked?.index;
         },
         connection.allowLoopbackHTTP,
-        JSON.stringify([
-          this.session.consumerBinding(),
-          detail.item.origin,
-          detail.item.key,
-        ]),
+        JSON.stringify([account, detail.item.origin, detail.item.key]),
         expected,
+        async (selected) => {
+          const item = detail.item;
+          const reference =
+            connection.mode === "control" &&
+            ["local", "indexed"].includes(item.origin)
+              ? JSON.stringify({
+                  origin: item.origin,
+                  identifier: item.identifier,
+                  versionPresent: item.versionPresent,
+                  ...(item.versionPresent ? { version: item.version } : {}),
+                  ...(item.releaseId ? { releaseId: item.releaseId } : {}),
+                })
+              : "fresh-search-required";
+          await this.references.add(
+            account,
+            {
+              reference,
+              mode:
+                reference === "fresh-search-required" ? "published" : "control",
+              document: index,
+              alternative: selected.alternative,
+              digest: selected.digest,
+            },
+            guard,
+          );
+        },
       );
-      if (selected) {
-        const mode = connection.mode;
-        const item = detail.item;
-        const reference =
-          mode === "control" && ["local", "indexed"].includes(item.origin)
-            ? JSON.stringify({
-                origin: item.origin,
-                identifier: item.identifier,
-                versionPresent: item.versionPresent,
-                ...(item.versionPresent ? { version: item.version } : {}),
-                ...(item.releaseId ? { releaseId: item.releaseId } : {}),
-              })
-            : "fresh-search-required";
-        await this.references.add(
-          this.session.consumerBinding(),
-          {
-            reference,
-            mode:
-              reference === "fresh-search-required" ? "published" : "control",
-            document: index,
-            alternative: selected.alternative,
-            digest: selected.digest,
-          },
-          guard,
-        );
-        guard();
-      }
     } finally {
       selecting = false;
     }
   }
+  private async pickSaved<T extends vscode.QuickPickItem>(
+    items: T[],
+    title: string,
+    check: () => void,
+  ) {
+    const cancellation = new vscode.CancellationTokenSource();
+    const listener = this.session.onChange(() => cancellation.cancel());
+    try {
+      check();
+      return await vscode.window.showQuickPick(
+        items,
+        { title },
+        cancellation.token,
+      );
+    } finally {
+      listener.dispose();
+      cancellation.dispose();
+    }
+  }
   async saved(): Promise<void> {
+    const check = this.session.guard(this.session.connection());
     await this.session.test();
-    const check = this.session.guard(this.session.connection()),
-      account = this.session.consumerBinding();
+    check();
+    const account = this.session.consumerBinding();
     const values = this.references.list(account);
-    const selected = await vscode.window.showQuickPick(
+    const selected = await this.pickSaved(
       values.map((value) => ({
         label:
           value.mode === "control"
@@ -268,18 +284,18 @@ export class CatalogMcp implements vscode.Disposable {
         description: `Alternative ${value.alternative + 1} · ${value.digest.slice(0, 12)}`,
         value,
       })),
-      {
-        title: "Saved inert MCP references (this host, connection and account)",
-      },
+      "Saved inert MCP references (this host, connection and account)",
+      check,
     );
     check();
     if (!selected) return;
-    const action = await vscode.window.showQuickPick(
+    const action = await this.pickSaved(
       [
         { label: "Reselect with fresh access and consent", value: "reselect" },
         { label: "Remove saved reference", value: "remove" },
       ],
-      { title: "Saved MCP reference" },
+      "Saved MCP reference",
+      check,
     );
     check();
     if (!action) return;

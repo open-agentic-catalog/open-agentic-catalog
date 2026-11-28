@@ -545,6 +545,85 @@ async function switchBookmarkedRelease(api, item, controlLabel) {
 async function revokedBookmark(api, origin, namespaceId) {
   const identity = api.snapshot().identity;
   assert.equal(identity.subject, "scoped");
+  const admin = { Authorization: "Bearer admin" };
+  const page = await api.browse({ namespace: namespaceId, kind: "agent" });
+  assert.equal(page.items.length, 1);
+  const { item } = await api.detail(page.items[0].key);
+  await api.saveBookmark();
+  const saved = { releaseId: item.releaseId };
+  assert.deepEqual(api.browsing().bookmarks, [saved]);
+  const row = { saved: 0, reference: saved, scope: api.browsing().scope };
+  const path = "/api/v1/catalog/resources/" + item.releaseId;
+  const reopen = () =>
+    vscode.commands.executeCommand("openAgenticCatalog.reopen", row);
+
+  await vscode.commands.executeCommand("openAgenticCatalog.open");
+  const web = await require("./webview.cjs").webview();
+  const detail = `document.querySelector(".detail code")?.textContent === ${JSON.stringify(item.identifier)} && [...document.querySelectorAll(".detail button")].some(b => b.textContent === "Copy exact reference")`;
+  try {
+    await web.until(detail);
+    await withRevokedScopedReader(
+      origin,
+      identity,
+      namespaceId,
+      "editor",
+      async () => {
+        const stillPublished = await fetch(origin + path, { headers: admin });
+        assert.equal(stillPublished.status, 200);
+        assert.equal((await stillPublished.json()).release.id, saved.releaseId);
+
+        // Observe the installed command's real SDK exchanges without recording credentials.
+        const headers = require("node:diagnostics_channel").channel(
+          "undici:request:headers",
+        );
+        const replies = [];
+        const observed = ({ request, response }) => {
+          if (
+            String(request.origin) === origin &&
+            request.method === "GET" &&
+            ["/api/v1/me", "/api/v1/capabilities", path].includes(request.path)
+          )
+            replies.push([request.path, response.statusCode]);
+        };
+        headers.subscribe(observed);
+        try {
+          await reopen();
+        } finally {
+          headers.unsubscribe(observed);
+        }
+        assert.deepEqual(replies, [
+          ["/api/v1/me", 200],
+          ["/api/v1/capabilities", 200],
+          [path, 403],
+        ]);
+        assert.equal(
+          api.snapshot().identity.membershipId,
+          identity.membershipId,
+        );
+        assert.equal(api.browsing().error, "access_refused");
+        assert.deepEqual(api.browsing().bookmarks, [saved]);
+        await web.until(
+          'document.getElementById("read-error")?.textContent.includes("access_refused") && !document.querySelector(".detail, article")',
+        );
+      },
+    );
+    await reopen();
+    assert.equal(api.browsing().detail?.item.releaseId, saved.releaseId);
+    await web.until(detail);
+    await api.removeBookmark(0);
+  } finally {
+    web.close();
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+  }
+}
+
+async function withRevokedScopedReader(
+  origin,
+  identity,
+  namespaceId,
+  key,
+  read,
+) {
   const assignments = "/api/v1/role-assignments";
   const admin = { Authorization: "Bearer admin" };
   const roles = await fetch(
@@ -560,20 +639,6 @@ async function revokedBookmark(api, origin, namespaceId) {
   );
   assert.equal(grants.length, 1);
   const [grant] = grants;
-  const page = await api.browse({ namespace: namespaceId, kind: "agent" });
-  assert.equal(page.items.length, 1);
-  const { item } = await api.detail(page.items[0].key);
-  await api.saveBookmark();
-  const saved = { releaseId: item.releaseId };
-  assert.deepEqual(api.browsing().bookmarks, [saved]);
-  const row = { saved: 0, reference: saved, scope: api.browsing().scope };
-  const path = "/api/v1/catalog/resources/" + item.releaseId;
-  const reopen = () =>
-    vscode.commands.executeCommand("openAgenticCatalog.reopen", row);
-
-  await vscode.commands.executeCommand("openAgenticCatalog.open");
-  const web = await require("./webview.cjs").webview();
-  const detail = `document.querySelector(".detail code")?.textContent === ${JSON.stringify(item.identifier)} && [...document.querySelectorAll(".detail button")].some(b => b.textContent === "Copy exact reference")`;
   const changeRole = (path, key, body, extraHeaders = {}) =>
     fetch(origin + path, {
       method: "POST",
@@ -585,66 +650,24 @@ async function revokedBookmark(api, origin, namespaceId) {
       },
       body: JSON.stringify(body),
     });
+  const revoked = await changeRole(
+    assignments + "/" + grant.id + ":revoke",
+    key + "-revoke-reader",
+    { reason: "Check a saved release after scoped access ends" },
+    { "If-Match": `"rev-${grant.revision}"` },
+  );
+  assert.equal(revoked.status, 200);
   try {
-    await web.until(detail);
-    const revoked = await changeRole(
-      assignments + "/" + grant.id + ":revoke",
-      "editor-revoke-reader",
-      { reason: "Check a saved release after scoped access ends" },
-      { "If-Match": `"rev-${grant.revision}"` },
-    );
-    assert.equal(revoked.status, 200);
-    try {
-      const stillPublished = await fetch(origin + path, { headers: admin });
-      assert.equal(stillPublished.status, 200);
-      assert.equal((await stillPublished.json()).release.id, saved.releaseId);
-
-      // Observe the installed command's real SDK exchanges without recording credentials.
-      const headers = require("node:diagnostics_channel").channel(
-        "undici:request:headers",
-      );
-      const replies = [];
-      const observed = ({ request, response }) => {
-        if (
-          String(request.origin) === origin &&
-          request.method === "GET" &&
-          ["/api/v1/me", "/api/v1/capabilities", path].includes(request.path)
-        )
-          replies.push([request.path, response.statusCode]);
-      };
-      headers.subscribe(observed);
-      try {
-        await reopen();
-      } finally {
-        headers.unsubscribe(observed);
-      }
-      assert.deepEqual(replies, [
-        ["/api/v1/me", 200],
-        ["/api/v1/capabilities", 200],
-        [path, 403],
-      ]);
-      assert.equal(api.snapshot().identity.membershipId, identity.membershipId);
-      assert.equal(api.browsing().error, "access_refused");
-      assert.deepEqual(api.browsing().bookmarks, [saved]);
-      await web.until(
-        'document.getElementById("read-error")?.textContent.includes("access_refused") && !document.querySelector(".detail, article")',
-      );
-    } finally {
-      const restored = await changeRole(assignments, "editor-restore-reader", {
-        subject: identity.subject,
-        actorType: "human",
-        role: "reader",
-        namespaceId,
-        reason: "Restore the scoped editor reader",
-      });
-      assert.equal(restored.status, 201);
-    }
-    await reopen();
-    assert.equal(api.browsing().detail?.item.releaseId, saved.releaseId);
-    await web.until(detail);
-    await api.removeBookmark(0);
+    await read();
   } finally {
-    web.close();
-    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    const restored = await changeRole(assignments, key + "-restore-reader", {
+      subject: identity.subject,
+      actorType: "human",
+      role: "reader",
+      namespaceId,
+      reason: "Restore the scoped editor reader",
+    });
+    assert.equal(restored.status, 201);
   }
 }
+exports.withRevokedScopedReader = withRevokedScopedReader;

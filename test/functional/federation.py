@@ -151,6 +151,24 @@ def set_fixture(fixture, mode, delay_millis=0):
     fixture.request("POST", "/control", {"mode": mode, "delayMillis": delay_millis})
 
 
+def source_problems(api, source):
+    overview, _ = api.request("GET", "/api/v1/overview/sources")
+    assert overview["tenantId"] == source["tenantId"], "source overview returned another tenant"
+    # With at most five Sources, a missing row cannot have been displaced by the problem-list limit.
+    assert not overview["total"]["limited"] and 1 <= overview["total"]["value"] <= 5, "source fixture exceeded the overview bound"
+    return [problem for problem in overview["problems"] if problem["sourceId"] == source["id"]]
+
+
+def sync_summary(value, revision_field):
+    # Snapshot JSON can retain nanoseconds. The overview reads a PostgreSQL timestamptz column.
+    return value[revision_field], value["state"], datetime.fromisoformat(value["completedAt"])
+
+
+def current_members(rows):
+    return sorted((item["id"], item["identifier"], item["versionPresent"], item.get("version"), item["normalizedEntryDigest"])
+                  for item in rows)
+
+
 def qualify_snapshot_comparison(api, fixture, source_id, initial, recovered, partial):
     """Compare exact Registry history with no source requests or current-view changes."""
     source_before, _ = api.request("GET", f"/api/v1/federation/sources/{source_id}")
@@ -329,24 +347,38 @@ def main():
                 "Registry List evidence did not identify the exact page member"
             )
 
+    assert source_problems(api, source) == [], "complete source appeared as a synchronization problem"
     before_partial = {item["id"] for item in snapshot_items(api, source_id)}
     set_fixture(fixture, "partial")
     partial_job = sync(api, source_id, source_revision(api, source_id), "partial")["job"]
     partial = wait_until(
         "non-authoritative partial Registry snapshot",
-        lambda: next(
+        lambda: max(
             (
                 item
                 for item in snapshot_items(api, source_id)
                 if item["id"] not in before_partial and item["state"] == "incomplete"
             ),
-            None,
+            key=lambda item: datetime.fromisoformat(item["completedAt"]),
+            default=None,
         ),
     )
     if partial["enumerationComplete"] or partial.get("reconcileCurrentView"):
         raise AssertionError("partial Registry run gained reconciliation authority")
-    if len(observations(api, source_id)) != 2:
-        raise AssertionError("partial Registry run replaced the last complete current view")
+    assert current_members(observations(api, source_id)) == current_members(current), "partial Registry run changed current membership or content"
+    problems = source_problems(api, source)
+    assert len(problems) == 1, "incomplete Registry synchronization must appear once in the overview"
+    problem = problems[0]
+    assert problem["displayName"] == source_display_name and problem["revision"] == partial["sourceRevision"], "source problem lost its binding"
+    # A retry can finish after the first incomplete snapshot is observed. Match the
+    # overview to a retained attempt from this failure window, before changing the fixture.
+    attempts = snapshot_items(api, source_id)
+    incomplete = [sync_summary(item, "sourceRevision") for item in attempts if item["state"] == "incomplete" and item["id"] not in before_partial]
+    latest = sync_summary(problem["latest"], "revision")
+    assert latest in incomplete and latest[2] >= sync_summary(partial, "sourceRevision")[2], "source overview selected a stale or unknown incomplete attempt"
+    retained_source, _ = api.request("GET", "/api/v1/federation/sources/" + source_id)
+    assert retained_source["lastCompleteSnapshotId"] == initial["id"], "partial sync replaced the retained complete snapshot"
+    assert sync_summary(problem["lastComplete"], "revision") == sync_summary(initial, "sourceRevision"), "source overview lost the prior complete synchronization"
     wait_job(api, partial_job["id"], {"waiting", "running"})
 
     set_fixture(fixture, "replacement")
@@ -359,9 +391,9 @@ def main():
             (
                 item
                 for item in snapshot_items(api, source_id)
-                if item["state"] == "complete"
+                if item["id"] == recovered_job["result"]["snapshotId"]
+                and item["state"] == "complete"
                 and item["memberCount"] == 1
-                and item["id"] != initial["id"]
             ),
             None,
         ),
@@ -372,6 +404,7 @@ def main():
     history = observations(api, source_id, "all")
     if len(current) != 1 or current[0].get("identifier") != "urn:air:functional.example:default:one":
         raise AssertionError("replacement current view is wrong")
+    assert source_problems(api, source) == [], "recovered Registry synchronization remained in the overview's problems"
     if not any(
         item.get("identifier") == "urn:air:functional.example:default:two" and item["freshness"] == "stale"
         for item in history

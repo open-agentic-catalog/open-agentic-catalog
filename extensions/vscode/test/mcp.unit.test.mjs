@@ -317,8 +317,16 @@ function setup() {
   const guard = () => {
     if (!state.current) throw new Error("connection_changed");
   };
-  const add = (scope = "account-one") =>
-    selections.add(read, guard, async () => 0, false, scope);
+  const add = (scope = "account-one", remember) =>
+    selections.add(
+      read,
+      guard,
+      async () => 0,
+      false,
+      scope,
+      undefined,
+      remember,
+    );
   return { state, ports, selections, read, guard, add, secrets, calls };
 }
 test("explicit selection and every resolution recheck evidence, keeping secrets target-bound", async () => {
@@ -559,6 +567,62 @@ test("the selection ceiling preserves exact duplicates and frees a slot after re
   assert.equal(f.secrets.size, 0);
 });
 
+test("concurrent confirmed selections cannot occupy the same final slot", async () => {
+  const f = setup();
+  for (let i = 0; i < 19; i++) await f.add("occupied-" + i);
+  const entered = Promise.withResolvers(),
+    release = Promise.withResolvers();
+  const winner = f.add("first", async () => {
+    entered.resolve();
+    await release.promise;
+  });
+  await entered.promise;
+  const refusal = assert.rejects(
+    f.add("second", () => assert.fail("over-limit choice was saved")),
+    { code: "mcp_selection_limit" },
+  );
+  assert.equal(f.selections.selections.size, 19);
+  release.resolve();
+  const selected = await winner;
+  await refusal;
+  assert.equal(f.selections.selections.size, 20);
+  assert.ok(f.selections.selections.has(selected.id));
+});
+
+test("a later removal wins when two choices of the same definition overlap", async () => {
+  const f = setup();
+  const firstWrite = Promise.withResolvers(),
+    finishFirst = Promise.withResolvers();
+  const secondConsent = Promise.withResolvers(),
+    secondWrite = Promise.withResolvers(),
+    finishSecond = Promise.withResolvers();
+  const first = f.add(undefined, async () => {
+    firstWrite.resolve();
+    await finishFirst.promise;
+  });
+  await firstWrite.promise;
+  f.ports.confirm = async () => {
+    secondConsent.resolve();
+    return true;
+  };
+  const duplicate = f.add(undefined, async () => {
+    secondWrite.resolve();
+    await finishSecond.promise;
+  });
+  await secondConsent.promise;
+  finishFirst.resolve();
+  const registered = await first;
+  await secondWrite.promise;
+  assert.equal(f.selections.selections.get(registered.id), registered);
+  const removed = f.selections.remove(registered.id);
+  assert.equal(f.selections.selections.has(registered.id), false);
+  finishSecond.resolve();
+  await assert.rejects(duplicate, { code: "selection_changed" });
+  await removed;
+  assert.equal(f.selections.selections.has(registered.id), false);
+  assert.deepEqual(f.selections.pendingRemovals(), []);
+});
+
 function gate() {
   let resolve;
   const promise = new Promise((done) => {
@@ -632,11 +696,20 @@ test("MCP removal retains retry ownership and drains earlier secret writes", asy
   assert.equal(f.selections.selections.has(selected.id), false);
   assert.deepEqual(f.selections.pendingRemovals(), [selected.id]);
   assert.equal(f.secrets.size, 1);
+  await assert.rejects(
+    f.add(undefined, () => assert.fail("saved a selection awaiting cleanup")),
+    { code: "mcp_removal_incomplete" },
+  );
+  assert.equal(f.selections.selections.has(selected.id), false);
+  assert.deepEqual(f.selections.pendingRemovals(), [selected.id]);
+  const unrelated = await f.add("other-server");
   f.ports.secrets.delete = originalDelete;
   await f.selections.remove(selected.id);
   assert.equal(f.secrets.size, 0);
   assert.deepEqual(f.selections.pendingRemovals(), []);
   const late = await f.add();
+  assert.equal(late.id, selected.id);
+  assert.equal(f.selections.selections.get(unrelated.id), unrelated);
   const entered = gate(),
     release = gate();
   f.ports.secrets.store = async (key, value) => {

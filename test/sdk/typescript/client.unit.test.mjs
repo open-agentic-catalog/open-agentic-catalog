@@ -725,10 +725,12 @@ test("origin and override refusal occurs before provider or transport", async ()
       code("invalid_request"),
     );
   }
-  await assert.rejects(
-    client.api.GET(manifest, { parseAs: "unsafe" }),
-    code("invalid_request"),
-  );
+  for (const parseAs of ["unsafe", ["json"]]) {
+    await assert.rejects(
+      client.api.GET(manifest, { parseAs }),
+      code("invalid_request"),
+    );
+  }
   for (const bad of [null, [], 42]) {
     await assert.rejects(client.raw("/x", bad), code("invalid_request"));
     await assert.rejects(
@@ -1133,6 +1135,60 @@ test("malformed and null JSON produce safe errors; raw bytes remain available", 
     () => foreign.rawBytes(new Response()),
     code("invalid_response"),
   );
+});
+
+test("typed JSON rejects malformed UTF-8 and preserves a literal replacement character", async () => {
+  const item = {
+    identifier: "urn:air:catalog.example.com:demo:sample",
+    displayName: "private-marker-\uFFFD",
+    type: "application/a2a-agent-card+json",
+    url: "https://agents.example.com/sample",
+  };
+  for (const status of [200, 503]) {
+    const document =
+      status === 200
+        ? { items: [item], total: 1 }
+        : { errorCode: "SERVICE_UNAVAILABLE", message: item.displayName };
+    const wire = JSON.stringify(document);
+    const [prefix, suffix] = wire.split("\uFFFD");
+    const malformed = Buffer.concat([
+      Buffer.from(prefix),
+      Buffer.from([0xff]),
+      Buffer.from(suffix),
+    ]);
+    for (const parseAs of [undefined, "json", "arrayBuffer"]) {
+      for (const valid of [true, false]) {
+        let calls = 0;
+        const client = make(async () => {
+          calls++;
+          return new Response(valid ? wire : malformed, {
+            status,
+            headers: { "X-Request-ID": "encoding-check" },
+          });
+        });
+        const read = client.api.GET("/ard/v1/agents", { parseAs });
+        if (status === 200 && parseAs === "arrayBuffer") {
+          assert.deepEqual(
+            Buffer.from((await read).data),
+            valid ? Buffer.from(wire) : malformed,
+          );
+        } else if (valid) {
+          const reply = await read;
+          assert.deepEqual(status === 200 ? reply.data : reply.error, document);
+        } else {
+          await assert.rejects(
+            read,
+            (error) =>
+              code("invalid_response")(error) &&
+              error.status === status &&
+              error.requestID === "encoding-check" &&
+              !String(error).includes("private-marker"),
+          );
+        }
+        assert.equal(calls, 1);
+      }
+    }
+  }
 });
 
 test("cancelled body and cancelled provider close work without another request", async () => {

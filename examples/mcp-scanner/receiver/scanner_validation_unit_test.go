@@ -75,7 +75,7 @@ func scannerUnitReport(t *testing.T, outcome string) (capture, map[string]any, m
 	return c, report, tool, code
 }
 
-func requireScannerUnitFailure(t *testing.T, err error, code string) {
+func requirePermanentScannerFailure(t *testing.T, err error, code string) {
 	t.Helper()
 	var result *failure
 	if !errors.As(err, &result) || result.code != code || result.transient {
@@ -150,7 +150,7 @@ func TestScannerRejectsInconsistentToolOutcomes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c, report, tool, code := scannerUnitReport(t, tc.outcome)
 			tc.change(report, tool)
-			requireScannerUnitFailure(t, validateScan(fixtureJSON(report), c, testIdentity, code), tc.failure)
+			requirePermanentScannerFailure(t, validateScan(fixtureJSON(report), c, testIdentity, code), tc.failure)
 		})
 	}
 }
@@ -168,7 +168,7 @@ func TestScannerRequiresAttributedAnalyzerErrors(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			c, report, tool, code := scannerUnitReport(t, "partial")
 			change(scannerUnitOnlyObject(t, tool["analyzer_errors"]))
-			requireScannerUnitFailure(t, validateScan(fixtureJSON(report), c, testIdentity, code), "invalid_scanner_error")
+			requirePermanentScannerFailure(t, validateScan(fixtureJSON(report), c, testIdentity, code), "invalid_scanner_error")
 		})
 	}
 }
@@ -196,7 +196,7 @@ func TestScannerRequiresAttributedFindings(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			c, report, tool, code := scannerUnitReport(t, "finding")
 			change(scannerUnitOnlyObject(t, tool["findings"]))
-			requireScannerUnitFailure(t, validateScan(fixtureJSON(report), c, testIdentity, code), "invalid_scanner_finding")
+			requirePermanentScannerFailure(t, validateScan(fixtureJSON(report), c, testIdentity, code), "invalid_scanner_finding")
 		})
 	}
 }
@@ -208,7 +208,7 @@ func TestScannerOutcomeMustMatchExitStatus(t *testing.T) {
 	}{{"completed", 1}, {"finding", 0}, {"partial", 0}, {"failed", 1}, {"skipped", 0}} {
 		t.Run(tc.outcome, func(t *testing.T) {
 			c, report, _, _ := scannerUnitReport(t, tc.outcome)
-			requireScannerUnitFailure(t, validateScan(fixtureJSON(report), c, testIdentity, tc.exit), "scanner_exit_mismatch")
+			requirePermanentScannerFailure(t, validateScan(fixtureJSON(report), c, testIdentity, tc.exit), "scanner_exit_mismatch")
 		})
 	}
 }
@@ -237,7 +237,7 @@ func TestScannerRejectsMalformedReportDocuments(t *testing.T) {
 		"oversized report":  oversized,
 	} {
 		t.Run(name, func(t *testing.T) {
-			requireScannerUnitFailure(t, validateScan(raw, c, testIdentity, code), "invalid_scanner_report")
+			requirePermanentScannerFailure(t, validateScan(raw, c, testIdentity, code), "invalid_scanner_report")
 		})
 	}
 }

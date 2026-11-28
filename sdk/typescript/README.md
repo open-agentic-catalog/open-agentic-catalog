@@ -121,7 +121,7 @@ Browser decompression is controlled by Fetch. An exposed unexpected Content-Enco
 
 Check `response.status` before using `data` or `error`. Control errors use RFC 9457 Problem fields; ARD errors use `errorCode` and `message`. These remain distinct typed alternatives. Read ETag, Location, X-Request-ID, Retry-After and Idempotency-Replayed from `response.headers`. They do not trigger automatic actions. Bodyless responses to HEAD and responses with status 204 or 304 have no JSON payload. A HEAD or 304 can report the size of the corresponding representation in Content-Length, even when it exceeds the response body budget. `SDKError` contains a fixed `code` and available status/request ID; it never includes dependency causes or private response bodies.
 
-Valid JSON error responses return `error` and `response`; they do not throw `SDKError`. A 429 or 503 response does not trigger a retry, even with Retry-After. Network failures, exceeded limits and malformed JSON throw `SDKError`. `parseAs` selects successful response decoding; error responses still require JSON. Do not log private fields from a returned error body.
+Valid JSON error responses return `error` and `response`; they do not throw `SDKError`. A 429 or 503 response does not trigger a retry, even with Retry-After. A JSON body must contain valid UTF-8. Malformed UTF-8 or JSON throws `SDKError` with code `invalid_response` and the available HTTP status and request ID. Network failures and exceeded limits have their own error codes. `parseAs` selects successful response decoding; error responses still require JSON. Do not log private fields from a returned error body.
 
 For example, distinguish a transport or decoding failure from an HTTP refusal:
 

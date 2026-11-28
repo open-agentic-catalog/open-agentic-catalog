@@ -40,6 +40,105 @@ def direct_grants(api, member):
     return grants
 
 
+def membership_totals(admin):
+    overview, _ = admin.request("GET", "/api/v1/overview/administration")
+    if (overview["tenantId"] != TENANT or overview["human"]["total"]["limited"] or
+            overview["service"]["total"]["limited"] or overview["activeAssignments"]["limited"]):
+        raise Failure("oidc-membership-overview-scope")
+    service = {row["state"]: row["count"] for row in overview["service"]["states"]}
+    if set(service) != {"active", "suspended", "offboarded"} or sum(service.values()) != overview["service"]["total"]["value"]:
+        raise Failure("oidc-membership-overview-states")
+    return overview["human"], service, overview["activeAssignments"]["value"]
+
+
+def verify_sibling_access(reader, visible, sibling, *, granted, readable):
+    checks = [{"permission": "namespace.read", "namespaceId": sibling["id"]},
+              {"permission": "resource.read", "namespaceId": sibling["id"]},
+              {"permission": "namespace.read", "namespaceId": visible["id"]}]
+    decision, _ = reader.request("POST", "/api/v1/access/capabilities", {"checks": checks})
+    if decision["catalogAllowed"] != [readable, granted, True]:
+        raise Failure("oidc-namespace-role-decisions")
+    for namespace, permitted in ((visible, True), (sibling, readable)):
+        value, headers = reader.request("GET", "/api/v1/namespaces/" + namespace["id"], expected=(200 if permitted else 403,))
+        if permitted:
+            if namespace_state(value) != namespace_state(namespace):
+                raise Failure("oidc-namespace-role-read")
+        elif value["code"] != "FORBIDDEN" or header(headers, "WWW-Authenticate"):
+            raise Failure("oidc-namespace-role-denial")
+
+
+def verify_assignment_views(admin, reader, role, grant, original_id):
+    # Impact retains revoked grants. Self lists only paths currently in effect.
+    impact, _ = admin.request("GET", "/api/v1/access/roles/" + role["id"] + "/assignments?limit=100")
+    own, _ = reader.request("GET", "/api/v1/access/self?limit=100")
+    if impact.get("nextCursor") or own.get("nextCursor") or len(impact["items"]) != 1:
+        raise Failure("oidc-namespace-role-assignment-page")
+    fields = ("id", "roleDefinitionId", "membershipId", "namespaceId", "revision", "state")
+    if any(impact["items"][0][k] != grant[k] for k in fields):
+        raise Failure("oidc-namespace-role-impact")
+    paths = [item for item in own["items"] if item["assignment"]["id"] == grant["id"]]
+    expected_ids = [original_id] if grant["state"] == "revoked" else [original_id, grant["id"]]
+    if sorted(item["assignment"]["id"] for item in own["items"]) != sorted(expected_ids):
+        raise Failure("oidc-namespace-effective-assignments")
+    if paths and (any(paths[0]["assignment"][k] != grant[k] for k in fields) or
+          paths[0]["role"]["id"] != role["id"] or paths[0]["role"]["revision"] != role["revision"] or
+          set(paths[0]["role"]["permissions"]) != set(role["permissions"])):
+        raise Failure("oidc-namespace-effective-role")
+
+
+def verify_custom_namespace_role(admin, reader, visible, sibling, original):
+    base = "/api/v1/access"
+    initial = {"name": "OIDC sibling access", "permissions": ["resource.read"], "reason": "Read resource metadata"}
+    role, headers = admin.request("POST", base + "/roles", initial, (201,), {"Idempotency-Key": key("create-role")})
+    if role["permissions"] != initial["permissions"]:
+        raise Failure("oidc-namespace-role-initial-permissions")
+    path = base + "/roles/" + role["id"]
+    first_etag = header(headers, "ETag")
+    body = {"roleDefinitionId": role["id"], "membershipId": original["membershipId"],
+            "namespaceId": sibling["id"], "reason": "Grant access to the sibling"}
+    grant, headers = admin.request("POST", base + "/assignments", body, (201,), {"Idempotency-Key": key("grant-role")})
+    grant_etag = header(headers, "ETag")
+    if (grant["state"] != "active" or grant["revision"] != 1 or
+            any(grant[k] != body[k] for k in ("roleDefinitionId", "membershipId", "namespaceId"))):
+        raise Failure("oidc-namespace-role-grant")
+    verify_assignment_views(admin, reader, role, grant, original["id"])
+    verify_sibling_access(reader, visible, sibling, granted=True, readable=False)
+
+    expanded = {**initial, "permissions": ["resource.read", "namespace.read"], "reason": "Allow reading the sibling"}
+    updated, headers = admin.request("PATCH", path, expanded, headers={"Idempotency-Key": key("edit-role"), "If-Match": first_etag})
+    current_etag = header(headers, "ETag")
+    if updated["revision"] != role["revision"] + 1 or set(updated["permissions"]) != set(expanded["permissions"]):
+        raise Failure("oidc-namespace-role-update")
+    verify_assignment_views(admin, reader, updated, grant, original["id"])
+    verify_sibling_access(reader, visible, sibling, granted=True, readable=True)
+    stale, _ = admin.request("PATCH", path, initial, (412,), {"Idempotency-Key": key("stale-role"), "If-Match": first_etag})
+    archive = {"reason": "Archive the temporary sibling role"}
+    busy, _ = admin.request("POST", path + ":archive", archive, (409,), {"Idempotency-Key": key("busy-role"), "If-Match": current_etag})
+    retained, headers = admin.request("GET", path)
+    if (stale["code"] != "PRECONDITION_FAILED" or busy["code"] != "CONFLICT" or retained["id"] != role["id"] or
+            retained["state"] != "active" or retained["revision"] != updated["revision"] or
+            set(retained["permissions"]) != set(expanded["permissions"]) or header(headers, "ETag") != current_etag):
+        raise Failure("oidc-namespace-role-rejected-change")
+    verify_sibling_access(reader, visible, sibling, granted=True, readable=True)
+    for restricted in (path + "/assignments", "/api/v1/overview/administration"):
+        problem, headers = reader.request("GET", restricted, expected=(403,))
+        if problem["code"] != "FORBIDDEN" or header(headers, "WWW-Authenticate"):
+            raise Failure("oidc-namespace-role-admin-denial")
+
+    revoked, _ = admin.request("POST", base + "/assignments/" + grant["id"] + ":revoke", {"reason": "Remove sibling access"},
+                               headers={"Idempotency-Key": key("revoke-role"), "If-Match": grant_etag})
+    if revoked["id"] != grant["id"] or revoked["state"] != "revoked" or revoked["revision"] != grant["revision"] + 1:
+        raise Failure("oidc-namespace-role-revocation")
+    verify_assignment_views(admin, reader, updated, revoked, original["id"])
+    verify_sibling_access(reader, visible, sibling, granted=False, readable=False)
+    archived, headers = admin.request("POST", path + ":archive", archive, headers={"Idempotency-Key": key("archive-role"), "If-Match": current_etag})
+    final, final_headers = admin.request("GET", path)
+    if (final["id"] != role["id"] or final["state"] != "archived" or final["revision"] != updated["revision"] + 1 or
+            archived["state"] != final["state"] or archived["revision"] != final["revision"] or
+            header(final_headers, "ETag") != header(headers, "ETag")):
+        raise Failure("oidc-namespace-archived-role")
+
+
 def realm_template(secret):
     realm = decode(Path("test/functional/oidc-realm.json").read_bytes())
     catalog_scopes = ["catalog.read", "tenant.admin"]
@@ -213,6 +312,7 @@ class OIDCJourney:
         page, _ = reader.request("GET", path + "?limit=1")
         if [namespace_state(item) for item in page["items"]] != [namespace_state(visible)] or page.get("nextCursor"):
             raise Failure("oidc-reader-namespace-page")
+        verify_custom_namespace_role(admin, reader, visible, sibling, assignment)
 
     def provision(self, token, mode, organization=""):
         args = ["run", "--rm", "--no-deps", "--entrypoint", "/usr/local/bin/catalogctl", "migrate",
@@ -339,6 +439,7 @@ class OIDCJourney:
         issued = {grant["id"]: grant["role"] for grant in target["assignments"]}
         if set(issued.values()) != {"tenant_admin", "publisher", "reader"} or not issued.items() <= original.items():
             raise Failure("oidc-membership-provisioned-grants")
+        human_before, service_before, grants_before = membership_totals(api)
         for action, expected_state in (("suspend", "suspended"), ("reactivate", "active"), ("offboard", "offboarded")):
             self.phase = "membership-lifecycle-" + action
             result, _ = api.request("POST", member_path + ":" + action, {"reason": "Owned identity lifecycle"},
@@ -350,6 +451,12 @@ class OIDCJourney:
             current, h = api.request("GET", member_path)
             if current != result["membership"] or direct_grants(api, current) != original:
                 raise Failure("oidc-membership-readback")
+            human, service, active_grants = membership_totals(api)
+            expected_service = service_before.copy()
+            expected_service["active"] -= 1
+            expected_service[expected_state] += 1
+            if human != human_before or service != expected_service or active_grants != grants_before - expected_revocations:
+                raise Failure("oidc-membership-overview-transition")
             self.phase = "membership-lifecycle-" + action + "-access"
             expected = (200,) if action == "reactivate" else (401,)
             subject.request("GET", "/api/v1/capabilities", expected=expected)

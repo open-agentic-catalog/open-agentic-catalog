@@ -34,7 +34,7 @@ make mcp-scanner-receiver-check
 make test-mcp-scanner-receiver
 ```
 
-Build writes `bin/examples/mcp-scan-receiver`. The check runs isolated units, real local MCP/TLS tests, analyzers and dependency license checks. It also qualifies the Go SDK.
+Build writes `bin/examples/mcp-scan-receiver`. The check runs isolated units, local MCP/TLS tests and scanner subprocess tests with Python. It also checks the receiver with static analyzers, checks dependency licenses and qualifies the Go SDK.
 
 The PostgreSQL target owns its database container, receiver database/account, HTTPS listeners and receiver process. It uses controlled Catalog responses and a Python executable double. It verifies the adapter without installing or executing MCP Scanner. The separate offline check qualifies actual YARA after approved installation.
 
@@ -92,7 +92,8 @@ These commands accept the same flags as `serve`; listener and signer flags are r
 | MCP collection | Eight pages, 128 tools, 1 MiB, 30 seconds |
 | Scan analysis | 30-second process budget |
 | Full processing step | Three minutes, plus bounded scanner-child cleanup |
-| Native report | 4 MiB |
+| Scanner runner stdout and stderr, per invocation | 4 MiB on stdout, 64 KiB on stderr |
+| Native JSON report file | 4 MiB |
 | Retained notification receipts, `--capacity` | 1,000 by default; accepted range 1-10,000 |
 | Retained scans | Same independent capacity limit |
 | Reconciliation work | One slot per configured Resource, outside notification capacity |
@@ -102,6 +103,8 @@ These commands accept the same flags as `serve`; listener and signer flags are r
 | Transient retries | Three attempts with bounded exponential delay and jitter |
 | HTTP admission | 16 concurrent requests, 64 connections, 256 KiB events, 16 KiB headers |
 | Database pool | Four connections, including the processor lock connection |
+
+If either stream exceeds its limit during the startup identity check, `serve` or `process` exits and pending receipts stay queued. If it happens while processing a receipt, the receiver records `scanner_output_limit` as a permanent failure. It preserves the previous scan for that Resource and skips the retry.
 
 The capacity must accommodate every configured Resource's latest scan. Full report storage records a failure; it does not evict a protected latest report. Increase capacity or let unused reports expire before scheduling another scan. Acceptance prunes at most 128 expired completed notification receipts. Report completion prunes at most 128 expired scans that no observation references. Pending receipts do not expire.
 

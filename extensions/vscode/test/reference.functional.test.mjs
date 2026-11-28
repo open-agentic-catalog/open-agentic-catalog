@@ -3,6 +3,7 @@ import { listenFixture } from "../../../test/vscode/listen.mjs";
 import { fixtureWait } from "../../../test/vscode/wait.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { CatalogMcp, definitions, window } from "./mcp-editor.mjs";
 const { Browser, Session, connections, projection } = await import(
   process.env.CATALOG_VSCODE_LIB
 );
@@ -126,19 +127,19 @@ test("actual SDK exact references preserve version identity and fence each peer 
   const origin = `http://127.0.0.1:${server.address().port}`,
     secrets = new Map(),
     saved = new Map();
-  const session = new Session(
-    {
-      get: async (key) => secrets.get(key),
-      store: async (key, value) => {
-        secrets.set(key, value);
-      },
-      delete: async (key) => {
-        secrets.delete(key);
-      },
+  const secretStore = {
+    get: async (key) => secrets.get(key),
+    store: async (key, value) => {
+      secrets.set(key, value);
     },
-    "owned-host",
-    async () => ({ fetch, close: async () => {} }),
-  );
+    delete: async (key) => {
+      secrets.delete(key);
+    },
+  };
+  const session = new Session(secretStore, "owned-host", async () => ({
+    fetch,
+    close: async () => {},
+  }));
   const browser = new Browser(
     session,
     {
@@ -185,6 +186,83 @@ test("actual SDK exact references preserve version identity and fence each peer 
   assert.equal(
     projection(browser, "control", 1).detail.documents[0].action,
     "mcp",
+  );
+  await t.test(
+    "saved MCP choice rechecks exact declaration bytes over HTTP before native consent",
+    async (t) => {
+      const reference = JSON.stringify({
+        origin: "local",
+        identifier,
+        versionPresent: true,
+        version: "1.0.0",
+        releaseId: id,
+      });
+      const store = {
+        get: (key) => saved.get(key),
+        update: async (key, value) => saved.set(key, structuredClone(value)),
+      };
+      const context = { globalState: store, secrets: {} };
+      const originalDescription = native.description;
+      const secondURL = "https://second.uncontacted.invalid/mcp";
+      native.remotes.push({ type: "streamable-http", url: secondURL });
+      t.after(() => {
+        native.remotes.pop();
+        native.description = originalDescription;
+      });
+      let confirmations = 0,
+        approve = true;
+      window.showQuickPick = async (items, options) =>
+        options.title.startsWith("Choose one") ? items[1] : items[0];
+      window.showWarningMessage = async (_message, _options, yes) => {
+        assert.equal(yes, "Use server");
+        confirmations++;
+        return approve ? yes : undefined;
+      };
+      const first = new CatalogMcp(context, browser, session);
+      await browser.openReference(reference);
+      await first.select(0);
+      const [initial] = definitions();
+      assert.equal(initial.uri.href, secondURL);
+      first.dispose();
+      const fresh = new Session(secretStore, "owned-host", async () => ({
+        fetch,
+        close: async () => {},
+      }));
+      // Use a separate process-local session over the same account and profile.
+      const restoredBrowser = new Browser(fresh, store, "owned-host");
+      const restored = new CatalogMcp(context, restoredBrowser, fresh);
+      t.after(async () => {
+        restored.dispose();
+        restoredBrowser.dispose();
+        await fresh.dispose();
+      });
+      await fresh.select(options("control"));
+      await fresh.manual("owned-local-token");
+      assert.deepEqual(definitions(), []);
+      native.description = "Updated metadata, same supported alternatives";
+      const before = seen.length;
+      await assert.rejects(restored.saved(), { code: "mcp_reference_changed" });
+      assert.ok(
+        seen
+          .slice(before)
+          .some(
+            (request) =>
+              request.path === "/api/v1/catalog/resources/" + id &&
+              request.authorization === "Bearer owned-local-token",
+          ),
+      );
+      assert.equal(confirmations, 1);
+      assert.deepEqual(definitions(), []);
+      native.description = originalDescription;
+      approve = false;
+      await restored.saved();
+      assert.equal(confirmations, 2);
+      assert.deepEqual(definitions(), []);
+      approve = true;
+      await restored.saved();
+      assert.equal(confirmations, 3);
+      assert.deepEqual(definitions(), [initial]);
+    },
   );
   await browser.saveBookmark();
   for (version of [undefined, "", "🙂".repeat(128)]) {

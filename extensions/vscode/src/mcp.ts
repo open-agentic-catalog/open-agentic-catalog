@@ -385,6 +385,7 @@ export class McpSelections {
     allowLoopback: boolean,
     scope: string,
     expected?: { digest: string; alternative: number },
+    remember?: (selection: McpSelection) => Promise<void>,
   ): Promise<McpSelection | undefined> {
     const check = () => {
       guard();
@@ -411,17 +412,25 @@ export class McpSelections {
     check();
     const digest = mcpDigest(bytes),
       id = mcpDigest(Buffer.from(JSON.stringify([scope, digest, index])));
-    if (
-      new Set([...this.selections.keys(), ...this.removals.keys()]).size >=
-        20 &&
-      !this.selections.has(id) &&
-      !this.removals.has(id)
-    )
-      throw new ClientError("mcp_selection_limit");
-    const selection = { id, recipe, digest, alternative: index, read, guard };
-    this.selections.set(id, selection);
-    this.ports.changed();
-    return selection;
+    return this.write(async () => {
+      check();
+      if (this.removals.has(id))
+        throw new ClientError("mcp_removal_incomplete");
+      if (
+        new Set([...this.selections.keys(), ...this.removals.keys()]).size >=
+          20 &&
+        !this.selections.has(id)
+      )
+        throw new ClientError("mcp_selection_limit");
+      const selection = { id, recipe, digest, alternative: index, read, guard };
+      await remember?.(selection);
+      check();
+      // remove() marks the ID immediately and queues its credential cleanup behind this write.
+      if (this.removals.has(id)) throw new ClientError("selection_changed");
+      this.selections.set(id, selection);
+      this.ports.changed();
+      return selection;
+    });
   }
   async resolve(
     id: string,

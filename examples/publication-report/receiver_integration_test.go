@@ -146,13 +146,18 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 		args = append(args, extra...)
 		// #nosec G204 G702 -- Make supplies the explicitly built, invocation-owned sample executable.
 		child := exec.CommandContext(ctx, executable, args...)
-		raw, err := child.CombinedOutput()
+		var stderr bytes.Buffer
+		child.Stderr = &stderr
+		stdout, err := child.Output()
+		if err != nil && len(stdout) != 0 {
+			t.Errorf("%s wrote to stdout on failure", command)
+		}
 		for _, secret := range privateDiagnostics {
-			if bytes.Contains(raw, []byte(secret)) {
+			if bytes.Contains(stdout, []byte(secret)) || bytes.Contains(stderr.Bytes(), []byte(secret)) {
 				t.Error("process diagnostic disclosed a credential")
 			}
 		}
-		return raw, err
+		return stderr.Bytes(), err
 	}
 	if _, err := runCommand("init"); err != nil {
 		t.Fatal("receiver init failed")
@@ -431,6 +436,34 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 		t.Fatal("retention removed pending work")
 	}
 	setAPI(200, activePage(2))
+	// The Catalog is readable again. A receiver with broken inbound TLS must
+	// leave recovery to the next process that can actually serve webhooks.
+	savedBeforeTLS := readSaved()
+	fileBeforeTLS, err := reports.ReadFile("report.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshotsBeforeTLS, countersBeforeTLS := counts()
+	badCert := writePrivate(t, "broken-receiver.pem", []byte("not a certificate"))
+	diagnostic, startErr := runCommand("serve", "--listen", "127.0.0.1:0", "--tls-cert", badCert, "--tls-key", key, "--signer-file", signerFile)
+	var startExit *exec.ExitError
+	if !errors.As(startErr, &startExit) || startExit.ExitCode() != 1 || string(diagnostic) != "receiver_listener_failed\n" {
+		t.Fatal("invalid TLS pair did not yield exit 1 and the expected receiver diagnostic", startErr)
+	}
+	if snapshots, counters := counts(); snapshots != snapshotsBeforeTLS || counters != countersBeforeTLS {
+		t.Errorf("invalid TLS startup made %d snapshot reads and %d loss-counter reads", snapshots-snapshotsBeforeTLS, counters-countersBeforeTLS)
+	}
+	if !reflect.DeepEqual(readSaved(), savedBeforeTLS) {
+		t.Error("invalid TLS startup changed the stored observation")
+	}
+	fileAfterTLS, err := reports.ReadFile("report.json")
+	if err != nil || !bytes.Equal(fileAfterTLS, fileBeforeTLS) {
+		t.Error("invalid TLS startup changed the rendered report", err)
+	}
+	if pendingCount() != 1 {
+		t.Fatal("invalid TLS startup consumed the pending receipt")
+	}
+	assertPendingTrigger()
 	startProcess()
 	wait("restart refresh from current rollback state", func() bool {
 		v := readSaved()

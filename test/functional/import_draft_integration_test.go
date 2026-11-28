@@ -116,11 +116,18 @@ func qualifyProcessDraftImport(ctx context.Context, t *testing.T, f processFixtu
 	}
 	before := counts()
 	resourceID, listingID := "", ""
+	var wantRevisions []catalog.ListingRevision
 	for index, mode := range []string{"create-content", "version-content", "version-new-listing", "version-exact-listing"} {
 		text := `{"name":"Reusable process import","framework":"custom","unknown":{"integer":9007199254740993,"decimal":0.123456789012345678901}}`
 		file := draftfile.File{Format: draftfile.Format, Kind: catalog.KindAgent, CanonicalIdentifier: "custom:reusable-process-import", Version: []string{"one", "two", "three", "four"}[index], Representations: []draftfile.Representation{{Role: catalog.RepresentationPrimary, MediaType: "application/vnd.open-agentic-catalog.agent+json", ProfileID: adapter.ProfilePrivateAgent, Input: draftfile.Input{Mode: "data", Text: &text}}}}
 		if index >= 2 {
-			file.Listing = &draftfile.Listing{DisplayName: "Reusable process import", Description: "Created by the compiled CLI.", Visibility: catalog.VisibilityPrivate}
+			file.Listing = &draftfile.Listing{
+				DisplayName:      "Reusable process import",
+				Description:      "Guide for version " + file.Version,
+				Visibility:       catalog.VisibilityPrivate,
+				DocumentationURL: "https://docs.example.test/" + file.Version,
+				SupportURL:       "https://support.example.test/" + file.Version,
+			}
 		}
 		raw, err := draftfile.Encode(file)
 		if err != nil {
@@ -187,6 +194,16 @@ func qualifyProcessDraftImport(ctx context.Context, t *testing.T, f processFixtu
 		if index == 0 {
 			versionStep = 1
 		}
+		if file.Listing != nil {
+			steps := complete.Items[0].Steps
+			wantRevisions = append(wantRevisions, catalog.ListingRevision{
+				ID:                steps[len(steps)-1].Ack.ID,
+				VersionRevisionID: steps[versionStep].Ack.RevisionID,
+				Description:       file.Listing.Description,
+				DocumentationURL:  file.Listing.DocumentationURL,
+				SupportURL:        file.Listing.SupportURL,
+			})
+		}
 		var numericOK bool
 		if err = owner.QueryRow(ctx, `SELECT inline_document->'unknown'->'integer'='9007199254740993'::jsonb AND inline_document->'unknown'->'decimal'='0.123456789012345678901'::jsonb FROM representations WHERE tenant_id=$1 AND version_revision_id=$2`, tenant, complete.Items[0].Steps[versionStep].Ack.RevisionID).Scan(&numericOK); err != nil || !numericOK {
 			t.Fatal("shared import changed PostgreSQL native numbers", err)
@@ -203,6 +220,25 @@ func qualifyProcessDraftImport(ctx context.Context, t *testing.T, f processFixtu
 		if changed {
 			t.Fatal("completed shared import repeated a mutation")
 		}
+	}
+	// Read both immutable revisions after the last resume, directly from the peer.
+	if len(wantRevisions) != 2 || wantRevisions[0].ID == wantRevisions[1].ID || wantRevisions[0].VersionRevisionID == wantRevisions[1].VersionRevisionID {
+		t.Fatalf("imports did not acknowledge two distinct Listing and Version revisions: %+v", wantRevisions)
+	}
+	for _, want := range wantRevisions {
+		var got catalog.ListingRevision
+		decodeProcessJSON(t, f.request(ctx, peer, "GET", "/api/v1/listing-revisions/"+want.ID, "local-contributor", "", 200), &got)
+		if got.ID != want.ID || got.ListingID != listingID || got.VersionRevisionID != want.VersionRevisionID || got.PublisherID != publisher || got.Description != want.Description {
+			t.Fatalf("Listing revision %s returned id=%s listing=%s versionRevision=%s publisher=%s description=%q", want.ID, got.ID, got.ListingID, got.VersionRevisionID, got.PublisherID, got.Description)
+		}
+		if got.DocumentationURL != want.DocumentationURL || got.SupportURL != want.SupportURL {
+			t.Fatalf("Listing revision %s documentationUrl=%q, want %q; supportUrl=%q, want %q", want.ID, got.DocumentationURL, want.DocumentationURL, got.SupportURL, want.SupportURL)
+		}
+	}
+	var listing catalog.CatalogListing
+	decodeProcessJSON(t, f.request(ctx, peer, "GET", "/api/v1/catalog-listings/"+listingID, "local-contributor", "", 200), &listing)
+	if listing.ID != listingID || listing.ResourceID != resourceID || listing.CandidateRevisionID != wantRevisions[1].ID {
+		t.Fatalf("expected Listing %s on Resource %s to select revision %s, got %+v", listingID, resourceID, wantRevisions[1].ID, listing)
 	}
 	after := counts()
 	for index, want := range []int{1, 4, 1, 2, 8, 8, 0} {
