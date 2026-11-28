@@ -270,8 +270,9 @@ func TestExpandedDemoFreshRecoveryWithoutCommandReplay(t *testing.T) {
 			fault.Store(true)
 			seen := map[string]bool{}
 			var repeated atomic.Int64
+			var recovery activationReadFault
 			var mu sync.Mutex
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewServer(recovery.handler(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost && r.URL.Path != "/api/v1/catalog/search" {
 					mu.Lock()
 					key := r.Header.Get("Idempotency-Key")
@@ -291,11 +292,20 @@ func TestExpandedDemoFreshRecoveryWithoutCommandReplay(t *testing.T) {
 					}
 				}
 				runtime.HTTP.Handler().ServeHTTP(w, r)
-			}))
+			})))
 			defer server.Close()
 			path := filepath.Join(canonicalTempDir(t), "receipt.json")
 			if _, err := executeExpandedDemo(t.Context(), server.URL, path, origin, false); err == nil || fault.Load() {
 				t.Fatal("fault not selected")
+			}
+			if pathSuffix == ":activate" {
+				recovery.verifyRetry(t, path, server.URL, origin, func() (demoReport, error) {
+					return executeExpandedDemo(t.Context(), server.URL, path, origin, false)
+				})
+				if repeated.Load() != 0 {
+					t.Fatal("recovery repeated a command")
+				}
+				return
 			}
 			result, err := executeExpandedDemo(t.Context(), server.URL, path, origin, false)
 			if err != nil || result.Status != "resumed" || repeated.Load() != 0 {

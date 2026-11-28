@@ -420,6 +420,7 @@ exports.webview = async (
           target.sessionId,
         );
       },
+      insertText: (text) => rpc("Input.insertText", { text }, target.sessionId),
       key: async (key) => {
         await rpc(
           "Input.dispatchKeyEvent",

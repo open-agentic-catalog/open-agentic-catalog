@@ -19,6 +19,8 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/publication"
 )
 
+const publicationJobTenant = "00000000-0000-7000-8000-000000000001"
+
 // publicationJobRecords observes only the candidate builder's existing read port.
 type publicationJobRecords func(context.Context, string) error
 
@@ -47,12 +49,12 @@ func newPublicationJobManager(t *testing.T, host string, records publicationJobR
 
 func TestPublicationJobRejectsInputBeforeProgress(t *testing.T) {
 	manager := &publication.Manager{}
-	single := map[string]*publication.Manager{"catalog.example.com": manager}
-	multiple := map[string]*publication.Manager{"catalog.example.com": manager, "other.example.com": manager}
+	single := map[string]publicationBinding{"catalog.example.com": {tenantID: publicationJobTenant, manager: manager}}
+	multiple := map[string]publicationBinding{"catalog.example.com": {tenantID: publicationJobTenant, manager: manager}, "other.example.com": {tenantID: publicationJobTenant, manager: manager}}
 	for _, test := range []struct {
 		name     string
 		payload  string
-		managers map[string]*publication.Manager
+		managers map[string]publicationBinding
 		safe     string
 	}{
 		{"malformed", `{`, single, "Publication generation job payload is invalid."},
@@ -65,12 +67,12 @@ func TestPublicationJobRejectsInputBeforeProgress(t *testing.T) {
 		{"ambiguous host", `{}`, multiple, "Publication generation requires one exact configured discovery host."},
 		{"unknown explicit host", `{"host":"unknown.example.com"}`, single, "Publication generation requires one exact configured discovery host."},
 		{"host must be exact", `{"host":"CATALOG.example.com"}`, single, "Publication generation requires one exact configured discovery host."},
-		{"nil host binding", `{"host":"catalog.example.com"}`, map[string]*publication.Manager{"catalog.example.com": nil}, "Publication generation requires one exact configured discovery host."},
+		{"nil host binding", `{"host":"catalog.example.com"}`, map[string]publicationBinding{"catalog.example.com": {}}, "Publication generation requires one exact configured discovery host."},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			metrics := observability.New(time.Now)
 			handler := publicationJobHandler(test.managers, metrics)
-			result, err := claimedHandler(t, "publication.generate", handler)(t.Context(), jobs.Job{TenantID: "00000000-0000-7000-8000-000000000001", Payload: json.RawMessage(test.payload)}, func(int) error {
+			result, err := claimedHandler(t, "publication.generate", handler)(t.Context(), jobs.Job{TenantID: publicationJobTenant, Payload: json.RawMessage(test.payload)}, func(int) error {
 				t.Fatal("rejected input reported progress")
 				return nil
 			})
@@ -94,7 +96,7 @@ func TestPublicationJobSelectsHostAndPreservesAttribution(t *testing.T) {
 		{"explicit host among multiple", `{"host":"other.example.com"}`, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			job := jobs.Job{ID: "00000000-0000-7000-8000-000000000011", TenantID: "00000000-0000-7000-8000-000000000001", Payload: json.RawMessage(test.payload)}
+			job := jobs.Job{ID: "00000000-0000-7000-8000-000000000011", TenantID: publicationJobTenant, Payload: json.RawMessage(test.payload)}
 			execution := audit.JobExecution{ID: job.ID, Kind: "publication.generate", Attempt: 1, Initiator: "00000000-0000-7000-8000-000000000021"}
 			parent, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -122,13 +124,13 @@ func TestPublicationJobSelectsHostAndPreservesAttribution(t *testing.T) {
 				}
 				return nil
 			})
-			managers := map[string]*publication.Manager{wantHost: manager}
+			managers := map[string]publicationBinding{wantHost: {tenantID: publicationJobTenant, manager: manager}}
 			if test.multiple {
 				other, _ := newPublicationJobManager(t, "catalog.example.com", func(context.Context, string) error {
 					t.Fatal("unselected host read candidate records")
 					return nil
 				})
-				managers["catalog.example.com"] = other
+				managers["catalog.example.com"] = publicationBinding{tenantID: publicationJobTenant, manager: other}
 			}
 			result, err := claimedHandler(t, "publication.generate", publicationJobHandler(managers, metrics))(ctx, job, func(value int) error { steps = append(steps, value); return nil })
 			snapshot, ok := result.(jobs.SnapshotReference)
@@ -166,9 +168,9 @@ func TestPublicationJobProgressFailurePreservesCandidateBoundary(t *testing.T) {
 			reads := 0
 			manager, store := newPublicationJobManager(t, "catalog.example.com", func(context.Context, string) error { reads++; return nil })
 			metrics := observability.New(time.Now)
-			handler := publicationJobHandler(map[string]*publication.Manager{"catalog.example.com": manager}, metrics)
+			handler := publicationJobHandler(map[string]publicationBinding{"catalog.example.com": {tenantID: publicationJobTenant, manager: manager}}, metrics)
 			var steps []int
-			result, err := claimedHandler(t, "publication.generate", handler)(t.Context(), jobs.Job{TenantID: "00000000-0000-7000-8000-000000000001"}, func(value int) error {
+			result, err := claimedHandler(t, "publication.generate", handler)(t.Context(), jobs.Job{TenantID: publicationJobTenant}, func(value int) error {
 				steps = append(steps, value)
 				if value == failAt {
 					return failure
@@ -185,7 +187,7 @@ func TestPublicationJobProgressFailurePreservesCandidateBoundary(t *testing.T) {
 			if reads != wantReads || !slices.Equal(steps, wantSteps) {
 				t.Fatalf("reads %d, progress %v", reads, steps)
 			}
-			stored, err := store.Get(t.Context(), "00000000-0000-7000-8000-000000000001", "candidate-id")
+			stored, err := store.Get(t.Context(), publicationJobTenant, "candidate-id")
 			if failAt == 20 && catalog.ErrorCodeOf(err) != catalog.CodeNotFound {
 				t.Fatalf("initial progress failure stored a candidate: %v", err)
 			}
@@ -203,7 +205,7 @@ func TestPublicationJobRedactsGenerationFailure(t *testing.T) {
 	manager, store := newPublicationJobManager(t, "catalog.example.com", func(context.Context, string) error { reads++; return cause })
 	metrics := observability.New(time.Now)
 	var steps []int
-	result, err := claimedHandler(t, "publication.generate", publicationJobHandler(map[string]*publication.Manager{"catalog.example.com": manager}, metrics))(t.Context(), jobs.Job{TenantID: "00000000-0000-7000-8000-000000000001"}, func(value int) error { steps = append(steps, value); return nil })
+	result, err := claimedHandler(t, "publication.generate", publicationJobHandler(map[string]publicationBinding{"catalog.example.com": {tenantID: publicationJobTenant, manager: manager}}, metrics))(t.Context(), jobs.Job{TenantID: publicationJobTenant}, func(value int) error { steps = append(steps, value); return nil })
 	var failure *jobs.HandlerError
 	if result != nil || !errors.As(err, &failure) || failure.Class != jobs.FailureInternal || failure.Safe != "Publication candidate generation failed." || failure.RetryAfter != 0 || !errors.Is(failure.Cause, cause) {
 		t.Fatalf("generation failure = %#v, %v", result, err)
@@ -211,8 +213,44 @@ func TestPublicationJobRedactsGenerationFailure(t *testing.T) {
 	if reads != 1 || !slices.Equal(steps, []int{20}) {
 		t.Fatalf("reads %d, progress %v", reads, steps)
 	}
-	if _, err := store.Get(t.Context(), "00000000-0000-7000-8000-000000000001", "candidate-id"); catalog.ErrorCodeOf(err) != catalog.CodeNotFound {
+	if _, err := store.Get(t.Context(), publicationJobTenant, "candidate-id"); catalog.ErrorCodeOf(err) != catalog.CodeNotFound {
 		t.Fatalf("failed generation stored a candidate: %v", err)
 	}
 	assertJobOperationOutcome(t, metrics, "publication_build", "failed")
+}
+
+// A Job without an explicit host can only use a sole host still owned by its tenant.
+func TestPublicationJobRejectsReassignedDefaultHost(t *testing.T) {
+	const host = "catalog.example.com"
+	manager, _ := newPublicationJobManager(t, host, func(context.Context, string) error {
+		t.Fatal("reassigned default host read publication records")
+		return nil
+	})
+	handler := publicationJobHandler(map[string]publicationBinding{host: {tenantID: "00000000-0000-7000-8000-000000000002", manager: manager}}, observability.New(time.Now))
+	result, err := claimedHandler(t, "publication.generate", handler)(t.Context(), jobs.Job{TenantID: publicationJobTenant, PayloadVersion: 1, Payload: json.RawMessage(`{}`)}, func(int) error {
+		t.Fatal("reassigned default host reported progress")
+		return nil
+	})
+	var failure *jobs.HandlerError
+	if result != nil || !errors.As(err, &failure) || failure.Class != jobs.FailurePolicyDenied || failure.RetryAfter != 0 {
+		t.Fatalf("reassigned default host returned %v, %v", result, err)
+	}
+}
+
+func TestPublicationJobRequiresClaimBeforeProgress(t *testing.T) {
+	const host = "catalog.example.com"
+	job := jobs.Job{ID: "00000000-0000-7000-8000-000000000011", TenantID: publicationJobTenant, Kind: "publication.generate", State: jobs.StateRunning, LeaseOwner: "worker-one", Attempt: 1, PayloadVersion: 1, Payload: json.RawMessage(`{"host":"catalog.example.com"}`)}
+	manager, store := newPublicationJobManager(t, host, func(context.Context, string) error {
+		t.Fatal("unclaimed Job read publication records")
+		return nil
+	})
+	handler := publicationJobHandler(map[string]publicationBinding{host: {tenantID: publicationJobTenant, manager: manager}}, observability.New(time.Now))
+	result, err := handler(t.Context(), job, func(int) error { t.Fatal("unclaimed Job reported progress"); return nil })
+	if result != nil || catalog.ErrorCodeOf(err) != catalog.CodeForbidden {
+		t.Fatalf("unclaimed publication Job returned %v, %v", result, err)
+	}
+	candidates, err := store.ListSummaries(t.Context(), job.TenantID, publication.SnapshotListRequest{Limit: 1})
+	if err != nil || len(candidates) != 0 {
+		t.Fatalf("unexpected candidate records: %v, %v", candidates, err)
+	}
 }

@@ -99,16 +99,8 @@ func validateDemoStepResponse(s demoStep) error {
 		if !check(listing) || !check(revision) || listing["id"] != listingID || listing["candidateRevisionId"] != revision["id"] || revision["listingId"] != listing["id"] {
 			return fail
 		}
-		for field, value := range body {
-			if field == "extensions" {
-				if !demoListingExtensionsMatch(value, revision[field]) {
-					return fail
-				}
-				continue
-			}
-			if !reflect.DeepEqual(revision[field], value) {
-				return fail
-			}
+		if !demoListingRevisionMatches(body, revision) {
+			return fail
 		}
 	case strings.HasSuffix(s.Path, "/submissions"):
 		if !check(result) || result["state"] != "submitted" || result["submittedBy"] != s.Actor || result["listingId"] != strings.TrimSuffix(strings.TrimPrefix(s.Path, "/api/v1/catalog-listings/"), "/submissions") {
@@ -150,4 +142,20 @@ func validateDemoStepResponse(s demoStep) error {
 		return fail
 	}
 	return nil
+}
+
+// Artwork is sealed by the API. All other authored Listing fields must match exactly.
+func demoListingRevisionMatches(body, revision map[string]any) bool {
+	for field, value := range body {
+		if field == "extensions" {
+			if !demoListingExtensionsMatch(value, revision[field]) {
+				return false
+			}
+			continue
+		}
+		if !reflect.DeepEqual(revision[field], value) {
+			return false
+		}
+	}
+	return true
 }

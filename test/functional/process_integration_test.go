@@ -221,13 +221,26 @@ func TestPostgresProcesses(t *testing.T) {
 			t.Fatalf("%s pool ignored configured timing policy", role)
 		}
 	}
+	if os.Getenv("CATALOG_TEST_PGBOUNCER_DSN") == "" {
+		if !t.Run("role-specific PostgreSQL metrics", func(t *testing.T) {
+			qualifyRuntimePoolMetrics(t, ctx, fixture, cfg, roleDSN("api"), roleDSN("worker"))
+		}) || !t.Run("failed API build releases its pool", func(t *testing.T) {
+			qualifyFailedBuildPoolCleanup(t, fixture, owner, cfg, roleDSN("api"))
+		}) || !t.Run("publication Job respects current host assignment", func(t *testing.T) {
+			qualifyPublicationJobHostChange(t, fixture, owner, cfg, roleDSN("api"), roleDSN("worker"))
+		}) || !t.Run("reindex Jobs across embedding profile changes", func(t *testing.T) {
+			qualifyReindexProfileChange(t, ctx, fixture, owner, cfg, roleDSN("api"), roleDSN("worker"))
+		}) {
+			t.FailNow()
+		}
+	}
 	// Admit exact roles through the real composition root, not owner authority.
 	stop := fixture.start(ctx, "api", roleDSN("api"), configuration, cfg.HTTP.Address)
 	peerConfig := cfg
 	peerConfig.HTTP.Address = processAddress(ctx, t)
 	peerConfig.HTTP.PublicBaseURL = "http://" + peerConfig.HTTP.Address
 	peerConfiguration := fixture.configuration("peer", peerConfig)
-	stopPeer := fixture.start(ctx, "api", roleDSN("api"), peerConfiguration, peerConfig.HTTP.Address)
+	stopPeer, _ := fixture.startProcess(ctx, "api", roleDSN("api"), peerConfiguration, peerConfig.HTTP.Address, os.Interrupt)
 	var namespace catalog.Namespace
 	decodeProcessJSON(t, fixture.request(ctx, cfg.HTTP.Address, "POST", "/api/v1/namespaces", "local-admin", `{"slug":"process-fixture","displayName":"Process fixture"}`, 201), &namespace)
 	if namespace.ID == "" || namespace.TenantID != tenant || namespace.Slug != "process-fixture" {
@@ -533,8 +546,16 @@ func (f processFixture) run(ctx context.Context, command *exec.Cmd, exitCode int
 	if exitCode == 0 && stderr.Len() != 0 || exitCode != 0 && (stderr.Len() == 0 || stdout.Len() != 0) {
 		f.t.Fatal("operator stdout/stderr contract mismatch")
 	}
-	if exitCode != 0 && (strings.Count(stderr.String(), "\n") != 1 || strings.Contains(stderr.String(), "catalog_worker") || strings.Contains(stderr.String(), "identity realm revision does not match")) {
-		f.t.Fatal("terminal diagnostic duplicated or exposed a private cause")
+	if exitCode != 0 {
+		message := stderr.String()
+		if strings.Count(message, "\n") != 1 {
+			f.t.Fatal("expected a single terminal diagnostic")
+		}
+		for _, private := range []string{"catalog_api", "catalog-api", "catalog_worker", "catalog-worker", "identity realm revision does not match"} {
+			if strings.Contains(message, private) {
+				f.t.Fatal("terminal diagnostic exposed a fixture credential or private cause")
+			}
+		}
 	}
 	for _, expected := range diagnostic {
 		if !strings.Contains(stderr.String(), expected) {
@@ -547,11 +568,11 @@ func (f processFixture) run(ctx context.Context, command *exec.Cmd, exitCode int
 
 func (f processFixture) start(ctx context.Context, role, dsn, configuration, address string) func() {
 	f.t.Helper()
-	stop, _ := f.startProcess(ctx, role, dsn, configuration, address)
+	stop, _ := f.startProcess(ctx, role, dsn, configuration, address, syscall.SIGTERM)
 	return stop
 }
 
-func (f processFixture) startProcess(ctx context.Context, role, dsn, configuration, address string) (func(), *os.Process) {
+func (f processFixture) startProcess(ctx context.Context, role, dsn, configuration, address string, stopSignal os.Signal) (func(), *os.Process) {
 	f.t.Helper()
 	command := f.command(ctx, "catalogd", dsn, role, "--config", configuration)
 	var evidence processEvidenceWriter
@@ -565,13 +586,13 @@ func (f processFixture) startProcess(ctx context.Context, role, dsn, configurati
 	go func() { waitErr = command.Wait(); close(done) }()
 	stop := func() {
 		f.t.Helper()
-		if err := command.Process.Signal(syscall.SIGTERM); err != nil {
-			f.t.Fatalf("signal %s: %v", role, err)
+		if err := command.Process.Signal(stopSignal); err != nil {
+			f.t.Fatalf("send %s to %s: %v", stopSignal, role, err)
 		}
 		select {
 		case <-done:
 			if waitErr != nil {
-				f.t.Fatalf("%s graceful shutdown: %v", role, waitErr)
+				f.t.Fatalf("%s graceful shutdown after %s: %v", role, stopSignal, waitErr)
 			}
 		case <-time.After(25 * time.Second):
 			f.t.Fatal("process graceful shutdown timed out")
@@ -667,10 +688,14 @@ func (f processFixture) request(ctx context.Context, address, method, path, toke
 		f.t.Fatal("owned process HTTP exchange failed")
 	}
 	defer func() { _ = response.Body.Close() }()
-	raw, err := io.ReadAll(io.LimitReader(response.Body, 65537))
-	if err != nil || len(raw) > 65536 || response.StatusCode != status {
+	limit := 64 << 10
+	if path == "/metrics" {
+		limit = 1 << 20 // Same scrape budget as the performance harness.
+	}
+	raw, err := io.ReadAll(io.LimitReader(response.Body, int64(limit)+1))
+	if err != nil || len(raw) > limit || response.StatusCode != status {
 		f.observeAssignmentRefusal(ctx, path, request, response, raw)
-		f.t.Fatalf("owned HTTP response: status=%d expected=%d, read=%v", response.StatusCode, status, err)
+		f.t.Fatalf("owned HTTP response: status=%d expected=%d, bytes read=%d limit=%d, err=%v", response.StatusCode, status, len(raw), limit, err)
 	}
 	return raw
 }

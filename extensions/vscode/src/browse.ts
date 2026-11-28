@@ -157,14 +157,19 @@ export function literal(value: unknown, max = 512, empty = false): string {
   return value;
 }
 /** Catalog metadata permits controls other than NUL. Preserve exact evidence. */
-export function metadataText(value: unknown, max = 512, empty = false): string {
+export function metadataText(
+  value: unknown,
+  max = 512,
+  empty = false,
+  code: "invalid_query" | "invalid_response" = "invalid_response",
+): string {
   if (typeof value !== "string" || (!empty && !value))
-    throw new ClientError("invalid_response");
+    throw new ClientError(code);
   let count = 0;
   for (const c of value) {
     const n = c.codePointAt(0)!;
     if (++count > max || n === 0 || (n >= 0xd800 && n <= 0xdfff))
-      throw new ClientError("invalid_response");
+      throw new ClientError(code);
   }
   return value;
 }
@@ -513,6 +518,10 @@ export function searchItem(value: unknown): Item {
   }
   return item;
 }
+/** Match the Catalog's Unicode whitespace rules for search text and filters. */
+export function blankText(value: string): boolean {
+  return /^\p{White_Space}*$/u.test(value);
+}
 export function query(
   input: unknown,
   published: boolean,
@@ -537,7 +546,7 @@ export function query(
   ] as const) {
     if (q[key] === undefined) continue;
     const values = list(q[key], max).map((value) =>
-      metadataText(value, length),
+      metadataText(value, length, false, "invalid_query"),
     );
     if (
       new Set(values).size !== values.length ||
@@ -545,7 +554,7 @@ export function query(
         (!values.length ||
           values.some((v) => !["local", "indexed", "live"].includes(v)))) ||
       (key === "kinds" && values.some((v) => !kinds.includes(v as Kind))) ||
-      (key === "categories" && values.some((v) => !v.trim()))
+      (key === "categories" && values.some(blankText))
     )
       throw new ClientError("invalid_query");
     if (published) throw new ClientError("unsupported_filter");
@@ -565,22 +574,27 @@ export function query(
     visibility: 16,
     federation: 4,
   }))
-    metadataText(q[key as keyof Query], draft ? 2 * max : max, true);
+    metadataText(
+      q[key as keyof Query],
+      draft ? 2 * max : max,
+      true,
+      "invalid_query",
+    );
+  const filtersRequiringText = published
+    ? [q.license, q.category, q.tag, q.publisher]
+    : [q.license, q.category];
   if (
     (!draft &&
-      (Buffer.byteLength(q.text) > 500 ||
+      ((!published && Buffer.byteLength(q.text) > 500) ||
         Buffer.byteLength(q.publisher) > 256)) ||
     (!draft &&
-      ((q.license !== "" && !q.license.trim()) ||
-        (q.category !== "" && !q.category.trim()))) ||
+      filtersRequiringText.some((value) => value !== "" && blankText(value))) ||
     !["", ...kinds].includes(q.kind) ||
     !["local", "indexed", "live"].includes(q.origin) ||
     !["", "private", "tenant", "public"].includes(q.visibility) ||
     !["none", "auto"].includes(q.federation) ||
     typeof q.includeMcpTools !== "boolean" ||
-    (!draft &&
-      q.agentProtocol !== "" &&
-      /^\p{White_Space}*$/u.test(q.agentProtocol)) ||
+    (!draft && q.agentProtocol !== "" && blankText(q.agentProtocol)) ||
     !Number.isSafeInteger(q.limit) ||
     q.limit < 1 ||
     q.limit > 100
@@ -604,7 +618,7 @@ export function query(
   if (
     !draft &&
     q.includeMcpTools &&
-    (/^\p{White_Space}*$/u.test(q.text) ||
+    (blankText(q.text) ||
       q.agentProtocol ||
       (q.kinds?.length ? q.kinds : q.kind ? [q.kind] : []).some(
         (kind) => kind !== "mcp_server",
@@ -615,7 +629,7 @@ export function query(
     published &&
     !explore &&
     !draft &&
-    !q.text.trim() &&
+    blankText(q.text) &&
     (q.tag || q.license || q.category || q.federation !== "none")
   )
     throw new ClientError("published_search_needs_text");
@@ -692,7 +706,7 @@ export function requestFor(
 ): { path: string; body?: Record<string, unknown> } {
   if (next !== undefined) literal(next, 4096);
   if (published) {
-    if (!q.text.trim()) {
+    if (blankText(q.text)) {
       const params = new URLSearchParams({ pageSize: String(q.limit) });
       if (/[',\\]/u.test(q.publisher))
         throw new ClientError("invalid_publisher_filter");
@@ -704,19 +718,10 @@ export function requestFor(
       if (next) params.set("pageToken", next);
       return { path: `/ard/v1/agents?${params}` };
     }
-    const filter: Record<string, string | string[]> = {};
-    if (q.kind) filter.type = mediaTypes[q.kind]!;
-    if (q.tag) filter.tags = q.tag;
-    if (q.publisher) filter.publisher = q.publisher;
-    if (q.license) filter["metadata.license"] = q.license;
-    if (q.category) filter["http://purl.org/dc/terms/subject"] = q.category;
     return {
       path: "/ard/v1/search",
       body: {
-        query: {
-          text: q.text,
-          ...(Object.keys(filter).length ? { filter } : {}),
-        },
+        query: publishedQuery(q),
         federation: q.federation,
         pageSize: q.limit,
         ...(next ? { pageToken: next } : {}),
@@ -746,6 +751,15 @@ export function requestFor(
     return { path: `/api/v1/catalog/resources?${p}` };
   }
   return { path: "/api/v1/catalog/search", body: controlQuery(q, next) };
+}
+function publishedQuery(q: Query) {
+  const filter: Record<string, string | string[]> = {};
+  if (q.kind) filter.type = mediaTypes[q.kind]!;
+  if (q.tag) filter.tags = q.tag;
+  if (q.publisher) filter.publisher = q.publisher;
+  if (q.license) filter["metadata.license"] = q.license;
+  if (q.category) filter["http://purl.org/dc/terms/subject"] = q.category;
+  return { text: q.text, ...(Object.keys(filter).length ? { filter } : {}) };
 }
 function controlQuery(q: Query, next?: string): Record<string, unknown> {
   return {
@@ -1159,9 +1173,7 @@ export class Browser {
       const facets = fields.map((field) => ({ field, limit: 20 }));
       const body = published
         ? {
-            query: record(
-              requestFor({ ...q, text: q.text || "*" }, true).body!.query,
-            ),
+            query: publishedQuery(q),
             resultType: { facets },
           }
         : {
@@ -1172,8 +1184,6 @@ export class Browser {
             ),
             facets,
           };
-      // Explore permits empty text, unlike Search. It does not contact live sources.
-      if (published) record(body.query).text = q.text;
       const value = await this.session.json(
         published ? "/ard/v1/explore" : "/api/v1/catalog/explore",
         {

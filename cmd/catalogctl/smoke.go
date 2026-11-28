@@ -357,8 +357,8 @@ func executeSmoke(ctx context.Context, options smokeOptions) (smokeReport, error
 	if err != nil {
 		return smokeReport{}, err
 	}
-	if ardResponse.Header.Get("ETag") != snapshot.ETag || ardResponse.Header.Get("Content-Digest") == "" {
-		return smokeReport{}, safeerr.New("read active ARD manifest check: immutable publication headers are incomplete")
+	if !smokePublicationHeadersMatch(ardResponse.Header, snapshot.ETag, snapshot.ARDContentDigest) {
+		return smokeReport{}, safeerr.New("read active ARD manifest check: publication headers do not match the snapshot")
 	}
 	var ard publication.ARDManifest
 	if err := decodeSmokeResponse(ardResponse, &ard); err != nil {
@@ -371,6 +371,9 @@ func executeSmoke(ctx context.Context, options smokeOptions) (smokeReport, error
 	if missing := missingSmokeIdentifiers(ardIdentifiers, identifiers); len(missing) > 0 {
 		return smokeReport{}, fmt.Errorf("read active ARD manifest check: missing identifiers %s", strings.Join(missing, ", "))
 	}
+	if smokeContentDigest(ardResponse.Body) != snapshot.ARDContentDigest {
+		return smokeReport{}, safeerr.New("read active ARD manifest check: document bytes do not match the snapshot digest")
+	}
 	if _, err := client.requestWithHeaders(ctx, "conditional ARD manifest read", http.MethodGet, "/.well-known/ard.json", "", "", "", nil, map[string]string{"If-None-Match": snapshot.ETag}, http.StatusNotModified); err != nil {
 		return smokeReport{}, err
 	}
@@ -379,8 +382,8 @@ func executeSmoke(ctx context.Context, options smokeOptions) (smokeReport, error
 	if err != nil {
 		return smokeReport{}, err
 	}
-	if aiResponse.Header.Get("ETag") == "" || aiResponse.Header.Get("ETag") == snapshot.ETag || aiResponse.Header.Get("Content-Digest") == "" {
-		return smokeReport{}, safeerr.New("read active AI Catalog check: profile-specific immutable publication headers are incomplete")
+	if snapshot.AICatalogETag == snapshot.ETag || !smokePublicationHeadersMatch(aiResponse.Header, snapshot.AICatalogETag, snapshot.AIContentDigest) {
+		return smokeReport{}, safeerr.New("read active AI Catalog check: publication headers do not match the snapshot")
 	}
 	var aiCatalog publication.AICatalog
 	if err := decodeSmokeResponse(aiResponse, &aiCatalog); err != nil {
@@ -392,6 +395,9 @@ func executeSmoke(ctx context.Context, options smokeOptions) (smokeReport, error
 	}
 	if missing := missingSmokeIdentifiers(aiIdentifiers, identifiers); len(missing) > 0 {
 		return smokeReport{}, fmt.Errorf("read active AI Catalog check: missing identifiers %s", strings.Join(missing, ", "))
+	}
+	if smokeContentDigest(aiResponse.Body) != snapshot.AIContentDigest {
+		return smokeReport{}, safeerr.New("read active AI Catalog check: document bytes do not match the snapshot digest")
 	}
 
 	registrySearch, err := client.request(ctx, "search public ARD Registry", http.MethodPost, "/ard/v1/search", "", "", "", map[string]any{"query": map[string]any{"text": options.RunID}, "federation": "none", "pageSize": 100}, http.StatusOK)
@@ -418,7 +424,9 @@ func executeSmoke(ctx context.Context, options smokeOptions) (smokeReport, error
 	if err := decodeSmokeResponse(exploreResponse, &explore); err != nil {
 		return smokeReport{}, fmt.Errorf("explore public ARD Registry check: invalid facet response: %w", err)
 	}
-	if len(explore.Facets) != 2 {
+	_, hasType := explore.Facets["type"]
+	_, hasPublisher := explore.Facets["publisher"]
+	if len(explore.Facets) != 2 || !hasType || !hasPublisher {
 		return smokeReport{}, safeerr.New("explore public ARD Registry check: expected type and publisher facets")
 	}
 
@@ -450,6 +458,15 @@ func executeSmoke(ctx context.Context, options smokeOptions) (smokeReport, error
 		Resources: created, SnapshotID: snapshot.ID, SnapshotETag: snapshot.ETag,
 		ARDEntries: len(ard.Entries), AICatalogEntries: len(aiCatalog.Entries),
 	}, nil
+}
+
+func smokePublicationHeadersMatch(header http.Header, etag, digest string) bool {
+	return etag != "" && digest != "" && header.Get("ETag") == etag && header.Get("Content-Digest") == digest
+}
+
+func smokeContentDigest(body []byte) string {
+	sum := sha256.Sum256(body)
+	return "sha-256=:" + base64.StdEncoding.EncodeToString(sum[:]) + ":"
 }
 
 // validateSmokeCapabilities checks the response subset required by the smoke

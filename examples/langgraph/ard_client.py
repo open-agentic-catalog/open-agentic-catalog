@@ -372,6 +372,8 @@ class ARDClient:
                     row in seen_rows for row in fingerprints
                 ):
                     raise ARDError("repeated_result")
+                if next_token in seen_tokens:
+                    raise ARDError("repeated_page_token")
                 for row in projected:
                     items.append(
                         {
@@ -389,8 +391,6 @@ class ARDClient:
                     issues.append({"service": name, "code": "service_partial"})
                 if not next_token:
                     break
-                if next_token in seen_tokens:
-                    raise ARDError("repeated_page_token")
                 seen_tokens.add(next_token)
                 cursor = next_token
                 if index == MAX_PAGES - 1:
@@ -447,11 +447,12 @@ class ARDClient:
         }
 
     async def explore(self, text="", types=(), categories=()):
+        minimum_count = 1
         body = {
             "query": query(text, types, categories, empty=True),
             "resultType": {
                 "facets": [
-                    {"field": name, "limit": 20, "minCount": 1}
+                    {"field": name, "limit": 20, "minCount": minimum_count}
                     for name in ["type", SUBJECT]
                 ]
             },
@@ -479,7 +480,7 @@ class ARDClient:
                         not isinstance(bucket, dict)
                         or set(bucket) != {"value", "count"}
                         or type(bucket.get("count")) is not int
-                        or not 0 <= bucket["count"] <= 2**63 - 1
+                        or not minimum_count <= bucket["count"] <= 2**63 - 1
                     ):
                         raise ARDError("invalid_response")
                     literal(bucket.get("value"), 512, empty=True)

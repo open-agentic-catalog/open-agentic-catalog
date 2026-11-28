@@ -8,12 +8,21 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/audit"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jobs"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/observability"
-	"github.com/open-agentic-catalog/open-agentic-catalog/internal/publication"
 )
+
+// An omitted host selects the sole enabled host in the deployment.
+func publicationJobBinding(bindings map[string]publicationBinding, host string) publicationBinding {
+	if host == "" && len(bindings) == 1 {
+		for _, binding := range bindings {
+			return binding
+		}
+	}
+	return bindings[host]
+}
 
 // publicationJobHandler selects one configured host before reporting progress
 // or building an immutable candidate under the claimed Job's tenant.
-func publicationJobHandler(publicationManagers map[string]*publication.Manager, metrics *observability.Registry) jobs.Handler {
+func publicationJobHandler(bindings map[string]publicationBinding, metrics *observability.Registry) jobs.Handler {
 	return func(ctx context.Context, job jobs.Job, progress func(int) error) (any, error) {
 		var input struct {
 			Host string `json:"host"`
@@ -23,12 +32,13 @@ func publicationJobHandler(publicationManagers map[string]*publication.Manager, 
 				return nil, &jobs.HandlerError{Class: jobs.FailureInvalidInput, Safe: "Publication generation job payload is invalid.", Cause: err}
 			}
 		}
-		manager := publicationManagers[input.Host]
-		if manager == nil && input.Host == "" && len(publicationManagers) == 1 {
-			manager = firstPublicationManager(publicationManagers)
-		}
+		binding := publicationJobBinding(bindings, input.Host)
+		manager := binding.manager
 		if manager == nil {
 			return nil, &jobs.HandlerError{Class: jobs.FailureInvalidInput, Safe: "Publication generation requires one exact configured discovery host."}
+		}
+		if binding.tenantID != job.TenantID {
+			return nil, &jobs.HandlerError{Class: jobs.FailurePolicyDenied, Safe: "Publication generation is not permitted for this host."}
 		}
 		var authorityErr error
 		ctx, authorityErr = workerActor(ctx, job, manager.Host())

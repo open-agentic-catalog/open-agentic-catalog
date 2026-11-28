@@ -12,6 +12,13 @@ import pitr_recovery as pitr
 import runner
 
 
+UNREACHED_TARGET = b"2026-11-27 12:00:00 UTC [26] FATAL:  recovery ended before configured recovery target was reached\n"
+
+
+def archive_miss(filename):
+    return f"cp: cannot stat '/archive/{filename}': No such file or directory\n".encode()
+
+
 def physical_evidence():
     return {"targetName": "catalog-pitr-012345abcdef", "sourceTimeline": 1, "recoveredTimeline": 2,
             "backupWALEnd": "0/3000120", "targetLSN": "0/4000090", "replayLSN": "0/4000090",
@@ -39,12 +46,22 @@ class PITRRecoveryTests(unittest.TestCase):
 
     def test_missing_wal_requires_the_requested_segment_and_failure_before_target(self):
         segment = physical_evidence()["requiredSegment"]
-        log = ("cp: cannot stat '/archive/" + segment + "': No such file or directory\n"
-               "FATAL: recovery ended before configured recovery target was reached\n").encode()
+        missing = archive_miss(segment)
+        log = missing + UNREACHED_TARGET
         self.assertTrue(pitr.missing_wal_failure(log, segment))
-        for bad in (b"", log.replace(b"FATAL", b"LOG"), log.replace(b"before configured recovery target was reached", b"after completion"),
-                    log.replace(segment.encode(), b"000000010000000000000005"), log.replace(b"No such file or directory", b"Permission denied")):
-            self.assertFalse(pitr.missing_wal_failure(bad, segment))
+        cases = {
+            "empty": b"",
+            "different segment": archive_miss("000000010000000000000005") + UNREACHED_TARGET,
+            "partial filename": archive_miss(segment + ".partial") + UNREACHED_TARGET,
+            "permission error": log.replace(b"No such file or directory", b"Permission denied"),
+            "unrelated fatal": missing + b"FATAL: unrelated error\n" + UNREACHED_TARGET.replace(b"FATAL:", b"LOG:"),
+            "quoted fatal": missing + b"LOG: previous error was " + UNREACHED_TARGET,
+            "different target outcome": log.replace(b"before configured recovery target was reached", b"after completion"),
+            "earlier fatal": UNREACHED_TARGET + missing,
+        }
+        for name, bad in cases.items():
+            with self.subTest(name=name):
+                self.assertFalse(pitr.missing_wal_failure(bad, segment))
         self.assertFalse(pitr.missing_wal_failure(log, "../../private"))
 
     def test_common_restore_evidence_keeps_physical_and_logical_formats_distinct(self):
@@ -67,12 +84,24 @@ class PITRRecoveryTests(unittest.TestCase):
         value["backupManifestDigest"] = value.pop("dumpDigest")
         value["backupBytes"] = value.pop("dumpBytes")
         del value["failedRestoreRolledBack"]
-        for native in (None, physical_evidence()):
-            report = {"profile": "pitr-recovery", "backupRestore": value, "pitrRecovery": native,
-                      "images": {"api": "owned"}, "servedVersion": {"version": "functional"}, "smoke": {"retained": True}}
-            result = runner.finalize(report, list(runner.BACKUP_STEPS), "", True)
-            self.assertEqual(result, native is not None)
-            self.assertEqual(report["qualification"], "postgres-point-in-time-recovery")
+        run_id = "functional-012345abcdef"
+        native = physical_evidence()
+        for parent, recovery, expected in (
+            (run_id, native, True),
+            (run_id, None, False),
+            (run_id, native | {"targetName": "catalog-pitr-abcdef012345"}, False),
+            (None, native, False),
+            ("012345abcdef", native, False),
+        ):
+            with self.subTest(parent=parent, target=recovery and recovery["targetName"]):
+                report = {"profile": "pitr-recovery", "backupRestore": value, "pitrRecovery": recovery,
+                          "images": {"api": "owned"}, "servedVersion": {"version": "functional"}, "smoke": {"retained": True}}
+                if parent is not None:
+                    report["runId"] = parent
+                self.assertEqual(runner.finalize(report, list(runner.BACKUP_STEPS), "", True), expected)
+                self.assertEqual(report["status"], "passed" if expected else "failed")
+                self.assertEqual(report["failureCode"], "" if expected else "missing-pitr-evidence")
+                self.assertEqual(report["qualification"], "postgres-point-in-time-recovery")
 
     def test_target_capture_occurs_after_the_final_existing_inventory(self):
         journey = object.__new__(pitr.PITRRecovery)
@@ -98,13 +127,17 @@ class PITRRecoveryTests(unittest.TestCase):
     def test_unconfirmed_missing_wal_failure_never_starts_the_positive_destination(self):
         journey = object.__new__(pitr.PITRRecovery)
         journey.end, journey.pitr = float("inf"), physical_evidence()
+        restored = f'LOG: restored log file "{journey.pitr["requiredSegment"]}" from archive\n'.encode()
+        log = restored + archive_miss("000000010000000000000005") + UNREACHED_TARGET
+        journey.pitr.pop("missingWALRejected")
         with mock.patch.object(journey, "phase"), mock.patch.object(journey, "stage"), mock.patch.object(journey, "stopped"), \
              mock.patch.object(journey, "compose", side_effect=[b"", b'{"State":"exited","ExitCode":1}']) as compose, \
-             mock.patch.object(journey, "tools", return_value=b"FATAL: unrelated configuration error"):
+             mock.patch.object(journey, "tools", return_value=log):
             with self.assertRaisesRegex(pitr.Failure, "pitr-missing-wal-failure-unconfirmed"):
                 journey.restore()
         self.assertEqual(compose.call_count, 2)
         self.assertEqual(compose.call_args_list[0].args[-1], "negative")
+        self.assertNotIn("missingWALRejected", journey.pitr)
 
     def test_wrong_replay_point_cannot_resume_recovery_or_start_the_catalog(self):
         journey = object.__new__(pitr.PITRRecovery)
@@ -113,7 +146,7 @@ class PITRRecoveryTests(unittest.TestCase):
         journey.receiver = mock.Mock()
         journey.receiver.request.return_value = (journey.fixture_state, {})
         segment = journey.pitr["requiredSegment"]
-        log = ("cp: " + segment + ": No such file or directory\nFATAL: recovery ended before configured recovery target was reached").encode()
+        log = archive_miss(segment) + UNREACHED_TARGET
         with mock.patch.object(journey, "phase"), mock.patch.object(journey, "stage"), mock.patch.object(journey, "stopped"), \
              mock.patch.object(journey, "stats", return_value=journey.receiver_state), mock.patch.object(journey, "tools", return_value=log), \
              mock.patch.object(journey, "compose", side_effect=[b"", b'{"State":"exited","ExitCode":1}', b""]) as compose, \

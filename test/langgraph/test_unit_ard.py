@@ -462,7 +462,6 @@ class ARDUnits(unittest.IsolatedAsyncioTestCase):
     async def test_continuation_failures_keep_earlier_results_and_do_not_restart(self):
         for outcome, expected in [
             ("http", "service_unavailable"),
-            ("cycle", "repeated_page_token"),
             ("duplicate", "repeated_result"),
             ("invalid", "invalid_response"),
             ("contradiction", "filter_contradiction"),
@@ -488,19 +487,7 @@ class ARDUnits(unittest.IsolatedAsyncioTestCase):
                         return reply(
                             {"results": [row(type="application/contradiction")]}
                         )
-                    return reply(
-                        {
-                            "results": [
-                                row(
-                                    identifier="urn:air:fixture.test:skills:another"
-                                    if outcome == "cycle"
-                                    else row()["identifier"],
-                                    type="text/markdown",
-                                )
-                            ],
-                            **({"pageToken": "next"} if outcome == "cycle" else {}),
-                        }
-                    )
+                    return reply({"results": [row(type="text/markdown")]})
 
                 client = ard.ARDClient(settings(), httpx.MockTransport(handle))
                 value = await client.search("web", ["text/markdown"])
@@ -510,7 +497,75 @@ class ARDUnits(unittest.IsolatedAsyncioTestCase):
                 )
                 self.assertEqual(bodies[1], {**bodies[0], "pageToken": "next"})
                 self.assertEqual(len(bodies), 2)
-                self.assertEqual(value["results"][0]["identifier"], row()["identifier"])
+                self.assertEqual(
+                    [r["identifier"] for r in value["results"]], [row()["identifier"]]
+                )
+
+    async def test_only_a_complete_valid_page_contributes_results_and_referrals(self):
+        class PageStream(httpx.AsyncByteStream):
+            def __init__(self, page, interrupted):
+                self.raw = json.dumps(page).encode()
+                self.interrupted = interrupted
+                self.closed = False
+
+            async def __aiter__(self):
+                yield self.raw
+                if self.interrupted:
+                    raise httpx.ReadError("interrupted before EOF")
+
+            async def aclose(self):
+                self.closed = True
+
+        first = row()
+        second = row(identifier="urn:air:fixture.test:skills:second")
+        for outcome, issue in [
+            ("terminal", None),
+            ("cycle", "repeated_page_token"),
+            ("interrupted", "service_unavailable"),
+        ]:
+            with self.subTest(outcome=outcome):
+                page = {"results": [second], "referrals": [referral()]}
+                if outcome == "cycle":
+                    page["pageToken"] = "next"
+                stream = PageStream(page, interrupted=outcome == "interrupted")
+                requests = []
+
+                def handle(request):
+                    url = str(request.url)
+                    token = json.loads(request.content).get("pageToken")
+                    requests.append((url, token))
+                    if url == PEER:
+                        return reply({"results": []})
+                    self.assertEqual(url, PRIMARY)
+                    if token is None:
+                        return reply({"results": [first], "pageToken": "next"})
+                    self.assertEqual(token, "next")
+                    return httpx.Response(
+                        200, headers={"content-type": "application/json"}, stream=stream
+                    )
+
+                client = ard.ARDClient(
+                    settings(
+                        referral=ard.Service(search_url=PEER), disclose_to_referral=True
+                    ),
+                    httpx.MockTransport(handle),
+                )
+                result = await client.search("web")
+                self.assertTrue(stream.closed)
+                expected_requests = [(PRIMARY, None), (PRIMARY, "next")]
+                origin = {"service": "primary", "responder": PRIMARY}
+                expected_rows = [{**first, **origin, "rank": 1}]
+                if issue is None:
+                    expected_requests.append((PEER, None))
+                    expected_rows.append({**second, **origin, "rank": 2})
+                self.assertEqual(requests, expected_requests)
+                self.assertEqual(result["results"], expected_rows)
+                self.assertEqual(result["omitted_referrals"], [])
+                self.assertEqual(result["status"], "complete" if issue is None else "partial")
+                self.assertEqual(
+                    result["issues"],
+                    [] if issue is None else [{"service": "primary", "code": issue}],
+                )
 
     async def test_page_request_and_deadline_budgets_are_shared_and_finite(self):
         def handle(request):
@@ -620,6 +675,45 @@ class ARDUnits(unittest.IsolatedAsyncioTestCase):
                 )
                 result = await client.explore()
                 self.assertEqual(result["status"], "failed")
+
+    async def test_explore_enforces_requested_minimum_on_each_bucket(self):
+        for field in ("type", ard.SUBJECT):
+            for count in (1, 0, None):
+                with self.subTest(field=field, count=count):
+                    value = facets()
+                    value["facets"][field] = {
+                        "buckets": [] if count is None else [{"value": "sample", "count": count}],
+                        "otherCount": 0,
+                    }
+                    requests = []
+
+                    def handle(request):
+                        requests.append(request)
+                        return reply(value)
+
+                    client = ard.ARDClient(settings(), httpx.MockTransport(handle))
+                    result = await client.explore()
+                    self.assertEqual(
+                        [str(request.url) for request in requests], [EXPLORE]
+                    )
+                    selected = json.loads(requests[0].content)["resultType"]["facets"]
+                    self.assertEqual(
+                        {item["field"]: item["minCount"] for item in selected},
+                        {"type": 1, ard.SUBJECT: 1},
+                    )
+                    if count == 0:
+                        self.assertEqual(
+                            result,
+                            {
+                                "status": "failed",
+                                "issues": [{"service": "primary", "code": "invalid_response"}],
+                            },
+                        )
+                    else:
+                        self.assertEqual(
+                            result,
+                            {"status": "complete", "responder": EXPLORE, "facets": value["facets"]},
+                        )
 
     def test_endpoint_credentials_and_configuration_are_admitted_before_transport(self):
         for url in [

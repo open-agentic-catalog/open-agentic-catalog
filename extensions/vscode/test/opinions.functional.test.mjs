@@ -8,6 +8,39 @@ const { Session, Opinions, connections } = await import(
 const id = "00000000-0000-7000-8000-000000000001";
 const resourceId = "00000000-0000-7000-8000-000000000002";
 const versionRevisionId = "00000000-0000-7000-8000-000000000003";
+async function opinionClient(t, server) {
+  await listenFixture(server);
+  t.after(() => {
+    server.closeAllConnections();
+    return new Promise((done) => server.close(done));
+  });
+  const saved = new Map(),
+    session = new Session(
+      {
+        get: async (k) => saved.get(k),
+        store: async (k, v) => saved.set(k, v),
+        delete: async (k) => saved.delete(k),
+      },
+      "owned-http",
+      async () => ({ fetch, close: async () => {} }),
+    );
+  t.after(() => session.dispose());
+  await session.select(
+    connections([
+      {
+        id: "http",
+        label: "Owned HTTP",
+        mode: "control",
+        auth: "manual",
+        origin: `http://127.0.0.1:${server.address().port}`,
+        allowLoopbackHTTP: true,
+      },
+    ])[0],
+  );
+  await session.manual("owned-http-token");
+  return { api: new Opinions(session), saved };
+}
+
 test("real HTTP opinion commands accept 201, retain private text, enforce ETags and recover an uncertain committed write", async (t) => {
   const calls = [],
     records = new Map(),
@@ -93,43 +126,14 @@ test("real HTTP opinion commands accept 201, retain private text, enforce ETags 
     }
     reply(current ? 200 : 201, { id, revision }, revision);
   });
-  await listenFixture(server);
-  t.after(() => {
-    server.closeAllConnections();
-    return new Promise((done) => server.close(done));
-  });
-  const saved = new Map(),
-    session = new Session(
-      {
-        get: async (k) => saved.get(k),
-        store: async (k, v) => saved.set(k, v),
-        delete: async (k) => saved.delete(k),
-      },
-      "owned-http",
-      async () => ({ fetch, close: async () => {} }),
-    );
-  t.after(() => session.dispose());
-  await session.select(
-    connections([
-      {
-        id: "http",
-        label: "Owned HTTP",
-        mode: "control",
-        auth: "manual",
-        origin: `http://127.0.0.1:${server.address().port}`,
-        allowLoopbackHTTP: true,
-      },
-    ])[0],
-  );
-  await session.manual("owned-http-token");
-  const api = new Opinions(session),
-    item = {
-      origin: "local",
-      releaseId: id,
-      identifier: "urn:air:owned.test:team:agent",
-      kind: "agent",
-      version: "1",
-    };
+  const { api, saved } = await opinionClient(t, server);
+  const item = {
+    origin: "local",
+    releaseId: id,
+    identifier: "urn:air:owned.test:team:agent",
+    kind: "agent",
+    version: "1",
+  };
   let context = await api.rating(item);
   await api.submitRating(context, 4);
   assert.equal(records.get("ratings").consent, false);
@@ -243,3 +247,99 @@ test("real HTTP opinion commands accept 201, retain private text, enforce ETags 
     "Private text never enters credential storage",
   );
 });
+
+for (const family of ["ratings", "feedback"]) {
+  test(`exact HTTP ${family} read binds the selected ID and current ETag`, async (t) => {
+    const otherId = "00000000-0000-7000-8000-00000000000a";
+    const common = {
+      tenantId: id,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-02T00:00:00Z",
+      revision: 3,
+    };
+    const records = [id, otherId].map((id, index) => ({
+      ...common,
+      id,
+      ...(family === "ratings"
+        ? {
+            target: {
+              origin: "local",
+              kind: "agent",
+              identifier: "urn:air:owned.test:team:agent",
+              resourceId,
+              versionRevisionId: index ? otherId : versionRevisionId,
+              versionPresent: true,
+              version: String(index + 1),
+            },
+            state: "active",
+            consent: false,
+            score: index + 3,
+          }
+        : {
+            membershipId: resourceId,
+            resourceId,
+            category: "problem",
+            state: "open",
+            comment: `Private feedback ${index}`,
+          }),
+    }));
+    let wrongItem = false,
+      wrongRevision = false;
+    const server = createServer((req, res) => {
+      const path = "/api/v1/" + family;
+      if (
+        req.method !== "GET" ||
+        req.headers.authorization !== "Bearer owned-http-token"
+      ) {
+        res.writeHead(403);
+        res.end();
+        return;
+      }
+      res.setHeader("content-type", "application/json");
+      if (req.url.startsWith(path + "?")) {
+        res.end(JSON.stringify({ items: records }));
+        return;
+      }
+      const selected = records.find(
+        (item) => req.url.toLowerCase() === path + "/" + item.id,
+      );
+      if (!selected) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      const returned = wrongItem ? records[1] : selected;
+      res.setHeader(
+        "etag",
+        `"rev-${returned.revision + (wrongRevision ? 1 : 0)}"`,
+      );
+      res.end(JSON.stringify(returned));
+    });
+    const { api } = await opinionClient(t, server);
+    const listed = await api.page(family);
+    assert.deepEqual(
+      listed.items.map((item) => item.id),
+      [id, otherId],
+    );
+    assert.deepEqual(
+      (await api.get(family, otherId.toUpperCase())).value,
+      records[1],
+    );
+    wrongItem = true;
+    await t.test("refuses the other listed record", () =>
+      assert.rejects(api.get(family, id), { code: "invalid_response" }),
+    );
+    wrongItem = false;
+    wrongRevision = true;
+    await t.test("refuses an ETag for a different revision", () =>
+      assert.rejects(api.get(family, id), { code: "invalid_response" }),
+    );
+    wrongRevision = false;
+    records[0].revision++;
+    assert.equal(listed.items[0].revision, 3);
+    assert.deepEqual(await api.get(family, id), {
+      value: records[0],
+      etag: '"rev-4"',
+    });
+  });
+}

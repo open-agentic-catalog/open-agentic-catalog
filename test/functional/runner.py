@@ -44,7 +44,7 @@ STEPS = {
     "restore-repair": ["migration-and-restore"],
     "role-restart": ["process-topology", "public-discovery"],
     "operator-workflows": ["idempotency-repair", "source-administration", "operator-diagnostics", "remote-cli", "source-comparison-cli", "personal-library-backup"],
-    "extended-core": ["current-access", "authoring-history-reads", "administration-gaps", "private-feedback", "governance-smoke", "governance-transitions", "catalog-search-smoke", "catalog-read-gaps", "released-listing-metadata", "release-relationships", "publication-smoke", "publication-history", "public-discovery", "source-administration"],
+    "extended-core": ["current-access", "authoring-history-reads", "administration-gaps", "private-feedback", "governance-smoke", "governance-transitions", "catalog-search-smoke", "catalog-read-gaps", "released-listing-metadata", "release-relationships", "validation-maintenance", "publication-smoke", "publication-history", "public-discovery", "source-administration"],
     "credential-transport": ["source-sync-smoke"],
     "oidc-private-trust": ["process-topology"],
 }
@@ -801,7 +801,8 @@ def finalize(report, completed, failure, cleanup_ok):
             return False
     if report.get("profile") == "pitr-recovery":
         from pitr_recovery import valid_evidence as valid_pitr
-        if not valid_pitr(report.get("pitrRecovery")):
+        recovery = report.get("pitrRecovery")
+        if not valid_pitr(recovery) or report.get("runId") != "functional-" + recovery["targetName"].removeprefix("catalog-pitr-"):
             report.update(status="failed", failureCode=failure or "missing-pitr-evidence")
             return False
     if report.get("profile") in FAILOVER_PROFILES:

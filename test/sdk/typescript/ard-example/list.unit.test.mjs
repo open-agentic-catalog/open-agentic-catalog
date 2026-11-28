@@ -209,10 +209,9 @@ test("List emits and counts only pages with a consistent total and continuation"
     identifier: "urn:air:catalog.example.test:example:forecast",
     displayName: "Forecast agent",
   };
-  const third = {
+  const alternateRepresentation = {
     ...entry,
-    identifier: entry.identifier + "-rain",
-    displayName: "Rain agent",
+    type: "application/vnd.example.agent+json",
   };
   const registry = {
     ...entry,
@@ -230,13 +229,20 @@ test("List emits and counts only pages with a consistent total and continuation"
     [5, 5, { pageToken: "next" }, 1, 1, "repeated_page_token"],
     [5, 5, {}, 1, 1, "invalid_response"],
     [5, 4, {}, 1, 1, "invalid_response"],
+    [3, 3, {}, 1, 1, "invalid_response"],
     [4, 4, {}, 2, 0, "exhausted"],
   ]) {
     const { client, requests } = scripted([
       {
         body: { items: [entry, second], total: firstTotal, pageToken: "next" },
       },
-      { body: { items: [registry, third], total: lastTotal, ...continuation } },
+      {
+        body: {
+          items: [registry, alternateRepresentation],
+          total: lastTotal,
+          ...continuation,
+        },
+      },
     ]);
     const output = [];
     assert.equal(
@@ -254,7 +260,9 @@ test("List emits and counts only pages with a consistent total and continuation"
     assert.deepEqual(output, [
       { kind: "entry", ...entry },
       { kind: "entry", ...second },
-      ...(acceptedPages === 2 ? [{ kind: "entry", ...third }] : []),
+      ...(acceptedPages === 2
+        ? [{ kind: "entry", ...alternateRepresentation }]
+        : []),
       {
         kind: "summary",
         complete: exit === 0,

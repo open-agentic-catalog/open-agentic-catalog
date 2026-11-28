@@ -11,7 +11,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/netip"
 	"os"
 	"os/signal"
 	"strings"
@@ -81,8 +80,11 @@ func validHost(host string) bool {
 	if host == "" || len(host) > 253 || host != strings.ToLower(host) {
 		return false
 	}
-	if ip, err := netip.ParseAddr(host); err == nil {
+	if ip := net.ParseIP(host); ip != nil {
 		return ip.String() == host
+	}
+	if strings.Trim(host, "0123456789.") == "" {
+		return false
 	}
 	for _, label := range strings.Split(host, ".") {
 		if len(label) < 1 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {

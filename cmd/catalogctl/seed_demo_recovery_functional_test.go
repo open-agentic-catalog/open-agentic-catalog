@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/pem"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,8 +17,11 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/artwork"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata"
+	"github.com/open-agentic-catalog/open-agentic-catalog/test/demofixture"
 )
 
 // A persisted intent is not proof of a commit. Recovery must retry only the
@@ -181,7 +185,27 @@ func TestConfiguredDemoUncertainListingRevisionRecovery(t *testing.T) {
 			name = "different committed content"
 		}
 		t.Run(name, func(t *testing.T) {
-			runtime, _, origin, trust, _ := configuredDemoRuntime(t)
+			peer := httptest.NewTLSServer(demofixture.PreparedHandler(nil))
+			t.Cleanup(peer.Close)
+			origin := peer.URL
+			trust := filepath.Join(t.TempDir(), "artwork-peer.pem")
+			if err := os.WriteFile(trust, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: peer.Certificate().Raw}), 0600); err != nil {
+				t.Fatal(err)
+			}
+			runtime := buildSmokeTestRuntime(t, func(c *config.Config) {
+				defaults := config.Defaults().HTTP
+				c.HTTP.RequestTimeout, c.HTTP.WriteTimeout, c.HTTP.ShutdownTimeout = defaults.RequestTimeout, defaults.WriteTimeout, defaults.ShutdownTimeout
+				policy := config.FederationPolicy{SchemaVersion: 1, PolicyID: "artwork-test", Revision: 1,
+					Public: config.FederationPublicPolicy{Mode: "disabled"},
+					PrivateProfiles: []config.FederationPrivateProfile{{Name: "artwork", Origins: []string{origin},
+						AddressRanges: []string{"127.0.0.1/32"}, AssignedTenantIDs: []string{demoTenant}, TrustBundleFile: trust, TransportRef: "direct"}}}
+				c.Federation.PolicyFile = filepath.Join(t.TempDir(), "policy.json")
+				if err := os.WriteFile(c.Federation.PolicyFile, []byte(demoUnitJSON(t, policy)), 0600); err != nil {
+					t.Fatal(err)
+				}
+				c.ListingMedia.AllowedOrigins = []config.MediaOrigin{{Origin: origin, NetworkProfile: "artwork"}}
+			})
+			t.Cleanup(runtime.Close)
 			var pause, failRead atomic.Bool
 			pause.Store(true)
 			var writes, failedReads, revisionWrites atomic.Int64
@@ -233,7 +257,7 @@ func TestConfiguredDemoUncertainListingRevisionRecovery(t *testing.T) {
 				runtime.HTTP.Handler().ServeHTTP(w, r)
 			}))
 			defer server.Close()
-			plan, err := demodata.Load("", "minimal", origin)
+			plan, err := demodata.Load("", "artwork", origin)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -249,6 +273,14 @@ func TestConfiguredDemoUncertainListingRevisionRecovery(t *testing.T) {
 			var input map[string]any
 			if !strings.HasSuffix(pending.Path, "/revisions") || len(pending.Response) != 0 || len(pending.Before) != 0 || json.Unmarshal(pending.Body, &input) != nil || (committed.Load().Description != input["description"]) != different {
 				t.Fatal("journal or committed revision does not match the selected fault")
+			}
+			raw, err := json.Marshal(committed.Load().Extensions[artwork.IRI])
+			if err != nil {
+				t.Fatal(err)
+			}
+			sealed, err := artwork.DecodeDescriptor(raw, artwork.HardLimits())
+			if err != nil || sealed.Icon == nil || len(sealed.Screenshots) != 1 {
+				t.Fatalf("owned icon and screenshot were not sealed by the API: %v", err)
 			}
 			journal := readDemoRecoveryFile(t, path+".progress")
 			before := writes.Load()
@@ -434,6 +466,81 @@ func TestConfiguredDemoFinalReadbackRecoveryWithoutCommands(t *testing.T) {
 	}
 }
 
+// Corrupt one authenticated read of the committed snapshot, leaving the Catalog state intact.
+type activationReadFault struct {
+	path   atomic.Pointer[string]
+	writes atomic.Int64
+}
+
+func (f *activationReadFault) handler(t *testing.T, api http.Handler) http.Handler {
+	t.Helper()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path != "/api/v1/catalog/search" {
+			f.writes.Add(1)
+		}
+		path := f.path.Load()
+		if path == nil || r.Method != http.MethodGet || r.URL.Path != *path || !f.path.CompareAndSwap(path, nil) {
+			api.ServeHTTP(w, r)
+			return
+		}
+		reply := httptest.NewRecorder()
+		api.ServeHTTP(reply, r)
+		var snapshot map[string]any
+		if reply.Code != http.StatusOK || json.Unmarshal(reply.Body.Bytes(), &snapshot) != nil ||
+			snapshot["id"] != strings.TrimPrefix(*path, "/api/v1/publication/snapshots/") ||
+			snapshot["host"] != "127.0.0.1" || r.URL.Query().Get("host") != "127.0.0.1" ||
+			snapshot["state"] != "active" || snapshot["audience"] != "anonymous" {
+			t.Error("recovery fault did not reach the original active anonymous snapshot")
+			http.Error(w, "fixture failed", http.StatusInternalServerError)
+			return
+		}
+		snapshot["audience"] = "authenticated"
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("ETag", reply.Header().Get("ETag"))
+		if err := json.NewEncoder(w).Encode(snapshot); err != nil {
+			t.Error(err)
+		}
+	})
+}
+
+func (f *activationReadFault) verifyRetry(t *testing.T, path, base, origin string, run func() (demoReport, error)) string {
+	t.Helper()
+	journal := path + ".progress"
+	p, exists, err := readDemoProgress(journal, base, origin)
+	if err != nil || !exists || len(p.Steps) == 0 {
+		t.Fatal("uncertain activation intent not retained", err)
+	}
+	last := p.Steps[len(p.Steps)-1]
+	snapshotPath, ok := strings.CutSuffix(last.Path, ":activate")
+	if !ok || len(last.Response) != 0 {
+		t.Fatal("activation response was already saved in journal")
+	}
+	before := f.writes.Load()
+	f.path.Store(&snapshotPath)
+	_, err = run()
+	if err == nil || !strings.Contains(err.Error(), "command response does not match fixed fixture input") || f.path.Load() != nil {
+		t.Fatal("wrong audience on recovery GET did not stop the seeder", err)
+	}
+	if f.writes.Load() != before || !bytes.Equal(p.diskBytes, readDemoRecoveryFile(t, journal)) {
+		t.Fatal("rejected recovery changed the pending journal or issued writes")
+	}
+	if _, err = os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("rejected activation published a receipt", err)
+	}
+	report, err := run()
+	if err != nil || report.Status != "resumed" || snapshotPath != "/api/v1/publication/snapshots/"+report.SnapshotID || f.writes.Load() != before {
+		t.Fatal("healthy read failed to recover the exact snapshot without further commands", err)
+	}
+	receipt, exists, err := readDemoReceipt(path, base)
+	if err != nil || !exists || receipt.SnapshotID != report.SnapshotID {
+		t.Fatal("final receipt does not identify the recovered snapshot", err)
+	}
+	if _, err = os.Stat(journal); !os.IsNotExist(err) {
+		t.Fatal("verified activation recovery retained journal", err)
+	}
+	return report.SnapshotID
+}
+
 // A well-formed success for another snapshot must not become a saved lookup
 // hint. The owning command path, rather than the reply, binds recovery.
 func TestConfiguredDemoActivationResponseBindsCommandPath(t *testing.T) {
@@ -441,11 +548,9 @@ func TestConfiguredDemoActivationResponseBindsCommandPath(t *testing.T) {
 	const otherID = "00000000-0000-7000-8000-000000000099"
 	var fault atomic.Bool
 	fault.Store(true)
-	var writes, changed, foreignReads atomic.Int64
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost && r.URL.Path != "/api/v1/catalog/search" {
-			writes.Add(1)
-		}
+	var changed, foreignReads atomic.Int64
+	var recovery activationReadFault
+	server := httptest.NewServer(recovery.handler(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, otherID) {
 			foreignReads.Add(1)
 		}
@@ -471,7 +576,7 @@ func TestConfiguredDemoActivationResponseBindsCommandPath(t *testing.T) {
 			return
 		}
 		runtime.HTTP.Handler().ServeHTTP(w, r)
-	}))
+	})))
 	defer server.Close()
 	plan, err := demodata.Load("", "minimal", origin)
 	if err != nil {
@@ -481,23 +586,13 @@ func TestConfiguredDemoActivationResponseBindsCommandPath(t *testing.T) {
 	if _, err = executeConfiguredDemo(t.Context(), server.URL, path, origin, trust, false, plan); err == nil || !strings.Contains(err.Error(), "command response does not match fixed fixture input") || changed.Load() != 1 || foreignReads.Load() != 0 {
 		t.Fatal("foreign snapshot success was used", err)
 	}
-	p, exists, err := readDemoProgress(path+".progress", server.URL, origin)
-	if err != nil || !exists || len(p.Steps) == 0 {
-		t.Fatal("uncertain activation intent not retained", err)
-	}
-	last := p.Steps[len(p.Steps)-1]
-	if !strings.HasSuffix(last.Path, ":activate") || len(last.Response) != 0 {
-		t.Fatal("foreign success was saved in journal")
-	}
 	if _, err = os.Stat(path); !os.IsNotExist(err) {
 		t.Fatal("foreign activation success published receipt", err)
 	}
-	before := writes.Load()
-	result, err := executeConfiguredDemo(t.Context(), server.URL, path, origin, trust, false, plan)
-	if err != nil || result.Status != "resumed" || writes.Load() != before || !strings.HasSuffix(last.Path, "/"+result.SnapshotID+":activate") || result.SnapshotID == otherID {
-		t.Fatal("exact snapshot recovery failed or repeated commands", err)
-	}
-	if _, err = os.Stat(path + ".progress"); !os.IsNotExist(err) {
-		t.Fatal("verified activation recovery retained journal", err)
+	snapshotID := recovery.verifyRetry(t, path, server.URL, origin, func() (demoReport, error) {
+		return executeConfiguredDemo(t.Context(), server.URL, path, origin, trust, false, plan)
+	})
+	if snapshotID == otherID || foreignReads.Load() != 0 {
+		t.Fatal("recovery followed the foreign snapshot ID")
 	}
 }

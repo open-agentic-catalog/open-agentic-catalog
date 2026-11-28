@@ -233,6 +233,8 @@ func TestSmokeStopsAfterInvalidSuccessfulResponse(t *testing.T) {
 	document := []byte(content)
 	digest := sha256.Sum256(document)
 	documentID := hex.EncodeToString(digest[:])
+	const facetError = "explore public ARD Registry check: expected type and publisher facets"
+	const aiHeaderError = "read active AI Catalog check: publication headers do not match the snapshot"
 	for _, tc := range []struct {
 		name, method, path, command, token, want string
 	}{
@@ -241,7 +243,14 @@ func TestSmokeStopsAfterInvalidSuccessfulResponse(t *testing.T) {
 		{"missing search generation", http.MethodPost, "/api/v1/catalog/search", "", "local-reader", "governed Catalog search check: profile or generation metadata is incomplete"},
 		{"missing ARD member", http.MethodGet, "/.well-known/ard.json", "", "", "read active ARD manifest check: missing identifiers " + identifiers[0]},
 		{"wrong public document digest", http.MethodGet, "/public/v1/artifacts/" + documentID, "", "", "read active public skill document check: exact content headers are incomplete"},
-		{"missing publisher facet", http.MethodPost, "/ard/v1/explore", "", "", "explore public ARD Registry check: expected type and publisher facets"},
+		{"wrong ARD digest", http.MethodGet, "/.well-known/ard.json", "", "", "read active ARD manifest check: publication headers do not match the snapshot"},
+		{"wrong AI Catalog digest", http.MethodGet, "/.well-known/ai-catalog.json", "", "", aiHeaderError},
+		{"wrong AI Catalog ETag", http.MethodGet, "/.well-known/ai-catalog.json", "", "", aiHeaderError},
+		{"changed ARD body", http.MethodGet, "/.well-known/ard.json", "", "", "read active ARD manifest check: document bytes do not match the snapshot digest"},
+		{"changed AI Catalog body", http.MethodGet, "/.well-known/ai-catalog.json", "", "", "read active AI Catalog check: document bytes do not match the snapshot digest"},
+		{"missing publisher facet", http.MethodPost, "/ard/v1/explore", "", "", facetError},
+		{"renamed publisher facet", http.MethodPost, "/ard/v1/explore", "", "", facetError},
+		{"renamed type facet", http.MethodPost, "/ard/v1/explore", "", "", facetError},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runtime := buildSmokeTestRuntime(t)
@@ -341,7 +350,36 @@ func TestSmokeStopsAfterInvalidSuccessfulResponse(t *testing.T) {
 							wrongDigest := sha256.Sum256([]byte("different document"))
 							response.Header().Set("Content-Digest", "sha-256=:"+base64.StdEncoding.EncodeToString(wrongDigest[:])+":")
 							return body, nil
-						case "missing publisher facet":
+						case "changed ARD body", "changed AI Catalog body":
+							sum := sha256.Sum256(body)
+							if response.Header().Get("Content-Digest") != "sha-256=:"+base64.StdEncoding.EncodeToString(sum[:])+":" {
+								return nil, fmt.Errorf("original document bytes disagree with Content-Digest")
+							}
+							label := []byte(smokeFixtures(runID)[0].Name + " " + runID)
+							changed := bytes.Replace(body, label, bytes.ToUpper(label), 1)
+							if bytes.Equal(body, changed) {
+								return nil, fmt.Errorf("original document lacks the expected display name")
+							}
+							return changed, nil
+						case "wrong ARD digest", "wrong AI Catalog digest", "wrong AI Catalog ETag":
+							etag, digest, otherDigest := active.AICatalogETag, active.AIContentDigest, active.ARDContentDigest
+							if tc.name == "wrong ARD digest" {
+								etag, digest, otherDigest = active.ETag, active.ARDContentDigest, active.AIContentDigest
+							}
+							if active.ID == "" || etag == "" || digest == "" || otherDigest == "" || digest == otherDigest || response.Header().Get("ETag") != etag || response.Header().Get("Content-Digest") != digest {
+								return nil, fmt.Errorf("original publication headers do not identify the selected snapshot document")
+							}
+							if tc.name == "wrong AI Catalog ETag" {
+								thirdTag := fmt.Sprintf(`"%x"`, sha256.Sum256([]byte("unrelated publication")))
+								if thirdTag == active.ETag || thirdTag == active.AICatalogETag {
+									return nil, fmt.Errorf("replacement ETag matches a snapshot document")
+								}
+								response.Header().Set("ETag", thirdTag)
+							} else {
+								response.Header().Set("Content-Digest", otherDigest)
+							}
+							return body, nil
+						case "missing publisher facet", "renamed publisher facet", "renamed type facet":
 							var explore publication.ExploreResponse
 							if err := json.Unmarshal(body, &explore); err != nil {
 								return nil, err
@@ -349,7 +387,14 @@ func TestSmokeStopsAfterInvalidSuccessfulResponse(t *testing.T) {
 							if len(explore.Facets) != 2 || len(explore.Facets["type"].Buckets) != 3 || !slices.Equal(explore.Facets["publisher"].Buckets, []publication.ExploreBucket{{Value: domain, Count: 3}}) {
 								return nil, fmt.Errorf("original Explore lacks the expected type/publisher facets: %#v", explore)
 							}
-							delete(explore.Facets, "publisher")
+							field := "publisher"
+							if tc.name == "renamed type facet" {
+								field = "type"
+							}
+							if tc.name != "missing publisher facet" {
+								explore.Facets["category"] = explore.Facets[field]
+							}
+							delete(explore.Facets, field)
 							return json.Marshal(explore)
 						}
 						return nil, fmt.Errorf("unknown response alteration %q", tc.name)
@@ -393,7 +438,7 @@ func TestSmokeStopsAfterInvalidSuccessfulResponse(t *testing.T) {
 					t.Fatalf("successful publisher approval was not retained: %v", err)
 				}
 			}
-			if tc.name == "missing ARD member" || tc.name == "wrong public document digest" || tc.name == "missing publisher facet" {
+			if tc.path == "/ard/v1/explore" || strings.HasPrefix(tc.path, "/.well-known/") || strings.HasPrefix(tc.path, "/public/v1/artifacts/") {
 				stored, err := runtime.Publications["127.0.0.1"].Active(ctx, retainedPublisher.TenantID)
 				if err != nil || retainedSnapshot.ID == "" || stored.ID != retainedSnapshot.ID || stored.ETag != retainedSnapshot.ETag || stored.State != publication.SnapshotActive || !reflect.DeepEqual(stored.ARD, retainedSnapshot.ARD) {
 					t.Fatalf("successful snapshot activation was not retained: %v", err)

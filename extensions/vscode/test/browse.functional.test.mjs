@@ -3,6 +3,7 @@ import { listenFixture } from "../../../test/vscode/listen.mjs";
 import { fixtureWait } from "../../../test/vscode/wait.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { text as readText } from "node:stream/consumers";
 import { createHash } from "node:crypto";
 const { Browser, Session, connections } = await import(
   process.env.CATALOG_VSCODE_LIB
@@ -67,8 +68,7 @@ test("real SDK exchanges preserve partial live evidence, exact indexed identity,
         }),
   });
   const server = createServer(async (req, res) => {
-    let body = "";
-    for await (const chunk of req) body += chunk;
+    const body = await readText(req);
     const url = new URL(req.url, "http://127.0.0.1");
     seen.push({
       path: url.pathname,
@@ -194,6 +194,19 @@ test("real SDK exchanges preserve partial live evidence, exact indexed identity,
     ])[0],
   );
   await session.manual("owned-reader-token");
+  const controlText = "é".repeat(250);
+  for (const method of ["search", "explore"]) {
+    await browser[method]({ text: controlText });
+    const request = seen.at(-1);
+    assert.equal(request.path, "/api/v1/catalog/" + method);
+    const body = JSON.parse(request.body);
+    assert.equal((method === "search" ? body : body.query).text, controlText);
+    const before = seen.length;
+    await assert.rejects(browser[method]({ text: controlText + "a" }), {
+      code: "invalid_query",
+    });
+    assert.equal(seen.length, before);
+  }
   await browser.search({ origin: "indexed" });
   await browser.select(browser.state.page.items[0].key);
   const image = await browser.image(0);
@@ -683,4 +696,191 @@ test("real retained-document reads are lazy, preserve bytes and recheck access b
       ({ authorization }) => authorization === "Bearer owned-document-token",
     ),
   );
+});
+
+async function publishedBrowser(t, handle) {
+  const requests = [];
+  const server = createServer(async (req, res) => {
+    const raw = await readText(req);
+    const request = {
+      path: req.url,
+      method: req.method,
+      body: raw ? JSON.parse(raw) : undefined,
+    };
+    requests.push(request);
+    res.setHeader("content-type", "application/json");
+    if (req.url === "/.well-known/ard.json") {
+      res.end(JSON.stringify({ entries: [] }));
+    } else if (
+      req.method === "POST" &&
+      ["/ard/v1/explore", "/ard/v1/search"].includes(req.url)
+    ) {
+      res.end(JSON.stringify(handle(request, res)));
+    } else {
+      res.writeHead(404);
+      res.end("{}");
+    }
+  });
+  await listenFixture(server);
+  t.after(() => {
+    server.closeAllConnections();
+    return new Promise((done) => server.close(done));
+  });
+  const session = new Session(
+    {
+      get: async () => undefined,
+      store: async () => {},
+      delete: async () => {},
+    },
+    "owned-host",
+    async () => ({ fetch, close: async () => {} }),
+  );
+  const browser = new Browser(
+    session,
+    { get: () => undefined, update: async () => {} },
+    "owned-host",
+  );
+  t.after(async () => {
+    browser.dispose();
+    await session.dispose();
+  });
+  await session.select(
+    connections([
+      {
+        id: "published",
+        label: "Published",
+        origin: `http://127.0.0.1:${server.address().port}`,
+        allowLoopbackHTTP: true,
+        mode: "published",
+        auth: "anonymous",
+      },
+    ])[0],
+  );
+  return {
+    browser,
+    requests,
+    publicationRequests: () =>
+      requests.filter((r) => r.path !== "/.well-known/ard.json"),
+  };
+}
+
+test("published Search and Explore transmit the full Unicode text at the ARD limit", async (t) => {
+  const { browser, requests, publicationRequests } = await publishedBrowser(
+    t,
+    ({ path }) =>
+      path === "/ard/v1/search"
+        ? { results: [] }
+        : { resultType: "facets", facets: {} },
+  );
+  const text = "é🙂".repeat(250);
+  for (const method of ["search", "explore"]) {
+    await browser[method]({ text });
+    const sent = publicationRequests().at(-1);
+    assert.equal(sent.path, "/ard/v1/" + method);
+    assert.equal(sent.body.query.text, text);
+    const before = requests.length;
+    await assert.rejects(browser[method]({ text: text + "a" }), {
+      code: "invalid_query",
+    });
+    assert.equal(requests.length, before);
+  }
+  assert.equal(publicationRequests().length, 2);
+});
+
+test("published Explore counts the filtered local entries with blank search text", async (t) => {
+  const entries = [{ tag: "tools" }, { tag: "research" }];
+  const { browser, publicationRequests } = await publishedBrowser(
+    t,
+    ({ body }) => {
+      const tag = body.query.filter?.tags;
+      const count = entries.filter((e) => !tag || e.tag === tag).length;
+      return {
+        resultType: "facets",
+        facets: { publisher: { buckets: [{ value: "owned.example", count }] } },
+      };
+    },
+  );
+  for (const [text, tag, count] of [
+    ["", "", 2],
+    ["", "tools", 1],
+    ["   ", "research", 1],
+    ["\u0085", "tools", 1],
+  ]) {
+    const facets = await browser.explore({ text, tag, federation: "auto" });
+    assert.deepEqual(
+      facets[0].buckets.map(({ value, count }) => [value, count]),
+      [["owned.example", count]],
+    );
+    const body = publicationRequests().at(-1).body;
+    assert.deepEqual(Object.keys(body).sort(), ["query", "resultType"]);
+    assert.deepEqual(
+      body.query,
+      tag ? { text, filter: { tags: tag } } : { text },
+    );
+    assert.ok(
+      body.resultType.facets.some((facet) => facet.field === "publisher"),
+    );
+  }
+  assert.deepEqual(
+    publicationRequests().map(({ method, path }) => [method, path]),
+    Array(4).fill(["POST", "/ard/v1/explore"]),
+  );
+});
+
+test("published Search retries the same POST continuation once on request and clears it after the last page", async (t) => {
+  const token = "next+/=%/b";
+  const first = "urn:air:owned.example:team:first",
+    last = "urn:air:owned.example:team:last";
+  const entry = (identifier) => ({
+    identifier,
+    type: "application/mcp-server-card+json",
+    url: "https://owned.invalid/card",
+  });
+  let unavailable = true;
+  const { browser, requests, publicationRequests } = await publishedBrowser(
+    t,
+    ({ body }, res) => {
+      if (!body.pageToken) return { results: [entry(first)], pageToken: token };
+      if (unavailable) {
+        res.statusCode = 503;
+        return {};
+      }
+      return { results: [entry(last)] };
+    },
+  );
+  const input = {
+    text: "tools",
+    tag: "research",
+    limit: 1,
+    federation: "none",
+  };
+  const ids = (page) => page.items.map((item) => item.identifier);
+  assert.deepEqual(ids(await browser.search(input)), [first]);
+  assert.equal(browser.state.canNext, true);
+  await assert.rejects(browser.search(input, true), {
+    code: "service_unavailable",
+  });
+  assert.equal(browser.state.page, undefined);
+  assert.equal(browser.state.canNext, true);
+  assert.equal(publicationRequests().length, 2);
+  unavailable = false;
+  assert.deepEqual(ids(await browser.search(input, true)), [last]);
+  assert.equal(browser.state.canNext, false);
+  const base = {
+    query: { text: "tools", filter: { tags: "research" } },
+    pageSize: 1,
+    federation: "none",
+  };
+  const expected = [
+    base,
+    { ...base, pageToken: token },
+    { ...base, pageToken: token },
+  ];
+  assert.deepEqual(
+    publicationRequests(),
+    expected.map((body) => ({ method: "POST", path: "/ard/v1/search", body })),
+  );
+  const before = requests.length;
+  await assert.rejects(browser.search(input, true), { code: "no_next_page" });
+  assert.equal(requests.length, before);
 });

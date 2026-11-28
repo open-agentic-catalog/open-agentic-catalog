@@ -100,6 +100,27 @@ func TestSmokeTargetAndArgumentsFailClosed(t *testing.T) {
 	}
 }
 
+func TestSmokePublicationHeadersRequireSnapshotValidators(t *testing.T) {
+	sum := sha256.Sum256([]byte("published document"))
+	etag := `"` + hex.EncodeToString(sum[:]) + `"`
+	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sum[:]) + ":"
+	header := http.Header{}
+	header.Set("ETag", etag)
+	header.Set("Content-Digest", digest)
+	if !smokePublicationHeadersMatch(header, etag, digest) {
+		t.Fatal("matching publication validators were refused")
+	}
+	header.Del("ETag")
+	if smokePublicationHeadersMatch(header, "", digest) {
+		t.Fatal("absent ETags were treated as a match")
+	}
+	header.Set("ETag", etag)
+	header.Del("Content-Digest")
+	if smokePublicationHeadersMatch(header, etag, "") {
+		t.Fatal("absent digests were treated as a match")
+	}
+}
+
 func TestSmokeResponseAndRunHelpers(t *testing.T) {
 	runID, err := newSmokeRunID()
 	if err != nil || !strings.HasPrefix(runID, "smoke-") || len(runID) != len("smoke-")+10 {

@@ -138,8 +138,8 @@ func runArgsServing(arguments []string, serve func(*http.Server) error) (compone
 			}
 		}
 		componentError = drainComponents(shutdownContext, errorsChannel, remainingComponents, componentError)
-		if operationsServer != nil && !operationsExited {
-			componentError = drainOperations(shutdownContext, operationsServer.Shutdown, operationsErrors, componentError)
+		if operationsServer != nil {
+			componentError = drainOperations(shutdownContext, operationsServer.Shutdown, operationsErrors, operationsExited, componentError)
 			if shutdownContext.Err() != nil {
 				_ = operationsServer.Close()
 			}
@@ -255,33 +255,49 @@ func waitForComponentExit(ctx context.Context, stop context.CancelFunc, logger *
 
 // drainOperations shuts down the worker listener within the shared budget and
 // retains both shutdown and listener-completion failures alongside earlier errors.
-func drainOperations(ctx context.Context, shutdown func(context.Context) error, results <-chan error, componentError error) error {
+func drainOperations(ctx context.Context, shutdown func(context.Context) error, results <-chan error, listenerExited bool, componentError error) error {
 	if err := shutdown(ctx); err != nil {
 		componentError = errors.Join(componentError, fmt.Errorf("shut down worker operations server: %w", err))
 	}
-	select {
-	case err := <-results:
-		componentError = errors.Join(componentError, err)
-	case <-ctx.Done():
-		componentError = errors.Join(componentError, fmt.Errorf("drain worker operations server: %w", ctx.Err()))
+	// Serve can fail with active requests. Drain those requests above even
+	// when the first-exit waiter already consumed the listener's only result.
+	if listenerExited {
+		return componentError
 	}
-	return componentError
+	err, completed := nextDrainResult(ctx, results)
+	if !completed {
+		err = fmt.Errorf("drain worker operations server: %w", ctx.Err())
+	}
+	return errors.Join(componentError, err)
 }
 
 // drainComponents collects exactly the outstanding completions within the shared
 // shutdown budget, retaining the original failure and every observed later cause.
 func drainComponents(ctx context.Context, results <-chan error, remaining int, componentError error) error {
-	for remaining > 0 {
-		select {
-		case err := <-results:
-			remaining--
-			componentError = errors.Join(componentError, err)
-		case <-ctx.Done():
-			componentError = errors.Join(componentError, fmt.Errorf("drain service components: %w", ctx.Err()))
-			remaining = 0
+	for range remaining {
+		err, completed := nextDrainResult(ctx, results)
+		if !completed {
+			return errors.Join(componentError, fmt.Errorf("drain service components: %w", ctx.Err()))
 		}
+		componentError = errors.Join(componentError, err)
 	}
 	return componentError
+}
+
+// A preceding drain phase can exhaust the deadline after a sibling reported
+// its result. Give an available completion precedence without extending the wait.
+func nextDrainResult(ctx context.Context, results <-chan error) (error, bool) {
+	select {
+	case err := <-results:
+		return err, true
+	case <-ctx.Done():
+		select {
+		case err := <-results:
+			return err, true
+		default:
+			return nil, false
+		}
+	}
 }
 
 // serveHTTP treats coordinated server closure as success and propagates other

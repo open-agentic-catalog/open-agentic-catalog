@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -113,7 +114,8 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 		t.Fatal("receiver pool")
 	}
 	defer pool.Close()
-	s := &postgresStore{pool: pool, capacity: 8, retention: time.Minute}
+	const fixtureCapacity = 11
+	s := &postgresStore{pool: pool, capacity: fixtureCapacity, retention: time.Minute}
 	var invokes atomic.Int32
 	mcpServer := mcp.NewServer(&mcp.Implementation{Name: "owned-runtime", Version: "1"}, nil)
 	mcpServer.AddTool(&mcp.Tool{Name: "sum", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}}}, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -148,6 +150,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	(*current.VersionRevision.Representations[0].Data)["remotes"] = []any{map[string]any{"type": "streamable-http", "url": entry.Endpoint}}
 	status := 200
 	listed := false
+	browseUnavailable := false
 	api := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -161,6 +164,11 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 		case "/api/v1/webhooks/reconciliation":
 			_, _ = io.WriteString(w, `{"pendingEvents":0,"pendingEventLimit":1000,"capacityLossCount":0,"deliveryLossCount":0}`)
 		case "/api/v1/catalog/resources":
+			if browseUnavailable {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = io.WriteString(w, `{"title":"Unavailable","status":503}`)
+				return
+			}
 			if r.URL.Query().Get("namespaceId") != namespace || r.URL.Query().Get("kind") != "mcp_server" || r.URL.Query().Get("limit") != "32" {
 				t.Error("unbounded Catalog traversal")
 			}
@@ -170,12 +178,12 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 				page.Total = 1
 			}
 			_ = json.NewEncoder(w).Encode(page)
-		case "/api/v1/catalog/resources/" + release:
+		case "/api/v1/catalog/resources/" + current.Release.Id.String():
 			w.WriteHeader(status)
 			if status == 200 {
 				_ = json.NewEncoder(w).Encode(current)
 			} else {
-				_, _ = io.WriteString(w, `{"status":403}`)
+				_ = json.NewEncoder(w).Encode(map[string]int{"status": status})
 			}
 		default:
 			http.NotFound(w, r)
@@ -206,7 +214,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 			t.Fatal("double mode")
 		}
 	}
-	base := []string{"--origin", api.URL, "--tenant", tenant, "--config-file", configFile, "--database-file", dsnFile, "--token-file", apiToken, "--catalog-ca-file", caFile, "--scanner-python", python, "--scanner-runner", script, "--reports-dir", filepath.Join(dir, "reports"), "--capacity", "8", "--retention", "1m"}
+	base := []string{"--origin", api.URL, "--tenant", tenant, "--config-file", configFile, "--database-file", dsnFile, "--token-file", apiToken, "--catalog-ca-file", caFile, "--scanner-python", python, "--scanner-runner", script, "--reports-dir", filepath.Join(dir, "reports"), "--capacity", strconv.Itoa(fixtureCapacity), "--retention", "1m"}
 	command := func(action string, extra ...string) ([]byte, error) {
 		args := append([]string{action}, base...)
 		args = append(args, extra...)
@@ -255,7 +263,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if !errors.Is(s.Accept(ctx, other, time.Now()), errFull) {
 		t.Fatal("capacity not enforced")
 	}
-	s.capacity = 8
+	s.capacity = fixtureCapacity
 	for range 2 {
 		if _, err = command("process"); err != nil {
 			t.Fatal("accepted work did not scan")
@@ -265,12 +273,16 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if pool.QueryRow(ctx, `SELECT count(*) FROM mcp_receiver_inbox WHERE completed_at IS NULL`).Scan(&pending) != nil || pending != 0 {
 		t.Fatal("receipt not completed")
 	}
-	var observationJSON []byte
-	if pool.QueryRow(ctx, `SELECT document FROM mcp_receiver_observations WHERE resource_id=$1`, resource).Scan(&observationJSON) != nil {
-		t.Fatal("missing report")
+	readObservation := func() observation {
+		t.Helper()
+		var current observation
+		if err := pool.QueryRow(ctx, `SELECT document FROM mcp_receiver_observations WHERE resource_id=$1`, resource).Scan(&current); err != nil {
+			t.Fatal("read saved observation", err)
+		}
+		return current
 	}
-	var observed observation
-	if json.Unmarshal(observationJSON, &observed) != nil || observed.State != "eligible_at_check" || observed.Catalog.ReleaseID != release {
+	observed := readObservation()
+	if observed.State != "eligible_at_check" || observed.Catalog == nil || observed.Catalog.ReleaseID != release {
 		t.Fatal("incorrect saved binding")
 	}
 	beforeContacts := contacts.Load()
@@ -298,11 +310,8 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if string(calls) != "1" {
 		t.Fatal("unchanged capture reran scanner")
 	}
-	if pool.QueryRow(ctx, `SELECT document FROM mcp_receiver_observations WHERE resource_id=$1`, resource).Scan(&observationJSON) != nil {
-		t.Fatal("missing reused observation")
-	}
-	_ = json.Unmarshal(observationJSON, &observed)
-	if !observed.AnalysisReused || observed.Trigger.Source != reconciliationSource {
+	observed = readObservation()
+	if !observed.AnalysisReused || observed.Trigger == nil || observed.Trigger.Source != reconciliationSource {
 		t.Fatal("reconciliation did not bind reused analysis")
 	}
 	// A later draft changes mutable pointers, not the selected release evidence.
@@ -317,10 +326,10 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 		t.Fatal("draft changed selected release")
 	}
 	// Store completion must roll back a report when receipt ownership changes.
-	if pool.QueryRow(ctx, `SELECT document FROM mcp_receiver_observations WHERE resource_id=$1`, resource).Scan(&observationJSON) != nil {
+	var priorObservation, observationJSON []byte
+	if pool.QueryRow(ctx, `SELECT document FROM mcp_receiver_observations WHERE resource_id=$1`, resource).Scan(&priorObservation) != nil {
 		t.Fatal("rollback baseline unavailable")
 	}
-	priorObservation := append([]byte(nil), observationJSON...)
 	w := &work{Event: other}
 	rawReport := reportFixture(captureFixture(), testIdentity)
 	o := &observation{ResourceID: resource, State: "failed", CheckedAt: fixed, ScanKey: strings.Repeat("1", 64)}
@@ -400,8 +409,6 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	mu.Lock()
 	listed = false
 	mu.Unlock()
-	setMode("hold")
-	_ = os.Remove(filepath.Join(dir, "started"))
 	// Change scanner identity to ensure this attempt cannot reuse the earlier scan.
 	changed := testIdentity
 	changed.ImageID = "sha256:" + strings.Repeat("d", 64)
@@ -409,9 +416,62 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if os.WriteFile(filepath.Join(dir, "identity.json"), identityRaw, 0600) != nil {
 		t.Fatal("changed double identity")
 	}
+	selectedScan := func(wantCount int, wantImage string) (string, []byte) {
+		t.Helper()
+		var key string
+		var raw []byte
+		var count int
+		if err := pool.QueryRow(ctx, `SELECT s.scan_key,s.report,(SELECT count(*) FROM mcp_receiver_scans)
+			FROM mcp_receiver_scans s JOIN mcp_receiver_observations o USING (scan_key) WHERE o.resource_id=$1`, resource).Scan(&key, &raw, &count); err != nil {
+			t.Fatal("read retained scan", err)
+		}
+		var report struct {
+			Scanner scannerIdentity `json:"scanner"`
+		}
+		if err := json.Unmarshal(raw, &report); err != nil || count != wantCount || report.Scanner.ImageID != wantImage {
+			t.Fatalf("expected %d retained scans with selected image %q, got %d and %q (decode error %v)", wantCount, wantImage, count, report.Scanner.ImageID, err)
+		}
+		return key, raw
+	}
+	checkCompleted := func(id, wantOutcome string) {
+		t.Helper()
+		var completed bool
+		var outcome string
+		if err := pool.QueryRow(ctx, `SELECT completed_at IS NOT NULL,outcome FROM mcp_receiver_inbox WHERE source=$1 AND id=$2`, e.Source, id).Scan(&completed, &outcome); err != nil || !completed || outcome != wantOutcome {
+			t.Fatalf("receipt completion=%t outcome=%q err=%v", completed, outcome, err)
+		}
+	}
+	previousKey, previousScan := selectedScan(1, testIdentity.ImageID)
+	atCapacity := e
+	atCapacity.ID = uuid.NewString()
+	if err := s.Accept(ctx, atCapacity, time.Now()); err != nil {
+		t.Fatal("admit distinct receipt before limiting report storage", err)
+	}
+	if _, err := command("process", "--capacity", "1"); err != nil {
+		t.Fatal("record terminal report-capacity outcome", err)
+	}
+	checkCompleted(atCapacity.ID, "receiver_report_capacity")
+	protectedKey, protectedScan := selectedScan(1, testIdentity.ImageID)
+	if protectedKey != previousKey || !bytes.Equal(protectedScan, previousScan) {
+		t.Fatal("full storage replaced the selected report")
+	}
+	capacityObservation := readObservation()
+	if capacityObservation.State != "failed" || capacityObservation.Failure != "receiver_report_capacity" || capacityObservation.Trigger == nil || *capacityObservation.Trigger != atCapacity || capacityObservation.AttemptedReleaseID != release {
+		t.Fatal("capacity failure did not identify the new attempt")
+	}
+	if capacityObservation.Scanner == nil || capacityObservation.Scanner.ImageID != testIdentity.ImageID {
+		t.Fatal("capacity failure changed the previous scan identity")
+	}
+	capacityFile, err := privateFile(filepath.Join(dir, "reports", resource+".json"), reportLimit)
+	var renderedFailure observation
+	if err != nil || json.Unmarshal(capacityFile, &renderedFailure) != nil || renderedFailure.Failure != "receiver_report_capacity" || renderedFailure.ScanDigest != sha(previousScan) {
+		t.Fatal("rendered capacity failure did not retain the previous scan digest")
+	}
+	// A fresh signed receipt uses the ordinary capacity and survives a restart.
+	setMode("hold")
+	_ = os.Remove(filepath.Join(dir, "started"))
 	origin := start()
-	signed := eventBytes("listing.release.published")
-	signed = bytes.Replace(signed, []byte(`"id":"`+eventID+`"`), []byte(`"id":"`+namespace+`"`), 1)
+	signed := eventBytesFor("listing.release.published", namespace, release)
 	headers := signatureAt(signed, 1, secret, time.Now())
 	request, _ := http.NewRequestWithContext(ctx, http.MethodPost, origin+"/webhook", bytes.NewReader(signed))
 	request.Header = headers
@@ -450,12 +510,14 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if pending != 0 {
 		t.Fatal("restart did not finish pending work")
 	}
-	if pool.QueryRow(ctx, `SELECT document FROM mcp_receiver_observations WHERE resource_id=$1`, resource).Scan(&observationJSON) != nil {
-		t.Fatal("restart report missing")
-	}
-	_ = json.Unmarshal(observationJSON, &observed)
-	if observed.State != "eligible_at_check" || observed.Scanner.ImageID != changed.ImageID || observed.Trigger.ID != namespace {
+	observed = readObservation()
+	if observed.State != "eligible_at_check" || observed.Scanner == nil || observed.Scanner.ImageID != changed.ImageID || observed.Trigger == nil || observed.Trigger.ID != namespace {
 		t.Fatal("restart completed without the expected report")
+	}
+	checkCompleted(namespace, "")
+	newKey, newScan := selectedScan(2, changed.ImageID)
+	if newKey == previousKey || bytes.Equal(newScan, previousScan) {
+		t.Fatal("restored capacity did not commit the distinct scan for the new receipt")
 	}
 	for _, mode := range []string{"mismatch", "failed", "normal"} {
 		setMode(mode)
@@ -471,9 +533,7 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 		if _, err = command("process"); err != nil {
 			t.Fatal("failure-control processing")
 		}
-		if pool.QueryRow(ctx, `SELECT document FROM mcp_receiver_observations WHERE resource_id=$1`, resource).Scan(&observationJSON) != nil || json.Unmarshal(observationJSON, &observed) != nil {
-			t.Fatal("failure-control observation")
-		}
+		observed = readObservation()
 		if mode == "normal" {
 			if observed.State != "eligible_at_check" || observed.AnalysisReused {
 				t.Fatal("failed report shadowed successful retry")
@@ -482,14 +542,135 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 			t.Fatal("scanner failure claimed completed analysis")
 		}
 	}
-	rendered, err := privateFile(filepath.Join(dir, "reports", resource+".json"), reportLimit)
-	if err != nil || json.Unmarshal(rendered, &observed) != nil || observed.ScanFile != resource+"-scan.json" {
-		t.Fatal("rendered observation binding")
+	readRendered := func() (observation, []byte) {
+		t.Helper()
+		rendered, err := privateFile(filepath.Join(dir, "reports", resource+".json"), reportLimit)
+		var observed observation
+		if err != nil || json.Unmarshal(rendered, &observed) != nil || observed.ScanFile != resource+"-scan.json" {
+			t.Fatal("rendered observation binding")
+		}
+		native, err := privateFile(filepath.Join(dir, "reports", observed.ScanFile), reportLimit)
+		if err != nil || sha(native) != observed.ScanDigest {
+			t.Fatal("rendered scan checksum")
+		}
+		return observed, native
 	}
-	native, err := privateFile(filepath.Join(dir, "reports", observed.ScanFile), reportLimit)
-	if err != nil || sha(native) != observed.ScanDigest {
-		t.Fatal("rendered scan checksum")
+	readRendered()
+	acceptSigned := func(t *testing.T, action, id, target string) {
+		t.Helper()
+		event := eventBytesFor(action, id, target)
+		request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/webhook", bytes.NewReader(event))
+		request.Header = signatureAt(event, 1, secret, time.Now())
+		reply := httptest.NewRecorder()
+		app := application{store: s, tenant: tenant, signerFile: signerFile, slots: make(chan struct{}, 1), now: time.Now}
+		app.ServeHTTP(reply, request)
+		if reply.Code != http.StatusNoContent {
+			t.Fatalf("signed %s returned HTTP %d", action, reply.Code)
+		}
 	}
+	t.Run("endpoint test leaves release observations unchanged", func(t *testing.T) {
+		before := fixtureJSON(readObservation())
+		probeID := uuid.NewString()
+		acceptSigned(t, "webhook.test", probeID, release)
+		if _, err := command("process"); err != nil {
+			t.Fatal(err)
+		}
+		checkCompleted(probeID, "test_accepted")
+		if !bytes.Equal(before, fixtureJSON(readObservation())) {
+			t.Fatal("endpoint test changed the release observation with the same target ID")
+		}
+	})
+	t.Run("pending reconciliation follows complete Catalog selection", func(t *testing.T) {
+		run := func(action string) {
+			t.Helper()
+			if raw, err := command(action); err != nil {
+				t.Fatalf("%s: %v %s", action, err, raw)
+			}
+		}
+		mu.Lock()
+		listed = true
+		mu.Unlock()
+		run("reconcile")
+		old, err := s.Next(ctx, time.Now())
+		if err != nil || old.Event.Source != reconciliationSource || old.Event.TargetID != release || old.Attempts != 0 {
+			t.Fatal("original reconciliation work", old, err)
+		}
+		due := time.Now().Add(time.Hour).Truncate(time.Microsecond)
+		if err := s.Retry(ctx, old, due, "catalog_unavailable"); err != nil {
+			t.Fatal(err)
+		}
+		run("reconcile")
+		mu.Lock()
+		browseUnavailable = true
+		mu.Unlock()
+		if _, err := command("reconcile"); err == nil {
+			t.Fatal("unavailable traversal accepted")
+		}
+		var failure string
+		if err := pool.QueryRow(ctx, "SELECT reconciliation_failure FROM mcp_receiver_settings WHERE singleton").Scan(&failure); err != nil || failure != "catalog_browse_failed" {
+			t.Fatal("failed traversal did not record the browse refusal", failure, err)
+		}
+		if _, err := s.Next(ctx, due.Add(-time.Microsecond)); !errors.Is(err, errEmpty) {
+			t.Fatal("unchanged or failed reconciliation reset the retry delay", err)
+		}
+		if w, err := s.Next(ctx, due); err != nil || w.Event != old.Event || w.Attempts != 1 {
+			t.Fatal("unchanged or failed reconciliation lost the pending retry", w, err)
+		}
+
+		replacement := uuid.New()
+		mu.Lock()
+		browseUnavailable = false
+		current.Release.Id, current.Listing.CurrentReleaseId = replacement, &replacement
+		mu.Unlock()
+		run("reconcile")
+		if err := s.Retry(ctx, old, due, "catalog_unavailable"); err == nil || err.Error() != "pending_receipt_changed" {
+			t.Fatal("old retry changed replacement work", err)
+		}
+		if err := s.Finish(ctx, old, nil, nil, time.Now(), "catalog_record_unavailable"); err == nil || err.Error() != "pending_receipt_changed" {
+			t.Fatal("old completion changed replacement work", err)
+		}
+		if w, err := s.Next(ctx, time.Now()); err != nil || w.Event.TargetID != replacement.String() || w.Attempts != 0 {
+			t.Fatal("new release did not receive a fresh attempt", w, err)
+		}
+		run("process")
+		saved := readObservation()
+		exported, scan := readRendered()
+		for _, got := range []observation{saved, exported} {
+			if got.State != "eligible_at_check" || got.Catalog == nil || got.Catalog.ReleaseID != replacement.String() || got.Trigger == nil || got.Trigger.Source != reconciliationSource || got.Trigger.TargetID != replacement.String() {
+				t.Fatal("processing selected the wrong release", got.State, got.Trigger)
+			}
+		}
+
+		run("reconcile")
+		// Accept a signed notification with the same id as the synthetic slot.
+		// Only the synthetic work belongs to the subsequent absent selection.
+		acceptSigned(t, "listing.release.published", resource, replacement.String())
+		mu.Lock()
+		listed, status = false, http.StatusNotFound
+		mu.Unlock()
+		run("reconcile")
+		if w, err := s.Next(ctx, time.Now()); err != nil || w.Event.Source != e.Source || w.Event.ID != resource {
+			t.Fatal("absent selection should leave only the signed notification", w, err)
+		}
+		before := contacts.Load()
+		run("process")
+		checkCompleted(resource, "catalog_record_unavailable")
+		if contacts.Load() != before {
+			t.Fatal("delayed publication contacted the withdrawn release")
+		}
+		if _, err := s.Next(ctx, due); !errors.Is(err, errEmpty) {
+			t.Fatal("obsolete work remained after disappearance", err)
+		}
+		absent, retained := readRendered()
+		if final := readObservation(); final.State != "not_listed" || final.ScanKey != saved.ScanKey || absent.State != "not_listed" || absent.ScanDigest != exported.ScanDigest || !bytes.Equal(retained, scan) {
+			t.Fatal("absent selection lost its state or original scan")
+		}
+	})
+	mu.Lock()
+	status = http.StatusOK
+	originalRelease := uuid.MustParse(release)
+	current.Release.Id, current.Listing.CurrentReleaseId = originalRelease, &originalRelease
+	mu.Unlock()
 	// A successful metadata read with no tools remains an explicit skipped scan.
 	mcpServer.RemoveTools("sum")
 	empty := e
@@ -500,7 +681,8 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if _, err = command("process"); err != nil {
 		t.Fatal("empty-capture processing")
 	}
-	if pool.QueryRow(ctx, `SELECT document FROM mcp_receiver_observations WHERE resource_id=$1`, resource).Scan(&observationJSON) != nil || json.Unmarshal(observationJSON, &observed) != nil || observed.State != "skipped" || observed.Trigger.ID != empty.ID {
+	observed = readObservation()
+	if observed.State != "skipped" || observed.Trigger == nil || observed.Trigger.ID != empty.ID {
 		t.Fatal("empty capture did not retain its skipped outcome")
 	}
 	// Denied and mismatched mappings do not initiate another MCP session.
@@ -519,11 +701,14 @@ func TestReceiverPostgresProcessAndRecovery(t *testing.T) {
 	if contacts.Load() != beforeContacts {
 		t.Fatal("denial contacted MCP")
 	}
+	if denied := readObservation(); denied.State != "historical" || denied.Failure != "catalog_access_denied" {
+		t.Fatalf("revoked access left state %q with failure %q", denied.State, denied.Failure)
+	}
 	mu.Lock()
 	status = 200
 	(*current.VersionRevision.Representations[0].Data)["remotes"] = []any{map[string]any{"type": "streamable-http", "url": "https://127.0.0.1:1/unmapped"}}
 	mu.Unlock()
-	other.ID = resource
+	other.ID = uuid.NewString()
 	if s.Accept(ctx, other, time.Now()) != nil {
 		t.Fatal("mapping event")
 	}

@@ -112,7 +112,7 @@ It supplements the basic/topology gates and the [local protocol/recovery gate](.
 
 ## Three-replica integrity and short-load test
 
-`make test-minikube-replicas` exercises three UI/API/worker replicas against one owned PostgreSQL fixture. The [replica testing guide](../../documentation/src/content/docs/contributing/testing.md#replica-integrity-and-short-load) maintains the commands, prerequisites, integrity assertions, workload, report fields, cleanup and limitations. Use the separate topology scenario for node loss and the browser suites for JavaScript and human login.
+`make test-minikube-replicas` exercises three UI/API/worker replicas against one owned PostgreSQL fixture. Enabling the UI reuses the installed Helm values and checks that each API and worker Pod keeps its UID before login. The workload then deliberately replaces all three roles and checks that disabling the UI preserves the replacement backend Pods. The [replica testing guide](../../documentation/src/content/docs/contributing/testing.md#replica-integrity-and-short-load) maintains the commands, prerequisites, integrity assertions, workload, report fields, cleanup and limitations. Use the separate topology scenario for node loss and the browser suites for JavaScript and human login.
 
 [replica_authority.go](replica_authority.go) adds a direct-API scoped-reader grant/revoke/restore cycle: the same membership and completed Resource command must replay only under current equivalent authority, with one originating mutation audit and unchanged readback. The temporary grant and draft are removed before load. No UI-selected request is used to identify the upstream API process.
 

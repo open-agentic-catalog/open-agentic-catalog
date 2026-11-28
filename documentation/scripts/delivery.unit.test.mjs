@@ -66,28 +66,28 @@ test('Delivery inventories the exact site, PDF and evidence without modifying th
     assert.throws(()=>stageDelivery({...inputs,output:path.join(dir,'changed-build')}),/PDF export does not match/);
     fs.writeFileSync(path.join(input,'index.html'),html);
     fs.writeFileSync(path.join(input,'documentation-bundle.json'),manifest);
-    const copyFile=fs.copyFileSync;
-    const corruptCopy=t.mock.method(fs,'copyFileSync',(source,destination,...options)=>{
-      copyFile(source,destination,...options);
-      if (path.basename(destination)==='catalog-manual.pdf') fs.writeFileSync(destination,'%PDF-'+ '!'.repeat(200));
-    });
-    try {
-      const corruptOutput=path.join(dir,'corrupt-copy');
-      assert.throws(()=>stageDelivery({...inputs,output:corruptOutput}),/PDF changed during staging/);
-      assert.equal(fs.existsSync(corruptOutput),false);
-      assert.equal(fs.readdirSync(dir).some(name=>name.startsWith('corrupt-copy.stage-')),false);
-      assert.equal(sha(fs.readFileSync(pdf)),exportResult.pdfSha256,'The original PDF remains unchanged');
-    } finally {corruptCopy.mock.restore();}
-    const corruptManifest=t.mock.method(fs,'copyFileSync',(source,destination,...options)=>{
-      copyFile(source,destination,...options);
-      if (path.basename(destination)==='documentation-bundle.json') fs.writeFileSync(destination,'{}\n');
-    });
-    try {
-      const corruptOutput=path.join(dir,'corrupt-manifest');
-      assert.throws(()=>stageDelivery({...inputs,output:corruptOutput}),/Manual manifest changed during staging/);
-      assert.equal(fs.existsSync(corruptOutput),false);
-      assert.equal(fs.readdirSync(dir).some(name=>name.startsWith('corrupt-manifest.stage-')),false);
-    } finally {corruptManifest.mock.restore();}
+    const copyFile = fs.copyFileSync;
+    for (const [file, replacement, refusal] of [
+      ['index.html', html.replace('>PDF<', '>TXT<'), /Manual changed during staging/],
+      ['catalog-manual.pdf', '%PDF-' + '!'.repeat(200), /PDF changed during staging/],
+      ['documentation-bundle.json', '{}\n', /Manual manifest changed during staging/],
+    ]) {
+      const corruptOutput = path.join(dir, 'corrupt-' + file);
+      const corruptCopy = t.mock.method(fs, 'copyFileSync', (source, destination, ...options) => {
+        copyFile(source, destination, ...options);
+        if (path.basename(destination) === file) fs.writeFileSync(destination, replacement);
+      });
+      try {
+        assert.throws(() => stageDelivery({...inputs, output: corruptOutput}), refusal);
+        assert.equal(fs.existsSync(corruptOutput), false);
+        assert.equal(fs.readdirSync(dir).some(name => name.startsWith(path.basename(corruptOutput) + '.stage-')), false);
+      } finally { corruptCopy.mock.restore(); }
+    }
+    assert.equal(fs.readFileSync(path.join(input, 'index.html'), 'utf8'), html);
+    assert.equal(fs.readFileSync(path.join(input, 'documentation-bundle.json'), 'utf8'), manifest);
+    assert.equal(sha(fs.readFileSync(pdf)), exportResult.pdfSha256);
+    assert.deepEqual(deliveryInventory(output), result.files);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(output, 'documentation-delivery.json'), 'utf8')), result);
     fs.writeFileSync(pdf,'failed');
     assert.throws(()=>stageDelivery({...inputs,output:path.join(dir,'failed')}),/PDF/);
     assert.equal(fs.existsSync(path.join(dir,'failed')),false);

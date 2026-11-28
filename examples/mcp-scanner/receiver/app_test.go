@@ -7,10 +7,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -79,6 +81,7 @@ type memoryStore struct {
 	reports                                    map[string]json.RawMessage
 	last                                       *observation
 	lastRaw                                    json.RawMessage
+	selection                                  map[string]string
 	code                                       string
 	finished, retried, reconciled, failedRecon int
 	err                                        error
@@ -122,12 +125,14 @@ func (s *memoryStore) Retry(_ context.Context, _ *work, next time.Time, code str
 func (s *memoryStore) Cached(_ context.Context, key string) (json.RawMessage, error) {
 	return s.reports[key], s.err
 }
-func (s *memoryStore) Reconciled(context.Context, []mapping, map[string]string, [2]int64, time.Time) error {
+func (s *memoryStore) Reconciled(_ context.Context, _ []mapping, found map[string]string, _ [2]int64, _ time.Time) error {
 	s.reconciled++
+	s.selection = found
 	return s.err
 }
-func (s *memoryStore) ReconciliationFailed(context.Context, string, time.Time) error {
+func (s *memoryStore) ReconciliationFailed(_ context.Context, code string, _ time.Time) error {
 	s.failedRecon++
+	s.code = code
 	return s.err
 }
 
@@ -136,8 +141,7 @@ type scriptedCatalog struct {
 	status              int
 	calls, browse, loss int
 	after               func(*scriptedCatalog)
-	pageCursor          *string
-	pageNull            bool
+	browsePage          func(*sdk.BrowseCatalogParams, *sdk.CatalogRecordPage)
 	lossValue           int64
 }
 
@@ -154,9 +158,9 @@ func (c *scriptedCatalog) BrowseCatalogWithResponse(_ context.Context, p *sdk.Br
 	if p.NamespaceId == nil || p.NamespaceId.String() != namespace || p.Kind == nil || *p.Kind != "mcp_server" || p.Limit == nil || *p.Limit != 32 {
 		return nil, errors.New("wrong_selection")
 	}
-	page := sdk.CatalogRecordPage{Items: []sdk.CatalogSummary{{Source: "local", Resource: sdk.CatalogResourceSummary{Id: c.record.Resource.Id, NamespaceId: c.record.Resource.NamespaceId, TenantId: c.record.Resource.TenantId, Kind: "mcp_server"}, Release: sdk.CatalogReleaseSummary{Id: c.record.Release.Id}}}, Total: 1, NextCursor: c.pageCursor}
-	if c.pageNull {
-		page.Items = nil
+	page := sdk.CatalogRecordPage{Items: []sdk.CatalogSummary{{Source: "local", Resource: sdk.CatalogResourceSummary{Id: c.record.Resource.Id, NamespaceId: c.record.Resource.NamespaceId, TenantId: c.record.Resource.TenantId, Kind: "mcp_server"}, Release: sdk.CatalogReleaseSummary{Id: c.record.Release.Id}}}, Total: 1}
+	if c.browsePage != nil {
+		c.browsePage(p, &page)
 	}
 	raw := fixtureJSON(page)
 	return &sdk.BrowseCatalogResponse{HTTPResponse: &http.Response{StatusCode: http.StatusOK}, Body: raw, JSON200: &page}, nil
@@ -205,11 +209,15 @@ func fixtureApplication() (*application, *memoryStore, *scriptedCatalog, *fakeCo
 }
 
 func eventBytes(action string) []byte {
+	return eventBytesFor(action, eventID, release)
+}
+
+func eventBytesFor(action, id, target string) []byte {
 	kind := "listing_release"
 	if action == "webhook.test" {
 		kind = "webhook_endpoint"
 	}
-	return fixtureJSON(map[string]any{"specversion": "1.0", "id": eventID, "source": eventSource + tenant, "type": "com.open.agentic.catalog." + action + ".v1", "subject": release, "time": fixed.Format(time.RFC3339), "datacontenttype": "application/json", "dataschema": eventSchema, "data": map[string]any{"action": action, "targetType": kind, "targetId": release, "digest": "sha256:" + strings.Repeat("9", 64)}})
+	return fixtureJSON(map[string]any{"specversion": "1.0", "id": id, "source": eventSource + tenant, "type": "com.open.agentic.catalog." + action + ".v1", "subject": target, "time": fixed.Format(time.RFC3339), "datacontenttype": "application/json", "dataschema": eventSchema, "data": map[string]any{"action": action, "targetType": kind, "targetId": target, "digest": "sha256:" + strings.Repeat("9", 64)}})
 }
 func signature(raw []byte, version int, key string) http.Header {
 	return signatureAt(raw, version, key, fixed)
@@ -394,14 +402,98 @@ func TestReconciliationAlwaysTraversesAndRejectsIncompletePages(t *testing.T) {
 	if c.browse != 3 || c.loss != 3 || s.reconciled != 3 {
 		t.Fatal("unchanged/decreased counters skipped traversal")
 	}
-	c.pageNull = true
-	if a.reconcile(t.Context()) == nil || s.failedRecon != 1 || s.reconciled != 3 {
+	c.browsePage = func(_ *sdk.BrowseCatalogParams, page *sdk.CatalogRecordPage) { page.Items = nil }
+	if err := a.reconcile(t.Context()); errorCode(err) != "invalid_catalog_page" || s.failedRecon != 1 || s.reconciled != 3 {
 		t.Fatal("null page treated as complete absence")
 	}
-	c.pageNull = false
-	cursor := "repeat"
-	c.pageCursor = &cursor
-	if a.reconcile(t.Context()) == nil || s.failedRecon != 2 || s.reconciled != 3 {
-		t.Fatal("repeated page treated as complete")
+	for _, tc := range []struct {
+		name  string
+		total int
+		rows  int
+		next  *string
+	}{
+		{name: "missing continuation", total: 1},
+		{name: "unexpected continuation", total: 1, rows: 1, next: new("next")},
+		{name: "continuation without a last row", total: 1, next: new("next")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			failedBefore, browsedBefore := s.failedRecon, c.browse
+			c.browsePage = func(p *sdk.BrowseCatalogParams, page *sdk.CatalogRecordPage) {
+				if p.Cursor != nil {
+					page.Items, page.Total = []sdk.CatalogSummary{}, 0
+					return
+				}
+				page.Items, page.Total, page.NextCursor = page.Items[:tc.rows], tc.total, tc.next
+			}
+			err := a.reconcile(t.Context())
+			if errorCode(err) != "invalid_catalog_page" || s.code != "invalid_catalog_page" || c.browse != browsedBefore+1 || s.failedRecon != failedBefore+1 || s.reconciled != 3 || !maps.Equal(s.selection, map[string]string{resource: release}) {
+				t.Fatal("inconsistent first page lost prior membership or fetched a continuation", err, s.selection)
+			}
+		})
+	}
+	c.browsePage = func(_ *sdk.BrowseCatalogParams, page *sdk.CatalogRecordPage) {
+		page.Items, page.Total = []sdk.CatalogSummary{}, 0
+	}
+	if err := a.reconcile(t.Context()); err != nil || s.reconciled != 4 || len(s.selection) != 0 {
+		t.Fatal("complete empty traversal did not update membership", err, s.selection)
+	}
+}
+
+func TestReconciliationCommitsOnlyTheCompletePageSelection(t *testing.T) {
+	a, s, c, _, _ := fixtureApplication()
+	var requests []string
+	repeat := false
+	cursor := "next"
+	c.browsePage = func(p *sdk.BrowseCatalogParams, page *sdk.CatalogRecordPage) {
+		page.Total = 2
+		if p.Cursor == nil {
+			requests = append(requests, "")
+			page.Items[0].Resource.Id = uuid.MustParse("00000000-0000-4000-8000-000000000012")
+			page.NextCursor = &cursor
+			return
+		}
+		requests = append(requests, *p.Cursor)
+		if len(requests) > 2 {
+			t.Fatalf("unexpected continuation requests: %q", requests)
+		}
+		if repeat {
+			page.NextCursor = &cursor
+			page.Items[0].Release.Id = uuid.MustParse("00000000-0000-4000-8000-000000000014")
+		}
+	}
+	want := map[string]string{resource: release}
+	if err := a.reconcile(t.Context()); err != nil || !slices.Equal(requests, []string{"", cursor}) || !maps.Equal(s.selection, want) || s.reconciled != 1 {
+		t.Fatalf("complete traversal: requests=%q selection=%v err=%v", requests, s.selection, err)
+	}
+	requests = nil
+	repeat = true
+	if err := a.reconcile(t.Context()); errorCode(err) != "invalid_catalog_cursor" || s.code != "invalid_catalog_cursor" || s.failedRecon != 1 || s.reconciled != 1 || !maps.Equal(s.selection, want) || !slices.Equal(requests, []string{"", cursor}) {
+		t.Fatalf("repeated cursor: requests=%q selection=%v failures=%d err=%v", requests, s.selection, s.failedRecon, err)
+	}
+}
+
+func TestProcessorLosingOwnershipAfterAssessmentLeavesReceiptPending(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		status, reads, scans int
+	}{
+		{"completed scan", http.StatusOK, 2, 1},
+		{"transient read failure", http.StatusServiceUnavailable, 1, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, s, c, _, scanner := fixtureApplication()
+			pending := *s.pending
+			c.status = tc.status
+			a.guard = func(context.Context) error {
+				if c.calls > 0 {
+					return errors.New("processor lease lost during assessment")
+				}
+				return nil
+			}
+			err := a.process(t.Context())
+			if errorCode(err) != "processor_lock_lost" || c.calls != tc.reads || scanner.scans != tc.scans || s.pending == nil || *s.pending != pending || s.finished != 0 || s.retried != 0 {
+				t.Fatalf("reads=%d scans=%d completions=%d retries=%d err=%v", c.calls, scanner.scans, s.finished, s.retried, err)
+			}
+		})
 	}
 }

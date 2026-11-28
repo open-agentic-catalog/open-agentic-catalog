@@ -31,8 +31,20 @@ func (s trustSourceAvailability) GetSource(ctx context.Context, tenant, id strin
 	return s.Store.GetSource(ctx, tenant, id)
 }
 
+type trustProgressStore struct {
+	jobs.Store
+	unavailable bool
+}
+
+func (s *trustProgressStore) Heartbeat(ctx context.Context, tenant, id, owner string, now time.Time, lease time.Duration, progress int) (jobs.Job, error) {
+	if s.unavailable {
+		return jobs.Job{}, catalog.E(catalog.CodeDependencyUnavailable, "injected progress write failure")
+	}
+	return s.Store.Heartbeat(ctx, tenant, id, owner, now, lease, progress)
+}
+
 func TestTrustWorkerRetainsPrivateEvidenceAndAudit(t *testing.T) {
-	for _, scenario := range []string{"valid", "signature", "unsupported framework", "credential current", "credential rotated", "credential rotated during evidence", "outage recovery", "outage exhausted", "source dependency", "source changed", "cancelled", "cancel during evidence", "lease lost"} {
+	for _, scenario := range []string{"valid", "signature", "unsupported framework", "credential current", "credential rotated", "credential rotated during evidence", "outage recovery", "outage exhausted", "source dependency", "progress write failure", "source changed", "cancelled", "cancel during evidence", "lease lost"} {
 		t.Run(scenario, func(t *testing.T) {
 			c, b, now := trustRuntimeFixture(t)
 			if scenario == "unsupported framework" {
@@ -94,7 +106,8 @@ func TestTrustWorkerRetainsPrivateEvidenceAndAudit(t *testing.T) {
 				t.Fatal(marshalErr)
 			}
 			job := jobs.Job{ID: "00000000-0000-7000-8000-000000000011", TenantID: source.TenantID, Kind: jobs.TrustKind, PayloadVersion: 1, Payload: payload, Actor: "00000000-0000-7000-8000-000000000012", State: jobs.StateQueued, AttemptLimit: 2, DeduplicationKey: "owned", NotBefore: now, CreatedAt: now, UpdatedAt: now}
-			store := memoryTrustJobs{Store: jobs.NewMemoryStore(repository), sources: sources}
+			progressStore := &trustProgressStore{Store: jobs.NewMemoryStore(repository), unavailable: scenario == "progress write failure"}
+			store := memoryTrustJobs{Store: progressStore, sources: sources}
 			if _, _, err = store.Enqueue(t.Context(), job); err != nil {
 				t.Fatal(err)
 			}
@@ -143,7 +156,7 @@ func TestTrustWorkerRetainsPrivateEvidenceAndAudit(t *testing.T) {
 			if err != nil {
 				t.Fatalf("worker=%+v err=%v", retained, err)
 			}
-			if scenario == "outage recovery" || scenario == "outage exhausted" || scenario == "source dependency" {
+			if scenario == "outage recovery" || scenario == "outage exhausted" || scenario == "source dependency" || scenario == "progress write failure" {
 				if retained.State != jobs.StateWaiting || len(retained.Result) != 0 || retained.Attempt != 1 {
 					t.Fatalf("transient outage did not retain same Job: %+v", retained)
 				}
@@ -155,6 +168,16 @@ func TestTrustWorkerRetainsPrivateEvidenceAndAudit(t *testing.T) {
 						t.Fatal("source-store outage was not retryable or contacted evidence")
 					}
 					available = true
+				}
+				if scenario == "progress write failure" {
+					if script.calls != 0 || retained.Progress != 0 {
+						t.Fatalf("assessment started after progress write failed: evidence requests=%d progress=%d", script.calls, retained.Progress)
+					}
+					records, err := repository.AuditEvents(t.Context(), job.TenantID, catalog.AuditEventListRequest{Filters: audit.Query{Action: audit.ActionSourceTrustCompleted}, Limit: 1})
+					if err != nil || len(records) != 0 {
+						t.Fatalf("completion audit before recovery: count=%d err=%v", len(records), err)
+					}
+					progressStore.unavailable = false
 				}
 				clk.Advance(retained.NotBefore.Sub(clk.Now()) + time.Millisecond)
 				if err = worker.RunOnce(t.Context()); err != nil {
@@ -198,6 +221,9 @@ func TestTrustWorkerRetainsPrivateEvidenceAndAudit(t *testing.T) {
 			}
 			if retained.State != jobs.StateSucceeded {
 				t.Fatalf("assessment failed: %+v", retained)
+			}
+			if scenario == "progress write failure" && (retained.Attempt != 2 || script.calls != 3) {
+				t.Fatalf("progress recovery: attempt=%d evidence requests=%d", retained.Attempt, script.calls)
 			}
 			var result jobs.TrustAssessment
 			if json.Unmarshal(retained.Result, &result) != nil || result.Assessment.CurrentRegistration != (scenario != "signature" && scenario != "unsupported framework") || !bytes.Equal(result.Evidence.Entry, b.Entry) {

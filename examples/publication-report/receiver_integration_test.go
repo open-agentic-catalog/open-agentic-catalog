@@ -664,6 +664,38 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 		}
 		checkRendered(v)
 	}
+	// Fail the counter write after the new observation was written in the same transaction.
+	beforeCommit := readSaved()
+	setAPI(200, activePage(8))
+	setLoss(200, `{"pendingEvents":0,"pendingEventLimit":1000,"capacityLossCount":3,"deliveryLossCount":9}`)
+	if _, err := pool.Exec(ctx, `CREATE FUNCTION reject_loss_write() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN RAISE EXCEPTION 'injected counter write failure'; END $$;
+		CREATE TRIGGER reject_loss BEFORE UPDATE OF capacity_loss,delivery_loss ON publication_receiver_report
+		FOR EACH ROW EXECUTE FUNCTION reject_loss_write()`); err != nil {
+		t.Fatal(err)
+	}
+	commitOutput, commitErr := runCommand("reconcile")
+	var exit *exec.ExitError
+	if !errors.As(commitErr, &exit) || exit.ExitCode() != 1 || strings.TrimSpace(string(commitOutput)) != "report_commit_failed" {
+		t.Fatalf("expected report_commit_failed and exit 1, got %q, %v", commitOutput, commitErr)
+	}
+	if !reflect.DeepEqual(readSaved(), beforeCommit) {
+		t.Fatal("failed transaction changed the previous observation or attempt")
+	}
+	checkRawLoss(2, 7, lossPrior.LossObservedAt)
+	checkRendered(beforeCommit)
+	if _, err := pool.Exec(ctx, `DROP TRIGGER reject_loss ON publication_receiver_report; DROP FUNCTION reject_loss_write()`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runCommand("reconcile"); err != nil {
+		t.Fatal("reconciliation did not recover after removing the write fault", err)
+	}
+	recovered := readSaved()
+	if recovered.LastSuccessful == nil || recovered.LastSuccessful.Active == nil || recovered.LastSuccessful.Active.Generation != 8 || recovered.CapacityLoss != 3 || recovered.DeliveryLoss != 9 || recovered.RefreshFailure != "" {
+		t.Fatal("reconciliation did not commit the new observation and counters together")
+	}
+	checkRawLoss(3, 9, recovered.LossObservedAt)
+	checkRendered(recovered)
 	// Persistence succeeds before file rendering. Repairing the file destination
 	// must require only a read-only render, not another observation or API call.
 	setAPI(200, activePage(7))

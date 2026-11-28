@@ -16,10 +16,17 @@ STAGES = ("base-backup", "baseline", "target-capture", "later-changes", "missing
 
 
 def missing_wal_failure(log, segment):
-    """A normal archive miss after success is not an unreachable recovery target."""
-    return (isinstance(log, bytes) and isinstance(segment, str) and WAL.fullmatch(segment) is not None
-            and segment.encode() in log and b"No such file or directory" in log
-            and b"FATAL" in log and b"recovery ended before configured recovery target was reached" in log)
+    """Match the fixture's failed archive copy, then the unreachable-target fatal."""
+    if not isinstance(log, bytes) or not isinstance(segment, str) or not WAL.fullmatch(segment):
+        return False
+    missing = f"cp: cannot stat '/archive/{segment}': No such file or directory".encode()
+    lines = iter(log.splitlines())
+    # Membership consumes the iterator through the exact failed copy.
+    if missing not in lines:
+        return False
+    # stderr records can carry PostgreSQL's default timestamp and backend PID.
+    fatal = rb"(?:[\d-]+ [\d:.]+ \S+ \[\d+\] )?FATAL:[ \t]+recovery ended before configured recovery target was reached"
+    return any(re.fullmatch(fatal, line) for line in lines)
 
 
 def valid_evidence(value):

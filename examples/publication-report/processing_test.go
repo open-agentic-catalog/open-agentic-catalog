@@ -105,7 +105,7 @@ func TestProcessingFailureBoundaries(t *testing.T) {
 					if tc.snapshotErr != nil {
 						return nil, tc.snapshotErr
 					}
-					return snapshotReply(t, activePage(8), "application/json", 200), nil
+					return snapshotReply(t, activePage(8), "application/json"), nil
 				},
 				loss: func(context.Context) (*sdk.GetWebhookReconciliationResponse, error) {
 					record("loss")

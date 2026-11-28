@@ -417,6 +417,63 @@ exports.run = async () => {
   }
 };
 
+async function checkPublishedSearchAndExplore(web, api) {
+  const input = (field, value) =>
+    web.evaluate(
+      `{ const input = document.getElementById(${JSON.stringify(field)}); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event("input", { bubbles: true })); }`,
+    );
+  const search = 'document.getElementById("search-submit")',
+    explore = 'document.getElementById("explore")';
+  const unicode = "🙂".repeat(499) + "é";
+  // 501 code points fit in this input's 1,000 UTF-16 units. Exercise the
+  // editor's text input and the form's error recovery at the actual boundary.
+  const text = 'document.getElementById("text")';
+  await web.evaluate(`${text}.scrollIntoView({block:"center"})`);
+  await web.click(text);
+  await web.until(`document.activeElement === ${text}`);
+  await web.insertText(unicode + "a");
+  await web.until(
+    `${text}.getAttribute("aria-invalid") === "true" && ${search}.disabled && ${explore}.disabled`,
+  );
+  await web.evaluate(`${text}.select()`);
+  await web.insertText(unicode);
+  await web.until(`!${search}.disabled && !${explore}.disabled`);
+  await web.evaluate(`${search}.click()`);
+  await web.until(
+    'document.querySelector(".guidance [role=status]")?.textContent.includes("0 results on this page") && !document.getElementById("read-error")',
+  );
+  assert.equal(api.browsing().query.text, unicode);
+  await input("text", "");
+  await web.evaluate(
+    'if (!document.getElementById("advanced").open) document.querySelector("#advanced summary").click()',
+  );
+  const bucket =
+    '[...document.querySelectorAll("#facets button")].some(b => b.textContent === "owned: 4")';
+  for (const tag of ["owned", "absent-tag"]) {
+    await input("tag", tag);
+    if (tag === "owned") {
+      await input("text", "\ufeff");
+      await web.until(`!${search}.disabled && !${explore}.disabled`);
+      await input("text", "\u0085");
+      await web.until(`${search}.disabled && !${explore}.disabled`);
+      await input("text", "");
+    }
+    await web.until(`${search}.disabled && !${explore}.disabled`);
+    await web.evaluate(`${explore}.click()`);
+    const current = `document.querySelector("#facets p")?.textContent.includes(${JSON.stringify('"tag":' + JSON.stringify(tag))})`;
+    const buckets =
+      tag === "owned" ? bucket : '!document.querySelector("#facets button")';
+    await web.until(
+      `${current} && ${buckets} && !document.getElementById("read-error")`,
+    );
+    const state = api.browsing();
+    assert.equal(state.facetQuery.tag, tag);
+    if (tag === "absent-tag")
+      assert.ok(state.facets.every((facet) => facet.buckets.length === 0));
+  }
+  await input("tag", "");
+}
+
 async function switchBookmarkedRelease(api, item, controlLabel) {
   await api.reopen(0);
   await vscode.commands.executeCommand("openAgenticCatalog.open");
@@ -445,6 +502,7 @@ async function switchBookmarkedRelease(api, item, controlLabel) {
       await web.until(
         'document.getElementById("catalog-account-state")?.textContent.includes("published-real · Published ARD") && !document.querySelector(".detail, article, #saved-references")',
       );
+      await checkPublishedSearchAndExplore(web, api);
       await web.evaluate(
         '{ const kind = document.getElementById("kind"); kind.value = "agent"; kind.dispatchEvent(new Event("input", { bubbles: true })); }',
       );

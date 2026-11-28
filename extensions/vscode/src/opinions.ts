@@ -127,7 +127,10 @@ export class Opinions {
     check();
     const value = this.opinion(family, decodeJSON(response.text())),
       etag = response.headers.get("etag");
-    if (!etag || !/^"rev-[1-9][0-9]*"$/u.test(etag))
+    if (
+      String(value.id).toLowerCase() !== id.toLowerCase() ||
+      etag !== `"rev-${value.revision}"`
+    )
       throw new ClientError("invalid_response");
     return { value, etag };
   }

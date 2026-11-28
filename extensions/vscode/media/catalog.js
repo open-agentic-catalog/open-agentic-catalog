@@ -194,9 +194,13 @@
     });
     return input;
   }
+  function blankText(value) {
+    return /^\p{White_Space}*$/u.test(value);
+  }
   function constraints() {
     for (const n of root.querySelectorAll(".field-error, .field-hint"))
       n.remove();
+    const published = state.mode === "published";
     let invalid = false;
     function issue(name, text) {
       const input = document.getElementById(name);
@@ -228,16 +232,16 @@
       agentProtocol: 256,
     })) {
       const v = String(draft[name]);
+      const byteLimit = name === "publisher" || (name === "text" && !published);
       if (
         [...v].length > max ||
         v.includes("\0") ||
         /[\uD800-\uDFFF]/u.test(v) ||
-        (["text", "publisher"].includes(name) &&
-          new TextEncoder().encode(v).length > max)
+        (byteLimit && new TextEncoder().encode(v).length > max)
       )
         issue(
           name,
-          `Use at most ${max} ${["text", "publisher"].includes(name) ? "UTF-8 bytes" : "characters"}; NUL and malformed Unicode are not allowed.`,
+          `Use at most ${max} ${byteLimit ? "UTF-8 bytes" : "Unicode code points"}; NUL and malformed Unicode are not allowed.`,
         );
     }
     if (
@@ -248,8 +252,7 @@
     const local =
         (draft.origins ?? [draft.origin]).length === 1 &&
         (draft.origins ?? [draft.origin])[0] === "local",
-      published = state.mode === "published",
-      list = published && !draft.text.trim();
+      list = published && blankText(draft.text);
     for (const name of ["namespace"]) {
       const n = document.getElementById(name);
       if (n) n.disabled = !state.canBrowse || !local;
@@ -264,14 +267,14 @@
         "origin",
         "Declared protocol and tool filters require Local governed releases. Clear those filters before choosing another origin.",
       );
-    if (draft.agentProtocol && /^\p{White_Space}*$/u.test(draft.agentProtocol))
+    if (draft.agentProtocol && blankText(draft.agentProtocol))
       issue(
         "agentProtocol",
         "Enter an exact protocol containing text, or clear this filter.",
       );
     if (
       draft.includeMcpTools &&
-      (/^\p{White_Space}*$/u.test(draft.text) ||
+      (blankText(draft.text) ||
         draft.agentProtocol ||
         (draft.kinds?.length
           ? draft.kinds
@@ -284,17 +287,12 @@
         "includeMcpTools",
         "Enter search text and select All kinds or MCP Server. Clear the Agent protocol filter. This selection searches local MCP Servers only.",
       );
-    if (
+    const searchNeedsText =
       list &&
       (draft.tag ||
         draft.license ||
         draft.category ||
-        draft.federation !== "none")
-    )
-      issue(
-        "text",
-        "published_search_needs_text: Enter search text for tag, license, category or federated search, or Clear filters to use List.",
-      );
+        draft.federation !== "none");
     if (!local && document.getElementById("origin")) {
       const hint = el(
         "span",
@@ -303,11 +301,29 @@
       );
       hint.className = "field-hint";
     }
-    for (const name of ["license", "category"])
-      if (draft[name] && !draft[name].trim())
+    const filtersRequiringText = published
+      ? ["license", "category", "tag", "publisher"]
+      : ["license", "category"];
+    for (const name of filtersRequiringText)
+      if (draft[name] && blankText(draft[name]))
         issue(name, "Enter a value containing text, or clear this filter.");
     const submit = document.querySelector("button[type=submit]");
-    if (submit) submit.disabled = state.busy || !state.canBrowse || invalid;
+    if (submit) {
+      submit.disabled =
+        state.busy || !state.canBrowse || invalid || Boolean(searchNeedsText);
+      if (searchNeedsText) {
+        const hint = el(
+          "span",
+          "Enter text to search with these filters, or use Explore to count matching local entries.",
+          document.getElementById("text").parentElement,
+        );
+        hint.className = "field-hint";
+        hint.id = "search-text-hint";
+        submit.setAttribute("aria-describedby", hint.id);
+      } else {
+        submit.removeAttribute("aria-describedby");
+      }
+    }
     const explore = document.getElementById("explore");
     if (explore) {
       explore.disabled = state.busy || !state.canBrowse || !local || invalid;
@@ -536,7 +552,7 @@
       );
       el(
         "p",
-        "Empty searches use ARD List: kind and publisher only. Enter search text for tags, license or categories. Explore counts the local publication, never global peer totals.",
+        "With empty text, Search lists entries by kind or publisher. Explore can also count entries by tag, license or category with empty text. Counts cover the local publication.",
         advanced,
       );
     }

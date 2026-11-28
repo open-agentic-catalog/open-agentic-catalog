@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/audit"
@@ -523,4 +524,32 @@ func TestTrustAcquisitionClassificationAndFinalTime(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTrustVerificationDeadlineAfterEvidenceAcquisition(t *testing.T) {
+	c, evidence, verificationTime := trustRuntimeFixture(t)
+	script := &trustScript{bundle: evidence, digest: c.Federation.PolicyDigest}
+	v, err := newTrustVerifier(c, script, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	synctest.Test(t, func(t *testing.T) {
+		ctx := identity.WithActor(t.Context(), identity.Actor{TenantID: "00000000-0000-7000-8000-000000000001"})
+		p := jobs.TrustPayload{PolicyName: "owned", Entry: evidence.Entry}
+		bundle, result, err := v.Assess(ctx, p, func(context.Context) error { return nil }, func() time.Time {
+			// All evidence has arrived. Expire the attempt before its final signature check.
+			time.Sleep(c.TrustVerification.Timeout.Duration + time.Nanosecond)
+			return verificationTime
+		})
+		if len(bundle.StatusToken) == 0 || !bytes.Equal(bundle.StatusToken, evidence.StatusToken) {
+			t.Fatal("deadline test did not reach final verification with complete evidence")
+		}
+		var failure *jobs.HandlerError
+		if !errors.As(err, &failure) || failure.Class != jobs.FailureTransientUpstream || !errors.Is(failure.Cause, context.DeadlineExceeded) {
+			t.Fatalf("expected retryable verification deadline, got %v", err)
+		}
+		if result.CurrentRegistration || result.Receipt.State != "not_assessed" || result.Status.State != "not_assessed" {
+			t.Fatalf("expired attempt returned a completed assessment: %+v", result)
+		}
+	})
 }

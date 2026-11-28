@@ -94,7 +94,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 7 \
 
 This certificate covers only local connections. For a receiver reachable from containers or another machine, use the actual receiver hostname and an appropriate certificate. Configure Catalog-side routing and trust separately.
 
-The Catalog API origin is independent of the publication host. Use an API origin such as `https://catalog.example.test:8080`, not the UI origin. The host selects one configured publication, such as `catalog.example.test`.
+The Catalog API origin is independent of the publication host. Use an API origin such as `https://catalog.example.test:8080`, not the UI origin. For `--host`, copy the exact lowercase DNS name or canonical IP address from the Catalog's discovery host configuration, without a port. For example, use `catalog.example.test`, `127.0.0.1` or `::1`.
 
 ## Grant API access
 
@@ -176,7 +176,7 @@ This example accepts one tenant and publication host. Other-host notifications r
 
 The report contains `lastSuccessfulObservation`, `lastAttemptAt` and any `refreshFailure`. A successful observation includes its time, tenant, host and `active` summary. `active: null` means a complete successful read found no active publication.
 
-The processor requests at most two active summaries for the exact host. It rejects a second active row or any continuation. It rejects duplicate keys, unknown fields and wrongly cased field names in these closed Control API responses. It validates the consumed tenant, host, state, identifiers, generation, audience, ETag and creation time. It does not download snapshot documents or follow resource URLs.
+The processor requests at most two active summaries for the exact host. It rejects a second active row or any continuation. It rejects duplicate keys, unknown fields and wrongly cased field names in these closed Control API responses. It validates the consumed tenant, host, state, identifiers, generation, audience, ETag and creation time. Both profile names must contain 1-128 Unicode code points. Unfamiliar names are accepted. It does not download snapshot documents or follow resource URLs.
 
 A denied, unavailable, malformed or timed-out read preserves the previous successful observation. The processor records the refresh failure separately. An old activation or withdrawal event therefore refreshes current state without reversing newer publication. Rollback can legitimately report a lower generation.
 

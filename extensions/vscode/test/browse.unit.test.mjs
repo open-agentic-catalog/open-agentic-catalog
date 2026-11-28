@@ -928,6 +928,50 @@ test("a changed verified account invalidates private document guards as well as 
   await assert.rejects(f.session.test(), /sign_in_required/u);
   assert.equal(f.calls.length, calls, "old credentials cannot be sent again");
 });
+test("published browse routes whitespace to List and preserves searchable Unicode text", () => {
+  const blank = " \u0085\t";
+  assert.equal(
+    requestFor(query({ text: blank }, true), true).path,
+    "/ard/v1/agents?pageSize=20",
+  );
+  assert.throws(() => query({ text: blank, tag: "tools" }, true), {
+    code: "published_search_needs_text",
+  });
+  const input = query({ text: "\ufeff", tag: "tools" }, true);
+  const request = requestFor(input, true);
+  assert.equal(request.path, "/ard/v1/search");
+  assert.deepEqual(request.body.query, {
+    text: "\ufeff",
+    filter: { tags: "tools" },
+  });
+});
+
+test("discovery filter values use the Catalog's whitespace rules", () => {
+  for (const published of [true, false]) {
+    const fields = published
+      ? ["license", "category", "tag", "publisher"]
+      : ["license", "category"];
+    for (const field of fields) {
+      assert.throws(
+        () => query({ text: "tool", [field]: "\u0085" }, published),
+        {
+          code: "invalid_query",
+        },
+      );
+      assert.equal(
+        query({ text: "tool", [field]: "\ufeff" }, published)[field],
+        "\ufeff",
+      );
+    }
+  }
+  assert.throws(() => query({ categories: ["\u0085"] }, false), {
+    code: "invalid_query",
+  });
+  assert.deepEqual(query({ categories: ["\ufeff"] }, false).categories, [
+    "\ufeff",
+  ]);
+});
+
 test("endpoint allowlists preserve local origins, public List and exact declared media families", () => {
   assert.match(
     requestFor(query({}, false), false).path,

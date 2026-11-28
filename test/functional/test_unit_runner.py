@@ -682,15 +682,16 @@ class RunnerTests(unittest.TestCase):
         with mock.patch.object(runner, "read_document", return_value=good):
             families = runner.inventory()
             self.assertEqual(len(families), 59)
-            relationships = next(item for item in families if item["id"] == "release-relationships")
-            self.assertEqual(relationships["surfaceCount"], 1)
-            self.assertEqual(relationships["disposition"], "compose")
-            self.assertEqual(relationships["steps"], ["extended-core"])
+            for identifier in ("release-relationships", "validation-maintenance"):
+                family = next(item for item in families if item["id"] == identifier)
+                self.assertEqual(family["surfaceCount"], 1)
+                self.assertEqual(family["inventoryStatus"], "covered")
+                self.assertEqual(family["disposition"], "compose")
+                self.assertEqual(family["steps"], ["extended-core"])
             for identifier, count in (
                 ("publisher-domain-verification", 5),
                 ("catalog-content-overview", 14),
                 ("service-activity", 1),
-                ("validation-maintenance", 1),
                 ("ard-publication-mcp", 7),
             ):
                 family = next(item for item in families if item["id"] == identifier)

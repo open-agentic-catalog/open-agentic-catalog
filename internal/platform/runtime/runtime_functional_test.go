@@ -6,6 +6,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/federation"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/observability"
@@ -328,4 +329,54 @@ func TestPublisherVerificationWiringByRuntimeRole(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPublicationJobAdmissionUsesTenantHost(t *testing.T) {
+	cfg := localRuntimeConfig()
+	first := cfg.Discovery.Hosts[0]
+	second := config.DiscoveryHost{Host: "second.example.com", PublisherDomain: "second.example.com", Mode: first.Mode, TenantID: "00000000-0000-7000-8000-000000000002"}
+	cfg.Discovery.Hosts = append(cfg.Discovery.Hosts, second)
+	runtime, err := Build(t.Context(), BuildOptions{Role: config.RoleWorker, ConfigPath: writeRuntimeConfig(t, cfg), Logger: slog.New(slog.DiscardHandler)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runtime.Close()
+	publisher := func(tenantID string) context.Context {
+		return identityfixture.WithActor(t.Context(), identity.Actor{TenantID: tenantID, Subject: "publisher", MembershipID: "00000000-0000-7000-8000-000000000010", RealmID: "00000000-0000-7000-8000-000000000011", ActorType: identity.ActorHuman, Roles: []identity.Role{identity.RolePublisher, identity.RoleReader}})
+	}
+	enqueue := func(ctx context.Context, host, key string) (jobs.Job, bool, error) {
+		payload, err := json.Marshal(struct {
+			Host string `json:"host,omitempty"`
+		}{host})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return runtime.Jobs.Enqueue(ctx, jobs.EnqueueInput{Kind: "publication.generate", Payload: payload, DeduplicationKey: key})
+	}
+	checkFresh := func(ctx context.Context, host config.DiscoveryHost, key string) string {
+		t.Helper()
+		job, reused, err := enqueue(ctx, host.Host, key)
+		if err != nil || reused || !identity.ValidTenantID(job.ID) {
+			t.Fatalf("own host did not create a fresh Job: reused=%t, err=%v", reused, err)
+		}
+		view, err := runtime.Jobs.Get(ctx, job.ID)
+		if err != nil || view.ID != job.ID || view.TenantID != host.TenantID || view.State != jobs.StateQueued {
+			t.Fatalf("own Job readback = %+v, %v", view, err)
+		}
+		return job.ID
+	}
+	ctx := publisher(first.TenantID)
+	for _, tc := range []struct{ key, host string }{{"foreign", second.Host}, {"unknown", "missing.example.com"}, {"ambiguous", ""}} {
+		job, reused, err := enqueue(ctx, tc.host, tc.key)
+		var refusal *catalog.DomainError
+		if !errors.As(err, &refusal) || refusal.Code != catalog.CodeNotFound || refusal.Message != "configured Job host was not found" || job.ID != "" || reused {
+			t.Fatalf("%s admission exposed or accepted its target: %v, %v", tc.key, job.ID, err)
+		}
+		id := checkFresh(ctx, first, tc.key)
+		replay, reused, err := enqueue(ctx, first.Host, tc.key)
+		if err != nil || !reused || replay.ID != id {
+			t.Fatalf("%s valid repeat returned %v, reused=%t, err=%v", tc.key, replay.ID, reused, err)
+		}
+	}
+	checkFresh(publisher(second.TenantID), second, "foreign")
 }

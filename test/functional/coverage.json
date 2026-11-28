@@ -1121,6 +1121,9 @@
           "path": "test/functional/core.py"
         },
         {
+          "path": "test/functional/peers.py"
+        },
+        {
           "path": "test/functional/operators.py"
         },
         {
@@ -2159,6 +2162,10 @@
           "symbol": "TestScopedDirectoryHTTPPagesAndRevocation"
         },
         {
+          "path": "internal/platform/database/feedback_http_integration_test.go",
+          "symbol": "TestPostgresFeedbackTwoAPIReplayConcurrencyAndOffboarding"
+        },
+        {
           "path": "internal/platform/database/overview_integration_test.go",
           "symbol": "TestPostgresOverviewLocalCeilingAndIndependentReleasePopulation"
         },
@@ -2263,12 +2270,15 @@
     },
     {
       "id": "validation-maintenance",
-      "disposition": "lower-level-only",
+      "disposition": "compose",
       "status": "covered",
       "surfaces": [
         "http:listValidationMaintenance"
       ],
       "evidence": [
+        {
+          "path": "test/functional/core.py"
+        },
         {
           "path": "internal/platform/httpserver/validation_maintenance_functional_test.go",
           "symbol": "TestHTTPValidationMaintenanceExplicitRenewalAndPrivateScope"
@@ -2286,7 +2296,7 @@
           "symbol": "TestPostgresValidationMaintenanceBindingSelectionLimit"
         }
       ],
-      "reason": "A current-revision metadata inventory reuses existing evidence policy and explicit validation, with no automatic fetch or renewal.",
+      "reason": "The packaged archive journey reads blocked evidence as the Version and Listing candidates change. Focused HTTP and PostgreSQL tests cover permissions, expiry and paging.",
       "success": "Find exact current evidence before SQL limits, deduplicate current references, preserve fixed observation time and inspect/renew through the existing command.",
       "rejection": "Independent permission intersections, tenant boundaries, invalid filters/horizons, stale authorization and substituted continuation refuse. Selected integrity failures disclose no partial page.",
       "recovery": "Explicit first-page refresh rereads the moving population; exact renewal replay retains one evidence run and unchanged content.",

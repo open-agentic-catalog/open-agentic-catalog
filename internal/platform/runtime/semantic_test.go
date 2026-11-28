@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
@@ -21,6 +22,7 @@ import (
 type semanticMaintenanceFixture struct {
 	t             *testing.T
 	configuration config.Semantic
+	initiallyIdle bool
 	steps         []string
 	fail          string
 	err           error
@@ -58,6 +60,10 @@ func (f *semanticMaintenanceFixture) Due(ctx context.Context, profile string, di
 	if limit != 16 || dimensions != f.configuration.Dimensions {
 		f.t.Fatal("admission selection bounds changed")
 	}
+	if f.initiallyIdle {
+		f.initiallyIdle = false
+		return nil, f.step(ctx, "due")
+	}
 	return []catalog.SemanticGeneration{
 		{TenantID: strings.ToLower(excluded[0])},
 		{TenantID: "invalid"},
@@ -91,17 +97,23 @@ func (f *semanticMaintenanceFixture) New(now time.Time) (string, error) {
 	return "00000000-0000-7000-8000-000000000002", f.step(context.Background(), "id")
 }
 
+func newSemanticMaintenanceFixture(t *testing.T) (*semanticMaintainer, *semanticMaintenanceFixture) {
+	t.Helper()
+	cfg := config.SemanticDefaults()
+	cfg.Enabled, cfg.Dimensions = true, 384
+	cfg.Model, cfg.ProfileRevision = "fixture", "v1"
+	cfg.ExcludedTenants = []string{"AAAAAAAA-0000-7000-8000-000000000001"}
+	f := &semanticMaintenanceFixture{t: t, configuration: cfg}
+	return &semanticMaintainer{store: f, configuration: cfg, maxAttempts: 7, clock: f, ids: f}, f
+}
+
 // TestSemanticMaintenance stops at the first failure, forwards policy to every
 // store boundary, and drains after an immediate bounded pass without a sleep.
 func TestSemanticMaintenance(t *testing.T) {
 	for _, failure := range []string{"", "cleanup", "due", "id", "admit", "drain"} {
 		t.Run(failure, func(t *testing.T) {
-			configuration := config.SemanticDefaults()
-			configuration.Enabled, configuration.Dimensions = true, 384
-			configuration.Model, configuration.ProfileRevision = "fixture", "v1"
-			configuration.ExcludedTenants = []string{"AAAAAAAA-0000-7000-8000-000000000001"}
-			f := &semanticMaintenanceFixture{t: t, configuration: configuration, fail: failure, err: errors.New("fixture failure")}
-			s := &semanticMaintainer{store: f, configuration: configuration, maxAttempts: 7, clock: f, ids: f}
+			s, f := newSemanticMaintenanceFixture(t)
+			f.fail, f.err = failure, errors.New("fixture failure")
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			var err error
@@ -133,6 +145,20 @@ func TestSemanticMaintenance(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSemanticMaintainerPicksUpWorkAfterIdlePass(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s, f := newSemanticMaintenanceFixture(t)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+		defer cancel()
+		f.initiallyIdle, f.cancel = true, cancel // Drain when the second pass submits work.
+		started := time.Now()
+		err := s.Run(ctx)
+		if !errors.Is(err, context.Canceled) || time.Since(started) == 0 || !reflect.DeepEqual(f.steps, []string{"cleanup", "due", "cleanup", "due", "id", "admit"}) {
+			t.Fatalf("work after idle pass: elapsed=%s steps=%v err=%v", time.Since(started), f.steps, err)
+		}
+	})
 }
 
 // semanticJobStore exercises coordinator policy with an empty population or one

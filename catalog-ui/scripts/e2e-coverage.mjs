@@ -256,7 +256,11 @@ async function readBrowserCoverage(
       !record.documents.some(
         (document) =>
           document?.build === manifest.build &&
-          Object.keys(document.coverage ?? {}).length > 0,
+          Object.values(document.coverage ?? {}).some((file) =>
+            Object.values(file?.s ?? {}).some(
+              (hits) => Number.isSafeInteger(hits) && hits > 0,
+            ),
+          ),
       )
     )
       throw new Error("Missing context application contribution");

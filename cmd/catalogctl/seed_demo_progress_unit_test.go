@@ -146,6 +146,70 @@ func TestDemoJournalCurrentStateReadback(t *testing.T) {
 	}
 }
 
+func TestDemoJournalRefusedRecoveryKeepsPendingActivation(t *testing.T) {
+	t.Parallel()
+	const host = "127.0.0.1"
+	const base = "http://127.0.0.1:8080"
+	const origin = "https://archives.example"
+	const etag = `"snapshot-active"`
+	id := demoTestUUID(4405)
+	path := "/api/v1/publication/snapshots/" + id
+	body := map[string]string{"host": host}
+	step := demoStep{
+		Path: path + ":activate", Key: "activate", Actor: "local-publisher",
+		ETag: `"snapshot-candidate"`, Status: http.StatusOK, Body: json.RawMessage(demoUnitJSON(t, body)),
+	}
+	file := filepath.Join(t.TempDir(), "receipt.progress")
+	p := &demoProgress{Dataset: expandedDemoID, BaseURL: base, Origin: origin, Steps: []demoStep{step}, path: file}
+	if err := p.save(); err != nil {
+		t.Fatal(err)
+	}
+	before := bytes.Clone(p.diskBytes)
+	gets := 0
+	c := &smokeHTTPClient{baseURL: base, client: &http.Client{Transport: catalogctlRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method != http.MethodGet || r.URL.RequestURI() != path+"?host="+host || r.Header.Get("Authorization") != "Bearer local-admin" {
+			t.Fatalf("unexpected request during recovery: %s %s", r.Method, r.URL.RequestURI())
+		}
+		gets++
+		audience := "anonymous"
+		if gets == 1 {
+			audience = "authenticated"
+		}
+		reply := demoUnitJSON(t, map[string]string{"id": id, "host": host, "tenantId": demoTenant, "state": "active", "audience": audience})
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Etag": {etag}}, Body: io.NopCloser(strings.NewReader(reply))}, nil
+	})}}
+	run := func(p *demoProgress) error {
+		_, err := p.command(t.Context(), c, step.Path, step.Actor, step.Key, step.ETag, body, step.Status)
+		return err
+	}
+	if err := run(p); err == nil || err.Error() != "seed-demo: command response does not match fixed fixture input" {
+		t.Fatalf("unexpected result for wrong audience: %v", err)
+	}
+	load := func() *demoProgress {
+		t.Helper()
+		saved, exists, err := readDemoProgress(file, base, origin)
+		if err != nil || !exists || len(saved.Steps) != 1 {
+			t.Fatalf("reload activation progress: %v", err)
+		}
+		return saved
+	}
+	pending := load()
+	if gets != 1 || p.index != 0 || len(p.Steps[0].Response) != 0 || p.Steps[0].ResponseETag != "" || !bytes.Equal(pending.diskBytes, before) {
+		t.Fatal("refused recovery changed pending activation")
+	}
+	if err := run(pending); err != nil || gets != 2 || pending.index != 1 {
+		t.Fatalf("reopening did not recover the original command: reads=%d index=%d err=%v", gets, pending.index, err)
+	}
+	ack := load().Steps[0]
+	var snapshot struct {
+		ID       string `json:"id"`
+		Audience string `json:"audience"`
+	}
+	if json.Unmarshal(ack.Response, &snapshot) != nil || snapshot.ID != id || snapshot.Audience != "anonymous" || ack.ResponseETag != etag {
+		t.Fatal("persisted acknowledgement differs from the recovered snapshot")
+	}
+}
+
 func TestDemoJournalCurrentStateUsesLatestResponseAndRejectsInvalidOperations(t *testing.T) {
 	t.Parallel()
 	id := demoTestUUID(4500)
@@ -240,7 +304,7 @@ func TestDemoJournalIntentSavedBeforeRequest(t *testing.T) {
 func TestDemoReconciliationUsesCurrentExactInput(t *testing.T) {
 	step := demoJournalUnitStep(t)
 	step.Response = nil
-	for _, fault := range []string{"valid", "absent", "ambiguous", "drift"} {
+	for _, fault := range []string{"valid", "absent", "ambiguous", "drift", "different inventory ID", "different acknowledgement ID"} {
 		t.Run(fault, func(t *testing.T) {
 			ids := []string{demoTestUUID(1000)}
 			if fault == "absent" {
@@ -249,6 +313,7 @@ func TestDemoReconciliationUsesCurrentExactInput(t *testing.T) {
 			if fault == "ambiguous" {
 				ids = append(ids, demoTestUUID(1001))
 			}
+			detailReads := 0
 			c := &smokeHTTPClient{baseURL: "http://127.0.0.1:8080", safeErrors: true, client: &http.Client{Transport: catalogctlRoundTripFunc(func(r *http.Request) (*http.Response, error) {
 				if r.Method != http.MethodGet {
 					t.Fatal("reconciliation wrote")
@@ -261,7 +326,12 @@ func TestDemoReconciliationUsesCurrentExactInput(t *testing.T) {
 					}
 					value = map[string]any{"items": items}
 				} else {
-					value = map[string]any{"id": strings.TrimPrefix(r.URL.Path, "/api/v1/namespaces/"), "slug": demoID, "displayName": "Catalog demo", "tenantId": demoTenant, "revision": 1}
+					id := strings.TrimPrefix(r.URL.Path, "/api/v1/namespaces/")
+					detailReads++
+					if (fault == "different inventory ID" && detailReads == 1) || (fault == "different acknowledgement ID" && detailReads == 2) {
+						id = demoTestUUID(2001)
+					}
+					value = map[string]any{"id": id, "slug": demoID, "displayName": "Catalog demo", "tenantId": demoTenant, "revision": 1}
 					if fault == "drift" {
 						object, ok := value.(map[string]any)
 						if !ok {
@@ -286,8 +356,12 @@ func TestDemoReconciliationUsesCurrentExactInput(t *testing.T) {
 				if err != nil || found {
 					t.Fatal(err)
 				}
+			case "different inventory ID", "different acknowledgement ID":
+				if err == nil || err.Error() != "seed-demo: record ID differs from inventory" || found {
+					t.Fatalf("wrong record ID accepted or misclassified: found=%t err=%v", found, err)
+				}
 			default:
-				if err == nil {
+				if err == nil || found {
 					t.Fatal("uncertain outcome silently adopted")
 				}
 			}

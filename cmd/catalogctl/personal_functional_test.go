@@ -9,13 +9,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -68,6 +69,7 @@ func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 	adminCtx := identity.WithActor(ctx, admin)
 	var suspendAfterSave atomic.Pointer[identity.Membership]
 	var loseReplyAfter atomic.Int32
+	var failExportContinuation atomic.Bool
 	var mutations, targets atomic.Int32
 	var sentLock sync.Mutex
 	var sent []struct{ key, body string }
@@ -90,21 +92,36 @@ func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 		if strings.Contains(r.URL.Path, "/resolve") || strings.Contains(r.URL.Path, "/catalog/") {
 			targets.Add(1)
 		}
+		if r.Method == http.MethodGet && r.URL.Path == personalSavePath && r.URL.Query().Get("cursor") != "" && failExportContinuation.CompareAndSwap(true, false) {
+			// Only inject the outage if this cursor actually opens the owner's second page.
+			reply := httptest.NewRecorder()
+			api.ServeHTTP(reply, r)
+			var page struct {
+				Items      []personal.Item `json:"items"`
+				NextCursor string          `json:"nextCursor"`
+			}
+			if reply.Code != http.StatusOK || json.Unmarshal(reply.Body.Bytes(), &page) != nil || len(page.Items) != 99 || page.NextCursor != "" {
+				t.Error("export did not reach the 99 remaining owner records")
+			}
+			http.Error(w, "temporary outage", http.StatusServiceUnavailable)
+			return
+		}
 		api.ServeHTTP(w, r)
 	}))
 	defer server.Close()
 	root := canonicalTempDir(t)
 	run := func(success bool, token string, args ...string) []byte {
 		t.Helper()
-		command := exec.CommandContext(ctx, binary, append([]string{"personal"}, args...)...) // #nosec G204,G702 -- compiled owned binary and synthetic fixture arguments.
-		command.Env = append(catalogctlProcessEnvironment(t), "CATALOG_REMOTE_BASE_URL="+server.URL, "CATALOG_REMOTE_TOKEN="+token, "CATALOG_CONFIG_FILE=/missing/PRIVATE_SENTINEL")
-		var stdout, stderr bytes.Buffer
-		command.Stdout, command.Stderr = &stdout, &stderr
-		err := command.Run()
-		if (err == nil) != success || success && stderr.Len() != 0 || strings.Contains(stderr.String(), "PRIVATE_SENTINEL") {
-			t.Fatalf("personal CLI: %v stdout=%s stderr=%s", err, &stdout, &stderr)
+		env := append(catalogctlProcessEnvironment(t), "CATALOG_REMOTE_BASE_URL="+server.URL, "CATALOG_REMOTE_TOKEN="+token, "CATALOG_CONFIG_FILE=/missing/PRIVATE_SENTINEL")
+		exitCode := 1
+		if success {
+			exitCode = 0
 		}
-		return stdout.Bytes()
+		stdout, stderr := startCatalogctlProcess(t, ctx, binary, env, append([]string{"personal"}, args...)...).wait(t, exitCode)
+		if success && len(stderr) != 0 || !success && len(stderr) == 0 || bytes.Contains(stderr, []byte("PRIVATE_SENTINEL")) {
+			t.Fatalf("personal CLI: stdout=%s stderr=%s", stdout, stderr)
+		}
+		return stdout
 	}
 	readReport := func(raw []byte) personalRestoreReport {
 		t.Helper()
@@ -362,11 +379,42 @@ func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 	}
 	// Quota admission remains per-save: a partial restore never removes existing items.
 	for i := 0; i < 197; i++ {
-		request("local-reader", "POST", personalSavePath, fmt.Sprintf("personal-quota-%d", i), personalTestBytes(t, item), 201)
+		filler := item
+		filler.Label = fmt.Sprintf("Quota item %03d", i)
+		request("local-reader", "POST", personalSavePath, fmt.Sprintf("personal-quota-%d", i), personalTestBytes(t, filler), 201)
 	}
 	expectedLibrary := readLibrary()
 	if len(expectedLibrary) != personal.MaxItems-1 {
 		t.Fatalf("expected one free slot, found %d", personal.MaxItems-len(expectedLibrary))
+	}
+	// Export into the same fresh destination again after an interrupted continuation.
+	exportDir := filepath.Join(root, "paginated-backup")
+	exportPath := filepath.Join(exportDir, "library.json")
+	failExportContinuation.Store(true)
+	if stdout := run(false, "local-reader", "export", "--output-dir", exportDir); failExportContinuation.Load() || len(stdout) != 0 {
+		t.Fatal("failed continuation was missed or reported a completed export")
+	}
+	if _, err := os.Stat(exportPath); !os.IsNotExist(err) {
+		t.Fatalf("interrupted export left a completed file: %v", err)
+	}
+	if !reflect.DeepEqual(readLibrary(), expectedLibrary) {
+		t.Fatal("interrupted export changed the owner's library")
+	}
+	var summary struct {
+		File  string `json:"file"`
+		Items int    `json:"items"`
+	}
+	if err := json.Unmarshal(run(true, "local-reader", "export", "--output-dir", exportDir), &summary); err != nil || summary.File != "library.json" || summary.Items != len(expectedLibrary) {
+		t.Fatalf("incorrect completed export summary: %+v, %v", summary, err)
+	}
+	exported, backup, err := readPersonalFile(exportPath)
+	if err != nil || len(backup.Items) != len(expectedLibrary) || bytes.Contains(exported, []byte(other.Label)) {
+		t.Fatalf("incomplete or cross-owner backup: %d items, %v", len(backup.Items), err)
+	}
+	for i, id := range slices.Sorted(maps.Keys(expectedLibrary)) {
+		if !reflect.DeepEqual(backup.Items[i], expectedLibrary[id].Input) {
+			t.Fatalf("backup item %d differs from the API record in owner ID order", i+1)
+		}
 	}
 	file.Items = []personal.Input{item, item}
 	file.Items[0].Label = "Fits in the last slot"

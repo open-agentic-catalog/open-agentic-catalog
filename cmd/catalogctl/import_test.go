@@ -309,18 +309,7 @@ func TestImportPreviewNativeFindingsAndMCPRoles(t *testing.T) {
 	}
 	dir, manifest := importTestInput(t)
 	resource := &manifest.Resources[0]
-	resource.Kind, resource.Version = catalog.KindMCPServer, "2.0.0"
-	for _, file := range []string{"everything.json", "everything.registry.json"} {
-		raw, err := samples.Files.ReadFile("cards/" + file)
-		if err != nil {
-			t.Fatal(err)
-		}
-		writeImportTestFile(t, dir, file, raw, 0600)
-	}
-	resource.Representations = []importRepresentation{
-		{Role: catalog.RepresentationPrimary, MediaType: adapter.MediaMCPServerCard, DataFile: "everything.json"},
-		{Role: catalog.RepresentationDistribution, MediaType: adapter.MediaMCPRegistry, DataFile: "everything.registry.json"},
-	}
+	useImportTestMCPServer(t, dir, resource)
 	plan, err := prepareImportTest(t, dir, manifest, 2<<20)
 	if err != nil || !plan.Preview.LocallyValid || !hasImportFinding(plan, "MCP_SERVER_CARD_EXPERIMENTAL") {
 		t.Fatalf("MCP pair failed: %v %#v", err, plan.Preview.Findings)
@@ -336,6 +325,22 @@ func TestImportPreviewNativeFindingsAndMCPRoles(t *testing.T) {
 	plan, err = prepareImportTest(t, dir, manifest, 2<<20)
 	if err != nil || !plan.Preview.LocallyValid || !hasImportFinding(plan, "MCP_REGISTRY_NOT_SERVER_CARD") {
 		t.Fatalf("private Registry draft rejected: %v %#v", err, plan.Preview.Findings)
+	}
+}
+
+func useImportTestMCPServer(t *testing.T, dir string, resource *importResource) {
+	t.Helper()
+	resource.Kind, resource.Version = catalog.KindMCPServer, "2.0.0"
+	for _, file := range []string{"everything.json", "everything.registry.json"} {
+		raw, err := samples.Files.ReadFile("cards/" + file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeImportTestFile(t, dir, file, raw, 0600)
+	}
+	resource.Representations = []importRepresentation{
+		{Role: catalog.RepresentationPrimary, MediaType: adapter.MediaMCPServerCard, DataFile: "everything.json"},
+		{Role: catalog.RepresentationDistribution, MediaType: adapter.MediaMCPRegistry, DataFile: "everything.registry.json"},
 	}
 }
 
@@ -355,12 +360,26 @@ func TestImportSkillDirectoryPreservesInventoryAndDoesNotExecute(t *testing.T) {
 	handoff := &catalog.SkillHandoff{Git: &catalog.GitHandoffReference{Repository: "https://example.com/skills.git", Commit: strings.Repeat("a", 40), Directory: "skills/safe-skill"}}
 	resource.Representations = []importRepresentation{{Role: catalog.RepresentationPrimary, MediaType: catalog.SkillPackageMediaZIP, PackageDirectory: "safe-skill", Handoff: handoff}}
 	markdown := "---\nname: safe-skill\ndescription: Helps with local examples\n---\n# Instructions\nKeep this exact.\n"
-	writeImportTestFile(t, dir, "safe-skill/SKILL.md", []byte(markdown), 0600)
-	writeImportTestFile(t, dir, "safe-skill/references/example.txt", []byte("supporting evidence\n"), 0600)
 	sentinel := filepath.Join(dir, "must-not-exist")
-	writeImportTestFile(t, dir, "safe-skill/scripts/run.sh", []byte("#!/bin/sh\ntouch '"+sentinel+"'\n"), 0700)
+	const script = "safe-skill/scripts/run.sh"
+	expected := map[string]string{
+		"safe-skill/SKILL.md": markdown,
+		script:                "#!/bin/sh\ntouch '" + sentinel + "'\n",
+	}
+	// More than one ReadDir batch in a single directory.
+	for i := range 65 {
+		number := strconv.Itoa(i)
+		expected["safe-skill/references/example-"+number+".txt"] = "supporting evidence " + number + "\n"
+	}
+	for name, contents := range expected {
+		mode := os.FileMode(0600)
+		if name == script {
+			mode = 0700
+		}
+		writeImportTestFile(t, dir, name, []byte(contents), mode)
+	}
 	plan, err := prepareImportTest(t, dir, manifest, 2<<20)
-	if err != nil || !plan.Preview.LocallyValid || plan.Preview.Representations[0].PackageFiles != 3 || plan.Preview.Representations[0].ExecutableFiles != 1 {
+	if err != nil || !plan.Preview.LocallyValid || len(plan.Preview.Representations) != 1 || plan.Preview.Representations[0].PackageFiles != len(expected) || plan.Preview.Representations[0].ExecutableFiles != 1 {
 		t.Fatalf("complete directory: %v %#v", err, plan.Preview)
 	}
 	if _, err := os.Stat(sentinel); !errors.Is(err, os.ErrNotExist) {
@@ -371,10 +390,21 @@ func TestImportSkillDirectoryPreservesInventoryAndDoesNotExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = root.Close() }()
-	first, err := importSkillDirectory(context.Background(), root, "safe-skill")
-	if err != nil {
-		t.Fatal(err)
+	preparedRepresentation := func(p importPlan) catalog.RepresentationInput {
+		t.Helper()
+		if len(p.Bodies) < 2 {
+			t.Fatal("import plan omits the Version request")
+		}
+		var version catalog.CreateVersionInput
+		if err := json.Unmarshal(p.Bodies[1], &version); err != nil {
+			t.Fatal(err)
+		}
+		if len(version.Representations) != 1 {
+			t.Fatalf("Version request has %d representations, want one", len(version.Representations))
+		}
+		return version.Representations[0]
 	}
+	first := preparedRepresentation(plan).PackageData
 	if err := os.Chtimes(filepath.Join(dir, "safe-skill/SKILL.md"), time.Unix(99, 0), time.Unix(99, 0)); err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +416,6 @@ func TestImportSkillDirectoryPreservesInventoryAndDoesNotExecute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	contents := map[string]string{}
 	for _, file := range archive.File {
 		if file.FileInfo().IsDir() {
 			continue
@@ -400,33 +429,33 @@ func TestImportSkillDirectoryPreservesInventoryAndDoesNotExecute(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		contents[file.Name] = string(raw)
-		if strings.HasSuffix(file.Name, "run.sh") && file.Mode()&0111 == 0 {
-			t.Fatal("executable evidence lost")
+		want, present := expected[file.Name]
+		if !present || string(raw) != want || (file.Mode()&0111 != 0) != (file.Name == script) {
+			t.Fatalf("unexpected, duplicated or changed archive member %q", file.Name)
 		}
+		delete(expected, file.Name)
 	}
-	if contents["safe-skill/SKILL.md"] != markdown || contents["safe-skill/references/example.txt"] != "supporting evidence\n" {
-		t.Fatal("archive lost exact supporting bytes")
+	if len(expected) != 0 {
+		t.Fatalf("archive omitted %d input files", len(expected))
 	}
 	writeImportTestFile(t, dir, "skill.zip", first, 0600)
 	resource.Representations[0].PackageDirectory, resource.Representations[0].PackageFile = "", "skill.zip"
 	plan, err = prepareImportTest(t, dir, manifest, 2<<20)
-	if err != nil || plan.Preview.Assets[0].Digest != importDigest(first) {
+	if err != nil || len(plan.Preview.Assets) == 0 || plan.Preview.Assets[0].Digest != importDigest(first) {
 		t.Fatal("existing ZIP changed")
 	}
-	var version catalog.CreateVersionInput
-	if err := json.Unmarshal(plan.Bodies[1], &version); err != nil || !bytes.Equal(version.Representations[0].PackageData, first) {
-		t.Fatalf("ZIP bytes changed: %v", err)
+	if !bytes.Equal(preparedRepresentation(plan).PackageData, first) {
+		t.Fatal("ZIP bytes changed in the prepared Version request")
 	}
 	if _, err := prepareImportTest(t, dir, manifest, len(first)+100); err == nil {
 		t.Fatal("base64 expansion did not count against request limit")
 	}
 	resource.Representations[0] = importRepresentation{Role: catalog.RepresentationPrimary, MediaType: adapter.MediaSkillMarkdown, ContentFile: "safe-skill/SKILL.md"}
 	plan, err = prepareImportTest(t, dir, manifest, 2<<20)
-	if err != nil || !plan.Preview.LocallyValid || plan.Preview.Representations[0].PackageFiles != 0 {
+	if err != nil || !plan.Preview.LocallyValid || len(plan.Preview.Representations) != 1 || plan.Preview.Representations[0].PackageFiles != 0 {
 		t.Fatalf("document-only Skill: %v", err)
 	}
-	if err := json.Unmarshal(plan.Bodies[1], &version); err != nil || version.Representations[0].Content != markdown || len(version.Representations[0].PackageData) != 0 {
+	if rep := preparedRepresentation(plan); rep.Content != markdown || len(rep.PackageData) != 0 {
 		t.Fatal("Markdown content/delivery changed")
 	}
 }

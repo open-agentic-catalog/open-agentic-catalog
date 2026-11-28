@@ -47,18 +47,22 @@ export function assertIconAssets(css, assets) {
   return icons;
 }
 
-export function assertNavigationIcons(links, entries, base, icons) {
+export function assertNavigationIcons(links, entries, base, icons, operationMethods) {
   const manual = new Set(entries.map(entry => base + (entry.route ? entry.route + '/' : '')));
   const used = new Set();
+  const linkedOperations = new Set();
   for (const link of links) {
     const attrs = attributes(link);
     const icon = attrs['data-nav-icon'];
     if (!manual.has(attrs.href)) {
       assert.equal(icon, undefined, `Generated API link must keep native badges: ${attrs.href}`);
       const operationPrefix = base + 'api/operations/';
-      if (attrs.href?.startsWith(operationPrefix) && attrs.href.slice(operationPrefix.length).split('/').filter(Boolean).length === 1) {
+      const slug = attrs.href?.startsWith(operationPrefix) ? attrs.href.slice(operationPrefix.length).replace(/\/$/, '') : '';
+      if (slug && !slug.includes('/')) {
+        assert(operationMethods.has(slug), `Unknown API operation: ${attrs.href}`);
         const badge = link.childNodes?.find(node => attributes(node).class?.split(' ').includes('sl-badge'));
-        assert(badge && /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE)$/.test(text(badge)), `Missing API method badge: ${attrs.href}`);
+        assert.equal(badge && text(badge), operationMethods.get(slug), `Incorrect API method badge: ${attrs.href}`);
+        linkedOperations.add(slug);
       }
       continue;
     }
@@ -74,4 +78,7 @@ export function assertNavigationIcons(links, entries, base, icons) {
     assert(!link.childNodes.some(node => node.tagName && node.tagName !== 'span'), `Nondecorative navigation content: ${attrs.href}`);
   }
   assert.deepEqual(used, icons, 'Unassigned navigation icon');
+  for (const slug of operationMethods.keys()) {
+    assert(linkedOperations.has(slug), `Missing API operation link: ${slug}`);
+  }
 }

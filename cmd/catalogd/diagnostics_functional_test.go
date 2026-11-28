@@ -17,11 +17,50 @@ import (
 	"testing"
 	"time"
 
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/diagnostics"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/safeerr"
 )
+
+func TestWorkerListenHostLookupFailure(t *testing.T) {
+	const child = "CATALOG_TEST_LISTEN_HOST_LOOKUP"
+	if os.Getenv(child) == "" {
+		runListenerTestChildren(t, child, "worker")
+		return
+	}
+	const hostname = "private-worker-listener.invalid"
+	const privateCause = "private-resolver-failure"
+	// Confine the process-wide resolver to this child. No DNS dial leaves it.
+	previous := net.DefaultResolver
+	net.DefaultResolver = &net.Resolver{PreferGo: true, Dial: func(context.Context, string, string) (net.Conn, error) {
+		return nil, errors.New(privateCause)
+	}}
+	t.Cleanup(func() { net.DefaultResolver = previous })
+	cfg := config.Defaults()
+	cfg.LogFormat = "json"
+	cfg.Worker.OperationsAddress = hostname + ".:0"
+	err := runArgs([]string{"worker", "--config", writeListenerTestConfig(t, cfg)})
+	var op *net.OpError
+	var dns *net.DNSError
+	if !errors.As(err, &op) || op.Op != "listen" || !errors.As(err, &dns) || dns.Name != hostname+"." || safeerr.Stage(err) != "listener" {
+		t.Fatalf("worker lost bind-host lookup failure: stage=%s, err=%v", safeerr.Stage(err), err)
+	}
+	if !strings.Contains(dns.Err, privateCause) {
+		t.Fatalf("worker failed for a different DNS reason: %v", dns)
+	}
+	var output bytes.Buffer
+	diagnostics.Report(&output, "catalogd", string(catalog.ErrorCodeOf(err)), err, true)
+	var record map[string]any
+	if err := json.Unmarshal(output.Bytes(), &record); err != nil {
+		t.Fatal(err)
+	}
+	if record["event"] != "process.failed" || record["role"] != "worker" || record["stage"] != "listener" ||
+		bytes.Contains(output.Bytes(), []byte(hostname)) || bytes.Contains(output.Bytes(), []byte(privateCause)) {
+		t.Fatalf("unsafe or misclassified worker diagnostic: %s", &output)
+	}
+}
 
 func TestCommandExecutablesKeepPrivateFailuresOffStderr(t *testing.T) {
 	const sentinel = "SYNTHETIC_PRIVATE_DIAGNOSTIC"

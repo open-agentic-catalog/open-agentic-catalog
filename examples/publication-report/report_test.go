@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	sdk "github.com/open-agentic-catalog/open-agentic-catalog/sdk/go"
-	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -46,7 +45,7 @@ func TestCurrentReportProjection(t *testing.T) {
 				snapshots: func(_ context.Context, p *sdk.ListPublicationSnapshotsParams) (*sdk.ListPublicationSnapshotsResponse, error) {
 					calls = append(calls, "snapshots")
 					requireSelection(t, p)
-					return snapshotReply(t, activePage(8), "application/json", 200), nil
+					return snapshotReply(t, activePage(8), "application/json"), nil
 				},
 				loss: func(context.Context) (*sdk.GetWebhookReconciliationResponse, error) {
 					calls = append(calls, "loss")
@@ -80,7 +79,7 @@ func TestSnapshotSemanticRefusalsAfterSDKDecode(t *testing.T) {
 		{"non JSON success", valid, "text/plain", "catalog_read_failed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			response := snapshotReply(t, tc.body, tc.media, http.StatusOK)
+			response := snapshotReply(t, tc.body, tc.media)
 			if tc.media == "application/json" && response.JSON200 == nil {
 				t.Fatal("semantic negative was masked by SDK decoding")
 			}
@@ -96,6 +95,54 @@ func TestSnapshotSemanticRefusalsAfterSDKDecode(t *testing.T) {
 				t.Fatal("refused response produced a report or repeated a read")
 			}
 		})
+	}
+}
+
+func TestReceiptRequiresBothSnapshotProfiles(t *testing.T) {
+	valid := activePage(8)
+	limit := strings.Repeat("界", 128)
+	for _, field := range []struct{ key, original string }{
+		{"ardProfile", "fixture-ard"}, {"aiCatalogProfile", "fixture-ai-catalog"},
+	} {
+		member := `,"` + field.key + `":`
+		for _, tc := range []struct {
+			name, replacement string
+			valid             bool
+		}{
+			{"missing", "", false},
+			{"null", member + "null", false},
+			{"empty", member + `""`, false},
+			{"over limit", member + `"` + limit + `界"`, false},
+			{"at limit", member + `"` + limit + `"`, true},
+		} {
+			t.Run(field.key+"/"+tc.name, func(t *testing.T) {
+				body := strings.Replace(valid, member+`"`+field.original+`"`, tc.replacement, 1)
+				response := snapshotReply(t, body, "application/json")
+				if response.JSON200 == nil {
+					t.Fatal("profile case did not reach receiver validation")
+				}
+				c := &catalogCalls{snapshots: func(_ context.Context, p *sdk.ListPublicationSnapshotsParams) (*sdk.ListPublicationSnapshotsResponse, error) {
+					requireSelection(t, p)
+					return response, nil
+				}}
+				e := publicationEvent()
+				s := &memoryStore{saved: Saved{LastSuccessful: &Report{Active: &Snapshot{Generation: 7}}}, pending: &e}
+				a := &application{store: s, catalog: c, tenant: testTenant, host: testHost, now: func() time.Time { return testTime }}
+				err := a.process(t.Context())
+				if tc.valid {
+					want := expectedReport(&e)
+					if err != nil || s.pending != nil || s.completions != 1 || !reflect.DeepEqual(s.saved.LastSuccessful, &want) {
+						t.Fatal("unfamiliar valid profile changed the report or left the receipt pending", err)
+					}
+					return
+				}
+				requireCode(t, err, "invalid_catalog_response")
+				wantPrior := &Report{Active: &Snapshot{Generation: 7}}
+				if s.pending == nil || *s.pending != publicationEvent() || s.completions != 0 || !reflect.DeepEqual(s.saved.LastSuccessful, wantPrior) || s.saved.RefreshFailure != "invalid_catalog_response" {
+					t.Fatal("invalid profile replaced the prior report, completed the receipt or lost the failure")
+				}
+			})
+		}
 	}
 }
 

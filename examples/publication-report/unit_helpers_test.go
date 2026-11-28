@@ -44,9 +44,9 @@ func (c *catalogCalls) GetWebhookReconciliationWithResponse(ctx context.Context,
 	return c.loss(ctx)
 }
 
-func snapshotReply(t *testing.T, raw, media string, status int) *sdk.ListPublicationSnapshotsResponse {
+func snapshotReply(t *testing.T, raw, media string) *sdk.ListPublicationSnapshotsResponse {
 	t.Helper()
-	r, err := sdk.ParseListPublicationSnapshotsResponse(&http.Response{StatusCode: status, Header: http.Header{"Content-Type": {media}}, Body: io.NopCloser(strings.NewReader(raw))})
+	r, err := sdk.ParseListPublicationSnapshotsResponse(&http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {media}}, Body: io.NopCloser(strings.NewReader(raw))})
 	if err != nil {
 		t.Fatal("snapshot fixture does not reach the receiver decoder", err)
 	}

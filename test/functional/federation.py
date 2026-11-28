@@ -98,6 +98,14 @@ def observations(api, source_id, freshness="current"):
     return document["items"]
 
 
+def current_group_contributions(api, identity):
+    group, _ = api.request("GET", "/api/v1/observation-groups?" + urllib.parse.urlencode(identity))
+    assert group["identifier"] == identity["identifier"] and group["versionPresent"] == ("version" in identity), "wrong observation group identity"
+    assert group.get("version") == identity.get("version"), "wrong observation group version"
+    return [(member["normalizedEntryDigest"], contribution["observation"]["id"], contribution["observation"]["sourceId"])
+            for member in group["members"] for contribution in member["contributions"]]
+
+
 def source_revision(api, source_id):
     document, _ = api.request("GET", f"/api/v1/federation/sources/{source_id}")
     return document["revision"]

@@ -127,6 +127,23 @@ test("missing, malformed and ambiguous refIds cannot admit another result's samp
   assert.equal(hasPositiveHeapQuery(duplicate, "worker", window), false);
 });
 
+test("the returned heap series must carry the selected role and deployment", () => {
+  const exchange = fixture();
+  const query = exchange.request.queries[0];
+  const heap = query.expr;
+  const guard =
+    'open_agentic_catalog_go_metric_available{catalog_deployment="local",catalog_role=~"worker",metric="open_agentic_catalog_go_heap_bytes"} == 1';
+  for (const [expression, expected] of [
+    [`(${heap}) and on (instance) (${guard})`, true],
+    [guard, false],
+    [`(${heap.replace("worker", "api")}) and on (instance) (${guard})`, false],
+    [`(${heap.replace("local", "other")}) and on (instance) (${guard})`, false],
+  ]) {
+    query.expr = expression;
+    assert.equal(hasPositiveHeapQuery(exchange, "worker", window), expected);
+  }
+});
+
 test("native request times must equal the recorded workload window", () => {
   for (const key of ["from", "to"]) {
     for (const supplied of [
@@ -161,6 +178,21 @@ test("native request times must equal the recorded workload window", () => {
   }
 });
 
+test("positive heap values must share a row with an in-window time sample", () => {
+  for (const [times, heap, expected] of [
+    [[999, 1500, 2001], [42, 0, 42], false],
+    [[999, 1000], [0, 42], true],
+    [[2000, 2001], [42, 0], true],
+    [[1500.5], [42], false],
+  ]) {
+    const exchange = fixture();
+    const series = exchange.body.results.A.frames[0];
+    series.schema.fields.reverse();
+    series.data.values = [heap, times];
+    assert.equal(hasPositiveHeapQuery(exchange, "worker", window), expected);
+  }
+});
+
 test("malformed or nonpositive numeric frames refuse rather than throw", () => {
   for (const invalid of [
     null,
@@ -170,6 +202,10 @@ test("malformed or nonpositive numeric frames refuse rather than throw", () => {
     frame("A", []),
     frame("A", [0, -2, null]),
     frame("A", [NaN, Infinity]),
+    {
+      schema: { refId: "A", fields: [{ type: "number" }] },
+      data: { values: [[42]] },
+    },
     {
       schema: { refId: "A", fields: [{ type: "number" }] },
       data: { values: [[]] },
